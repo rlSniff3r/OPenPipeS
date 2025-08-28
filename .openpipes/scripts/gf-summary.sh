@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # === CONFIG ===
-source $HOME/.openpipes/scripts/config.sh
+source $HOME/.openpipes/config.sh
 gf_dir="$HOME/.openpipes/.gf"
 gf_filters=(xss sqli lfi rce idor redirect debug_logic interestingparams)  # personalizável
 exts=("php" "json" "js" "bak" "zip" "env" "txt" "log" "conf")

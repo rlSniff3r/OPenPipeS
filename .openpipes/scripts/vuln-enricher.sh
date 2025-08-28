@@ -2,7 +2,7 @@
 
 # Diretório base do 
 # Configs
-source $HOME/.openpipes/scripts/config.sh
+source $HOME/.openpipes/config.sh
 OPENAI_API_KEY="${OPENAI_API_KEY:-$(grep OPENAI_API_KEY ~/.bashrc | cut -d '=' -f2 | tr -d "'")}"
 echo $OPENAI_API_KEY
 

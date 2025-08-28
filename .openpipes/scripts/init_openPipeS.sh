@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configs
-source $HOME/.openpipes/scripts/config.sh
+source $HOME/.openpipes/config.sh
 
 # Função para log com timestamp
 log() {

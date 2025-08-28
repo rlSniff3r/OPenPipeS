@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configs
-source $HOME/.openpipes/scripts/config.sh
+source $HOME/.openpipes/config.sh
 
 # Prompt para escolher o alvo (nome do host)
 echo "[*] Selecione o alvo:"

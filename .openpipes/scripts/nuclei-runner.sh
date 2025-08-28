@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configs
-source $HOME/.openpipes/scripts/config.sh
+source $HOME/.openpipes/config.sh
 
 base_dir="$PWD"
 templates_dir="$HOME/nuclei.openpipes/.templates"  # Var declarada mas não utilizada
