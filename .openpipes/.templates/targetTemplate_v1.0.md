@@ -16,6 +16,8 @@
 🧹 -  [[nmap.md|Nmap results]]
 🛜 -  [[httpx.md|HTTPX results]]
 📦 -  [[nuclei.md|Nuclei results]]
+🧪 -  [[gf-summary.md|gf Summary]]
+🪡 -  [[js-endpoints.md|js Endpoints]]
 
 ---
 # 🚩 Progresso

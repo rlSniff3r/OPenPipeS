@@ -27,7 +27,7 @@ echo "##############################################################"
 echo "  Making scripts executable (chmod +x) ... "
 echo "##############################################################"
 
-for file in $(ls $scripts_dir | rev | cut -d "/" -f1 | rev);do 
+for file in $(ls $scripts_dir/* | rev | cut -d "/" -f1 | rev);do 
     sudo chmod +x $path/$file;
 done
 
@@ -44,9 +44,9 @@ echo "##############################################################"
 wget $dnsrecon_ver && unzip 1.1.3.zip && sudo rm -rf $dnsrecon_dir/* && sudo mkdir -p $dnsrecon_dir && sudo cp -r dnsrecon-1.1.3/* $dnsrecon_dir
 
 echo "##############################################################"
-echo "  Installing RDAP ... "
+echo "  Updating repositories and installing RDAP ... "
 echo "##############################################################"
 
-sudo apt-get update && sudo apt install rdap
+sudo apt-get update && sudo apt install rdap -y
 
 # dependencies=("")
