@@ -41,5 +41,5 @@ mkdir Recon && cd Recon
   done
 fi
 
-mkdir -p Varreduras
+mkdir -p $base_dir
 cat Recon/*/hosts-allsubs | grep "has address" | cut -d " " -f1,4 | egrep "$(cat domains.txt | sed -z 's/\n/|/g' | sed 's/.$//g')" | sed -z 's/ /\n/g' | sort -u > Varreduras/targets.txt

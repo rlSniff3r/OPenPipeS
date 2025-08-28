@@ -13,7 +13,8 @@
 # === CONFIGURAÇÃO GLOBAL ===
 source $HOME/.openpipes/config.sh
 
-varredurasdir="$pwd"
+cd $base_dir
+
 wordlist="/usr/share/wordlists/dirb/big-parsed.txt"
 threads=3
 web_ports_whitelist=(80 81 82 83 84 85 88 89 90 98 99 443 591 593 8000 8001 8008 8010 8080 8081 8082 8088 8180 8181 8222 8280 8281 8443 8500 8501 8530 8531 8800 8880 8888 9000 9080 9443 9800 9981 10000 11371 12443 16080 18080 20000 2443 3000 3001) # [MODIFICADO]

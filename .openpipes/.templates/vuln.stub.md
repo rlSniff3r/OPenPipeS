@@ -14,21 +14,12 @@ Cheatsheet: https://cheatsheetseries.owasp.org/
 
 <br>
 
-> [!tldr]  Descrição
+> [!tldr] Descrição
 ***
-A aplicação falha em tratar _inputs_ de usuário de forma suficientemente adequada...
+
+Descritivo da vulnerabilidade...
 
 <br>
 
-> [!example] 📷 Evidencias
+> [!success] Recomendação
 ***
-
-[[Snapshots_01]] 
-
-[[Snapshots_02]] 
-
-<br>
-
-> [!bug] ⬇️ Etapas para reproduzir
-***
-Envie a seguinte POST Request...
