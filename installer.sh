@@ -85,7 +85,7 @@ read -p "Name of your first Project (usually your target's business name): " pro
 sed -i 's-proj_name=.*-proj_name='\""${proj_name}"\"'-' $config_file
 
 echo "##############################################################"
-echo " Enter domains one at a time you wish OPenPipeS to Recon ... "
+echo " Enter domains you wish OPenPipeS to Recon one at a time ... "
 echo " Obs.: Please note you need ONLY 2nd level domains, ex.: "
 echo " example.com "
 echo " tesla.com "
@@ -94,19 +94,44 @@ echo " etc... "
 echo "##############################################################"
 
 proj_path=${proj_dir}/${proj_name}
+domains=${proj_path}/domains.txt
 
 read -p "Enter a domain to start the Reconnaissance: " domain
-echo $domain > ${proj_path}/domains.txt
+echo $domain > ${domains}
 
-echo "++ Recon file ${proj_path}/domains.txt created, add as many domains as you want for the Recon phase."
+echo ""
+echo "[+] Recon file ${domains} created, add as many domains as you want for the Recon phase."
+echo "[+] added $domain to ${domains}"
+echo ""
 
 echo "##############################################################"
 echo " Avoid using 3rd+ level domains (ex. sub.example.com) as "
-echo " this will significantly diminish the mapped attack surface "
+echo " this will significantly reduce the mapped attack surface "
 echo "##############################################################"
 
 while [[ -n $domain ]]; do
     read -p "Enter another domain or press [ENTER] twice when you're done: " domain
+    echo "[+] added $domain to ${domains}"
 done
+
+echo ""
+echo "[✅] Arquivo ${domains} finalizado!"
+echo "[📄] domains.txt"
+cat ${domains}
+echo ""
+
+echo "##############################################################"
+echo " Initial configuration of OPenPipeS finished!"
+echo " Please, map your host's Obsidian Project folder to:"
+echo " ${obsdir}"
+echo ""
+echo " The configuration file to OPenPipeS is at:"
+echo " ${config_file}"
+echo ""
+echo " After setting up your Obsidian mount, plase use the"
+echo " orquestrator to start the Recon and Enumeration of"
+echo " the targets and start feeding your Obsidian's Dashboards"
+echo " and files with the information gathered by OPenPipeS!"
+echo "##############################################################"
 
 # dependencies=("")
