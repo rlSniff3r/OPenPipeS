@@ -1,0 +1,11 @@
+{
+  "title": "Insecure HTTP Methods Enabled",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O HTTP possui diversos métodos que permitem operações no servidor web. Embora GET e POST sejam os mais usados, outros métodos menos conhecidos também são suportados. Se o servidor estiver configurado incorretamente, alguns deles podem ser usados de forma maliciosa.",
+  "observation": "Outros: Impacto Técnico: Varia de acordo com o contexto",
+  "remediation": "Os métodos considerados desnecessários na configuração do servidor devem ser desativados.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/06-Test_HTTP_Methods",
+    "https://cwe.mitre.org/data/definitions/16.html"
+  ]
+}

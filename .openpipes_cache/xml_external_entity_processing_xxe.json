@@ -1,0 +1,11 @@
+{
+  "title": "XML External Entity Processing (XXE)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "Alguns aplicativos transmitem dados entre o navegador e o servidor usando o formato XML. Os aplicativos que realizam isso quase sempre processam os dados XML no servidor usando uma biblioteca padrão ou API de plataforma. Um exemplo de entidade XML especial é aquela cujos valores definidos são carregados de fontes diferentes do DTD em que são declarados. Do ponto de vista da segurança, entidades externas são particularmente interessantes porque permitem a definição de uma entidade com base no conteúdo de um caminho de arquivo ou URL.",
+  "observation": "Confidencialidade: Ler arquivos ou diretórios: Se o invasor conseguir incluir um DTD criado e um resolvedor de entidade padrão estiver habilitado, o invasor poderá acessar arquivos arbitrários no sistema. Integridade: Mecanismo de Proteção de Ignorância: O DTD pode incluir solicitações HTTP arbitrárias que o servidor pode executar. Isso pode levar a outros ataques que aproveitam a relação de confiança do servidor com outras entidades. Disponibilidade: DoS: Consumo de Recursos (Memória): O software pode consumir ciclos excessivos de CPU ou memória usando um URI que aponta para um arquivo grande ou um dispositivo que sempre retorna dados, como /dev/random. Como alternativa, o URI pode referenciar um arquivo que contém muitas referências de entidades aninhadas ou recursivas para tornar a análise ainda mais lenta.",
+  "remediation": "De acordo com a Folha de Dicas do OWASP &quot;XXE Prevention&quot;, desative o processamento de entidades externas XML e DTDs em todos os analisadores XML no aplicativo. Além disso, use validação, filtragem ou higienização de entrada do lado do servidor que seja positiva (&quot;lista de permissões&quot;) para afastar dados hostis em documentos XML, cabeçalhos ou nós.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/611.html",
+    "https://owasp.org/www-community/vulnerabilities/XML_External_Entity_(XXE)_Processing https://capec.mitre.org/data/definitions/201.html"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "SSL/TLS Certificate Name Mismatch",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "O certificado SSL/TLS do servidor não corresponde ao nome do host da aplicação acessada. Isso pode indicar configuração incorreta ou até mesmo tentativa de ataque man-in-the-middle.",
+  "observation": "Confidencialidade: Atacantes podem explorar a falta de correspondência para interceptar dados sensíveis.",
+  "remediation": "Emitir e configurar corretamente um certificado SSL/TLS válido para o domínio específico da aplicação.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/295.html"
+  ]
+}

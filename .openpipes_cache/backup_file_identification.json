@@ -1,0 +1,12 @@
+{
+  "title": "Backup File Identification",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Arquivos não relacionados à aplicação, mas criados como resultado da edição de arquivos, backups em uso ou arquivos desatualizados deixados no diretório web, são uma fonte significativa de vulnerabilidade. Edições em produção ou tarefas administrativas podem deixar cópias de backup criadas automaticamente pelo editor ou pelo administrador ao comprimir arquivos para backup.Arquivos editados podem deixar cópias automáticas do tipo .bak, .sav, .old ou ~. O servidor web geralmente não possui interpretação definida para esses arquivos, resultando na exibição de seu conteúdo ou no download.",
+  "observation": "Confidencialidade: Ler Dados da Aplicação: O atacante pode ser capaz de ler informações sensíveis",
+  "remediation": "Para remover o risco, é necessário excluir o arquivo de backup descoberto. Rotineiramente deve-se procurar no servidor por arquivos com extensões .bak, .bac, .sav, .old, .BAK, .BAC, .SAV, .OLD, .tar, .gz e .tgz e removê-los para mitigar esse problema. Recomenda-se também configurar o servidor web para compreender essas extensões a fim de evitar exibição ou download de seu conteúdo. Caso o diretório raiz esteja em um sistema de arquivos com snapshots, estes não devem ser acessíveis via web. Configure o servidor web para negar acesso a tais diretórios. Exemplo no Apache:Order deny,allowDeny from all",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/04-Review_Old_Backup_and_Unreferenced_Files_for_Sensitive_Information",
+    "https://cwe.mitre.org/data/definitions/200.html",
+    "https://cwe.mitre.org/data/definitions/530.html"
+  ]
+}

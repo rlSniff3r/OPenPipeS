@@ -1,0 +1,10 @@
+{
+  "title": "Remote Code Execution (RCE) by Improper Access Control",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "A falha do software em impor controles de acesso a um objeto de site é chamada de vulnerabilidade de controle de acesso impróprio. Ao acessar o serviço web, um usuário mal-intencionado pode comprometer a segurança do software e realizar determinadas ações não autorizadas.",
+  "observation": "Outro: Varia de acordo com o contexto: Um invasor pode acessar qualquer funcionalidade que seja inadvertidamente acessível à fonte.",
+  "remediation": "Não permita que usuários anônimos acessem este site.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/284.html"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "title": "Absence of X-frame-options Header",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Um usuário é induzido a usar funcionalidades em um site oculto ao clicar em outro conteúdo em um site falso explorando a vulnerabilidade de Clickjacking. A técnica consiste em incorporar um botão ou link invisível (por exemplo, dentro de um iframe) sobreposto a uma página web legítima. O iframe cobre o conteúdo esperado pelo usuário.",
+  "observation": "Controle de Acesso: Obter Privilégios ou Assumir Identidade: Um atacante pode obter privilégios modificando ou lendo dados críticos diretamente, ou acessando funcionalidades privilegiadas insuficientemente protegidas.",
+  "remediation": "O cabeçalho X-Frame-Options é suportado pela maioria dos navegadores modernos. É recomendável configurar o servidor web para habilitar esse cabeçalho em todas as páginas. Caso a página deva conter apenas código do próprio servidor, utilize a opção SAMEORIGIN.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/07-Test_HTTP_Strict_Transport_Security",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/12-Test_for_Content_Security_Policy",
+    "https://cwe.mitre.org/data/definitions/16.html",
+    "https://cwe.mitre.org/data/definitions/693.html",
+    "https://wiki.owasp.org/index.php/OWASP_Secure_Headers_Project",
+    "https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration"
+  ]
+}

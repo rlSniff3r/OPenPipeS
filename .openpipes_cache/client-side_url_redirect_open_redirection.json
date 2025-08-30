@@ -1,0 +1,11 @@
+{
+  "title": "Client-side URL Redirect (open Redirection)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "Uma vulnerabilidade conhecida como Redirecionamento Aberto ocorre quando um programa incorpora inadvertidamente dados controláveis pelo usuário no destino de um redirecionamento. Dentro do aplicativo, um invasor pode criar uma URL que direciona o tráfego para qualquer domínio externo.",
+  "observation": "Controle de Acesso: Obter Privilégios ou Assumir Identidade: O usuário pode ser redirecionado para uma página não confiável que contém malware, o que pode comprometer a máquina do usuário. Isso o exporá a riscos extensos, e a interação do usuário com o servidor web também poderá ser comprometida se o malware realizar keylogging ou outros ataques que roubem credenciais, informações de identificação pessoal (PII) ou outros dados importantes. Outros: O usuário pode ser alvo de ataques de phishing ao ser redirecionado para uma página não confiável. O ataque de phishing pode levar a uma página da web controlada pelo invasor que parece ser um site confiável. Os phishers podem então roubar as credenciais do usuário e usá-las para acessar o site legítimo.",
+  "remediation": "Ao desabilitar a função de redirecionamento ou manter uma lista do lado do servidor de todos os URLs permitidos para redirecionamento, os aplicativos devem, sempre que possível, evitar incorporar dados controláveis pelo usuário em destinos de redirecionamento.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/601.html",
+    "https://portswigger.net/kb/issues/00500100_open-redirection-reflected"
+  ]
+}

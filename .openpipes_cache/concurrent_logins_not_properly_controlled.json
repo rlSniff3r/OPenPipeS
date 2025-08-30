@@ -1,0 +1,10 @@
+{
+  "title": "Concurrent Logins Not Properly Controlled.",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "Os aplicativos que exigem autenticação devem permitir apenas uma sessão ativa por usuário e não devem permitir várias sessões de usuários autenticados em vários navegadores ou computadores.",
+  "observation": "Controle de acesso: Mecanismo de proteção de bypass: Um invasor pode permanecer conectado por muito tempo, o que pode reutilizar IDs antigos ou excluídos e referências diretas.",
+  "remediation": "É aconselhável que as sessões do mesmo usuário não sejam executadas simultaneamente e que eles sempre recebam uma notificação quando uma sessão antiga ainda estiver ativa.",
+  "references": [
+    "https://owasp.org/www-community/attacks/Session_hijacking_attack"
+  ]
+}

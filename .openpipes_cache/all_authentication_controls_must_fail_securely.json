@@ -1,0 +1,10 @@
+{
+  "title": "All Authentication Controls Must Fail Securely",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:L",
+  "description": "O tratamento seguro de erros é um componente crucial da programação segura. Dois erros, em particular, exigem atenção especial. A primeira categoria são exceções que surgem durante o processamento de um controle de segurança. É crucial que essas exceções não permitam ações que o mecanismo de proteção normalmente proibiria. Como desenvolvedor, deve-se ter em mente que um mecanismo de segurança geralmente possui três resultados possíveis:Permitir o procedimento.Não permitir a operação.Uma exceção. Em geral, o mecanismo de segurança deve ser construído de modo que uma falha tenha o mesmo efeito que desligar a operação.",
+  "observation": "Confidencialidade: Leitura de Arquivos ou Diretórios: Um atacante poderia ler dados sensíveis, seja diretamente de um repositório de dados não protegido adequadamente, ou acessando funcionalidades privilegiadas insuficientemente protegidas.Integridade: Modificação de Arquivos ou Diretórios: Um atacante poderia modificar dados sensíveis, seja escrevendo diretamente em um repositório de dados não protegido adequadamente, ou acessando funcionalidades privilegiadas insuficientemente protegidas.Controle de Acesso: Ganhar Privilégios ou Assumir Identidade: Um atacante poderia obter privilégios modificando ou lendo dados críticos diretamente, ou acessando funcionalidades privilegiadas insuficientemente protegidas.",
+  "remediation": "Antes de usar qualquer sistema de controle de acesso em sua aplicação, certifique-se de que todos tenham passado por testes de segurança extensivos. Testes unitários completos são frequentemente feitos especificamente para esse propósito.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/285.html"
+  ]
+}

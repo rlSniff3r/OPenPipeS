@@ -1,0 +1,11 @@
+{
+  "title": "Insecure Validation in File Upload Functionality",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "Muitos aplicativos permitem que os usuários carreguem dados em seus processos de negócios. Embora a validação de entrada para campos de entrada baseados em texto seja amplamente compreendida, a aceitação de arquivos torna sua implementação mais desafiadora. Embora muitos sites utilizem restrições diretas baseadas em uma lista de extensões permitidas (ou bloqueadas), isso é insuficiente para impedir que invasores carreguem tipos de arquivo seguros com conteúdo malicioso.",
+  "observation": "Disponibilidade: Executar Código ou Comandos Não Autorizados: A execução arbitrária de código é possível se um arquivo carregado for interpretado e executado como código pelo destinatário. Isso é especialmente verdadeiro para extensões .asp e .php carregadas em servidores web, pois esses tipos de arquivo são frequentemente tratados como executáveis automaticamente, mesmo quando as permissões do sistema de arquivos não especificam a execução. Por exemplo, em ambientes Unix, os programas normalmente não podem ser executados a menos que o bit de execução esteja definido, mas programas PHP podem ser executados pelo servidor web sem invocá-los diretamente no sistema operacional.",
+  "remediation": "Controle adequadamente os tipos de arquivos enviados ao aplicativo. Examine o tipo de arquivo, prestando atenção tanto à extensão quanto ao conteúdo.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/10-Business_Logic_Testing/09-Test_Upload_of_Malicious_Files.html",
+    "https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html"
+  ]
+}

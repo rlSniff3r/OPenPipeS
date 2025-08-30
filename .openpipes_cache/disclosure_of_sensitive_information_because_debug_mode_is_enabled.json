@@ -1,0 +1,10 @@
+{
+  "title": "Disclosure of Sensitive Information Because Debug Mode Is Enabled",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O uso de um \"parâmetro de debug habilitado\" pode, em alguns casos, permitir a exibição de dados técnicos ou segredos comerciais dentro da aplicação. Isso aumenta a superfície de ataque, pois o invasor passa a conhecer mais sobre o funcionamento da aplicação. Em alguns casos, habilitar a flag de debug pode até resultar em ataques de execução de código (ex.: versões antigas do werkzeug).",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "Aplicações em produção nunca devem gerar informações internas como rastreamentos de pilha (stack traces) e mensagens de erro, a menos que sejam registradas diretamente em logs inacessíveis ao usuário final. Todas as mensagens de erro devem ser codificadas em entidades HTML antes de serem gravadas no log, prevenindo ataques de cross-site scripting contra o visualizador de logs.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/497.html"
+  ]
+}

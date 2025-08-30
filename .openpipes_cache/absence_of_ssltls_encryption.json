@@ -1,0 +1,16 @@
+{
+  "title": "Absence of SSL/TLS Encryption",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "Em vez do protocolo HTTPS, a aplicação utiliza HTTP para comunicação com o servidor web. Para impedir que um atacante leia ou altere os dados transmitidos entre cliente e servidor, a comunicação deve ser criptografada. O método mais comum é o uso do HTTPS, que substitui o protocolo SSL pelo TLS. Por meio de um certificado digital confiável, o servidor pode provar ao cliente que está se comunicando com o servidor legítimo.Ao longo dos anos, diversas fraquezas criptográficas foram descobertas nos protocolos SSL/TLS e em seus algoritmos. Além disso, muitas implementações desses protocolos também apresentaram vulnerabilidades graves. Por isso, é importante não apenas implementar TLS, mas garantir que ele seja configurado de forma segura.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: Um atacante pode ser capaz de descriptografar os dados por meio de ataques de força bruta.",
+  "remediation": "O servidor web deve ser configurado para suportar HTTPS. Além disso, é recomendável usar o cabeçalho HSTS e redirecionar todas as requisições HTTP para HTTPS.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/04-Enumerate_Applications_on_Webserver",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/04-Testing_for_Weak_Encryption",
+    "https://cwe.mitre.org/data/definitions/311.html",
+    "https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Strict_Transport_Security_Cheat_Sheet.html",
+    "https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Protection_Cheat_Sheet.html",
+    "https://wiki.owasp.org/index.php/Testing_for_Weak_SSL/TLS_Ciphers,_Insufficient_Transport_Layer_Protection_(OTG-CRYPST-001)"
+  ]
+}

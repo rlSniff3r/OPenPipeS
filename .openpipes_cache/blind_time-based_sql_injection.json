@@ -1,0 +1,11 @@
+{
+  "title": "Blind Time-based SQL Injection",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "O ataque SQL Injection (SQLi) tenta obter informações ou até executar comandos através dessa vulnerabilidade, interagindo inesperadamente com o banco de dados. Como neste caso se trata de um SQLi baseado em tempo, a resposta não fornece diretamente informações; o atacante precisa interpretar o tempo de resposta do servidor para obter os dados necessários.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: Como bancos de dados SQL geralmente armazenam dados sensíveis, a perda de confidencialidade é um problema frequente em vulnerabilidades de SQL injection.Controle de Acesso: Bypass do Mecanismo de Proteção: Se comandos SQL pobres forem usados para verificar nomes de usuário e senhas, pode ser possível se conectar ao sistema como outro usuário sem conhecimento prévio da senha.Controle de Acesso: Bypass do Mecanismo de Proteção: Se informações de autorização estiverem em um banco SQL, pode ser possível alterá-las explorando com sucesso a vulnerabilidade de SQL injection.Integridade: Modificação de Dados da Aplicação: Assim como é possível ler dados sensíveis, também é possível alterá-los ou até deletá-los usando SQL injection.",
+  "remediation": "É aconselhável sanitizar os parâmetros de entrada da aplicação para impedir que atacantes introduzam caracteres que possam alterar a consulta SQL e obter informações indevidas.A principal recomendação é implementar um sistema de \"Lista Branca\", aceitando apenas palavras e caracteres definidos, ignorando quaisquer outros antes de usá-los no banco. Se isso não for possível, pode-se usar uma \"Lista Negra\" para bloquear caracteres vulneráveis, como % #'\"\"\"\"'\"\"\"\" () +, ;, e palavras-chave SQL como \"select\", \"where\", \"union\", \"join\" e \"update\". Além disso, deve-se verificar variações de codificação desses caracteres, como URL encoding, unicode/UTF-8 e hexadecimal.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/05-Testing_for_SQL_Injection",
+    "https://cwe.mitre.org/data/definitions/89.html"
+  ]
+}

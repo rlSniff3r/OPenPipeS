@@ -1,0 +1,11 @@
+{
+  "title": "HTML Content Injection",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "Injeções de HTML permitem a injeção de código HTML do lado do cliente, que o navegador da vítima interpretará ao visitar uma URL. É possível alterar o DOM e, em algumas circunstâncias, injetar código JavaScript para auxiliar no roubo de dados do navegador da vítima.",
+  "observation": "Disponibilidade: DoS: Consumo de recursos (memória): Um invasor pode fornecer valores inesperados e causar uma falha no programa ou consumo excessivo de recursos, como memória e CPU. Confidencialidade: Leitura de arquivos ou diretórios: Um invasor pode ler dados confidenciais se conseguir controlar referências de recursos. Disponibilidade: Executar códigos ou comandos não autorizados: Um invasor pode usar entradas maliciosas para modificar dados ou possivelmente alterar o fluxo de controle de maneiras inesperadas, incluindo execução de comandos arbitrários.",
+  "remediation": "Esse tipo de ataque pode ser interrompido higienizando adequadamente a entrada do usuário ou validando corretamente o conteúdo que o servidor recebe e envia.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/11-Client-side_Testing/03-Testing_for_HTML_Injection",
+    "https://cwe.mitre.org/data/definitions/20.html"
+  ]
+}

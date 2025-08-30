@@ -1,0 +1,10 @@
+{
+  "title": "The Login Functionality Should Always Generate a New Session Id",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N",
+  "description": "A aplicação deve sempre gerar um novo cookie de sessão após autenticação bem-sucedida do usuário.",
+  "observation": "Controle de Acesso: Obter Privilégios ou Assumir Identidade: A aplicação não invalida identificadores de sessão existentes, permitindo que um atacante roube sessões autenticadas.",
+  "remediation": "Após o login bem-sucedido, a aplicação deve gerar e usar um novo ID de sessão, prevenindo ataques de fixação de sessão. Em frameworks que não permitem regenerar IDs (ex.: .NET), pode-se adicionar um cookie aleatório extra com valor salvo em variável de sessão. Assim, a autenticação depende de mais de um token e o ataque de fixação é mitigado.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/384.html"
+  ]
+}

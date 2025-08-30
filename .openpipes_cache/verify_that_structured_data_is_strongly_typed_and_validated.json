@@ -1,0 +1,10 @@
+{
+  "title": "Verify That Structured Data Is Strongly Typed and Validated",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:L",
+  "description": "Quando dados estruturados são rigidamente tipados e verificados em relação a um esquema especificado, é possível criar uma aplicação proativa defensável. Usando os esquemas definidos, a aplicação agora pode medir tudo o que está fora de sua operação pretendida e deve ser usada para rejeitar entradas se as verificações do esquema retornarem falso.",
+  "observation": "Disponibilidade: DoS: Consumo de recursos (memória): Um invasor pode fornecer valores inesperados e causar uma falha no programa ou consumo excessivo de recursos, como memória e CPU. Confidencialidade: Leitura de arquivos ou diretórios: Um invasor pode ler dados confidenciais se conseguir controlar referências de recursos. Disponibilidade: Executar códigos ou comandos não autorizados: Um invasor pode usar entradas maliciosas para modificar dados ou possivelmente alterar o fluxo de controle de maneiras inesperadas, incluindo execução de comandos arbitrários.",
+  "remediation": "Verifique se os dados estruturados são fortemente tipados e validados em relação a um esquema definido, incluindo os caracteres permitidos, comprimento e padrão (por exemplo, números de cartão de crédito ou números de telefone, ou validando se dois campos relacionados são lógicos, como validar subúrbios e códigos postais correspondentes).",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/20.html"
+  ]
+}

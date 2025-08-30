@@ -1,0 +1,15 @@
+{
+  "title": "Absence of Feature Policy Header",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O cabeçalho Feature-Policy permite que desenvolvedores habilitem, desabilitem ou alterem o comportamento de APIs e recursos específicos do navegador. Nota: esse cabeçalho foi substituído por Permissions-Policy e Document-Policy, e será considerado obsoleto no futuro.",
+  "observation": "Controle de Acesso: Mecanismo de Proteção Bypassado: Verificações de controle de acesso podem ser contornadas.",
+  "remediation": "Exemplo de configuração do cabeçalho Feature-Policy em respostas do servidor:",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/07-Test_HTTP_Strict_Transport_Security",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/12-Test_for_Content_Security_Policy",
+    "https://cwe.mitre.org/data/definitions/16.html",
+    "https://cwe.mitre.org/data/definitions/693.html",
+    "https://wiki.owasp.org/index.php/OWASP_Secure_Headers_Project",
+    "https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration"
+  ]
+}

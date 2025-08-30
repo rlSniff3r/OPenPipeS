@@ -1,9 +1,10 @@
 {
-  "tipo": "SQL Injection",
-  "cwe": "CWE-89",
-  "wstg_id": "WSTG-INPV-05",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/05-Testing_for_SQL_Injection",
-  "owasp_url": "https://owasp.org/www-community/attacks/SQL_Injection",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html",
-  "descricao": "SQL Injection ocorre quando entradas do usuário são executadas como comandos SQL, permitindo acesso ou modificação indevida do banco de dados."
+  "title": "SQL Injection",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "Através do uso de injeção de código SQL (SQLi), é possível alterar a lógica das instruções SQL e permitir a execução de diferentes tipos de consultas ao banco de dados. Além de adicionar novos registros ou deletar/modificar registros existentes, é possível obter dados do banco que, em teoria, não deveriam estar acessíveis, como usuários, senhas, detalhes sobre a própria aplicação, etc. Se o usuário do banco de dados tiver mais permissões do que o necessário, pode ser possível acessar outros bancos ou até executar comandos do sistema. A causa raiz principal da injeção de código SQL (SQLi) é a validação inadequada dos parâmetros de entrada da aplicação.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: Como bancos de dados SQL geralmente contêm dados sensíveis, a perda de confidencialidade é um problema frequente em vulnerabilidades de injeção SQL.Controle de Acesso: Contornar Mecanismo de Proteção: Se comandos SQL incorretos forem usados para verificar nomes de usuários e senhas, pode ser possível conectar-se ao sistema como outro usuário sem conhecimento prévio da senha.Controle de Acesso: Contornar Mecanismo de Proteção: Se informações de autorização estiverem em um banco SQL, pode ser possível alterá-las por meio da exploração bem-sucedida de uma vulnerabilidade SQLi.Integridade: Modificar Dados da Aplicação: Assim como é possível ler informações sensíveis, também é possível alterá-las ou até deletá-las com um ataque de injeção SQL.",
+  "remediation": "Valide os parâmetros que a aplicação gerencia, especialmente quando o usuário os envia como dados de entrada. Essa validação deve ser sempre realizada no lado do servidor e nunca depender de validações do lado do cliente.",
+  "references": [
+    "https://www.owasp.org/index.php/SQL_Injection"
+  ]
 }

@@ -1,0 +1,11 @@
+{
+  "title": "Disclosure of Sensitive Information in the Source Code",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Essa situação ocorre quando, ao analisar um arquivo carregado em um servidor web, são reveladas informações relacionadas ao servidor que podem ser usadas para planejar novos ataques, como o tipo e a versão das aplicações utilizadas, componentes ou extensões em uso, credenciais etc.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "Para evitar vazamento de informações sensíveis, o código-fonte HTML enviado pelo servidor deve ser revisado e modificado.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/05-Review_Webpage_Content_for_Information_Leakage",
+    "https://cwe.mitre.org/data/definitions/540.html"
+  ]
+}

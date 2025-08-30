@@ -1,0 +1,10 @@
+{
+  "title": "Ensure Overall Security",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N",
+  "description": "O mecanismo principal de autenticação geralmente recebe bastante atenção no desenvolvimento e costuma ser bem fortalecido. No entanto, isso nem sempre ocorre com mecanismos secundários, como funcionalidades de recuperação de senha ou rotas alternativas que podem permitir autenticação bem-sucedida na aplicação.",
+  "observation": "Outros: Expor funcionalidades críticas pode conceder a um atacante o mesmo nível de privilégio dessas funções. As consequências variam desde leitura ou modificação de dados sensíveis até execução arbitrária de código.",
+  "remediation": "Certifique-se de que todos os recursos de autenticação secundária (como atualização de perfil, esqueci a senha, token perdido/desativado, help desk ou IVR) sejam tão seguros quanto o mecanismo principal de autenticação.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/306.html"
+  ]
+}

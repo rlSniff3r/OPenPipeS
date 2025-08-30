@@ -1,0 +1,14 @@
+2025-07-07_14:38:55 - Tipo: sql injection - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/autodiscover.email.locaweb.com.br/Vulnerabilidades/20250707143758_sql_injection.md
+2025-07-07_14:50:08 - Tipo: sql injection - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/autodiscover.email.locaweb.com.br/Vulnerabilidades/20250707143758_sql_injection.md
+2025-07-14_21:40:47 - Tipo: Cryptographic Failures - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/api5s.rohden.com.br/Vulnerabilidades/20250714042442_Cryptographic_Failures.md
+2025-07-14_23:08:22 - Tipo: Information Disclosure - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/api5s.rohden.com.br/Vulnerabilidades/20250714040933_Information_Disclosure.md
+2025-07-15_00:28:20 - Tipo: Cryptographic Failures - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/systeam.rohden.com.br/Vulnerabilidades/20250715002433_Cryptographic_Failures.md
+2025-07-15_02:53:10 - Tipo: Information Disclosure - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/systeam.rohden.com.br/Vulnerabilidades/20250715025244_Information_Disclosure.md
+2025-07-15_16:30:22 - Tipo: Cryptographic Failures - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/sys.rohden.com.br/Vulnerabilidades/20250715162922_Cryptographic_Failures.md
+2025-07-16_20:11:46 - Tipo: Cryptographic Failures - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/prontaentrega.diklatex.com.br/Vulnerabilidades/20250716201046_Cryptographic_Failures.md
+2025-07-17_15:27:17 - Tipo: Cryptographic Failures - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/adianti.latinatextil.com.br/Vulnerabilidades/20250717152514_Cryptographic_Failures.md
+2025-07-17_15:28:53 - Tipo: IDOR - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/adianti.latinatextil.com.br/Vulnerabilidades/20250717152826_IDOR.md
+2025-07-21_22:49:40 - Tipo: User Enumeration - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/portalcliente.latinatextil.com.br/Vulnerabilidades/20250721224925_User_Enumeration.md
+2025-07-22_02:09:39 - Tipo: Improper Error Handling - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/portalcliente.latinatextil.com.br/Vulnerabilidades/20250722020904_Improper_Error_Handling.md
+2025-07-22_03:01:01 - Tipo: XSS - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/portalcliente.latinatextil.com.br/Vulnerabilidades/20250722030010_XSS.md
+2025-08-12_03:20:16 - Tipo: Improper Error Handling - Enriquecido em /home/bradesco/.obsidianFixedMount/Pentest/Alvos/adianti.latinatextil.com.br/Vulnerabilidades/20250812032006_Improper_Error_Handling.md

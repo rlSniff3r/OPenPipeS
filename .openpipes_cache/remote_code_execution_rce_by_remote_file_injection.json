@@ -1,0 +1,12 @@
+{
+  "title": "Remote Code Execution (RCE) by Remote File Injection",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "O processo de inclusão de referências a arquivos remotos de outro servidor por meio de procedimentos de chamada de arquivo fracos implementados na aplicação é conhecido como inclusão remota de arquivos (RFI). Essa falha, por exemplo, ocorre quando uma página baixa arquivos de fontes externas e os inclui na aplicação. É possível alterar o recurso para fazer a solicitação contra um que seja controlado por um invasor se essa entrada não for devidamente higienizada.",
+  "observation": "Controle de acesso: execute códigos ou comandos não autorizados: essa fraqueza pode levar à exposição de recursos ou funcionalidades a agentes não intencionais, possivelmente fornecendo aos invasores informações confidenciais ou até mesmo executando códigos arbitrários.",
+  "remediation": "A melhor maneira de se livrar de vulnerabilidades de inclusão de arquivos é nunca fornecer nenhuma entrada de usuário a nenhuma API de sistema/framework de arquivos. Se isso não for possível, o aplicativo pode manter uma lista de arquivos permitidos que a página pode incluir e, em seguida, usar um número de índice ou outro identificador para acessar o arquivo desejado. Para que usuários mal-intencionados não possam manipular a rota, qualquer solicitação que contenha um identificador inválido deve ser rejeitada. É aconselhável seguir as recomendações do guia OWASP (https://cheatsheetseries.owasp.org/cheatsheets/File Upload Cheat Sheet.html) para boas práticas de remediação contra vulnerabilidades de inclusão de arquivos.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/11.1-Testing_for_File_Inclusion",
+    "https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html",
+    "https://cwe.mitre.org/data/definitions/20.html"
+  ]
+}

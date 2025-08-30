@@ -1,0 +1,11 @@
+{
+  "title": "Weaknesses in the Logout Process.",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "O mecanismo de logout do usuário dos aplicativos está implementado incorretamente. Um usuário pode interagir com o aplicativo novamente sem precisar inserir suas informações de login novamente porque a sessão não é invalidada corretamente.",
+  "observation": "Controle de acesso: execute códigos ou comandos não autorizados: essa fraqueza pode levar à exposição de recursos ou funcionalidades a agentes não intencionais, possivelmente fornecendo aos invasores informações confidenciais ou até mesmo executando códigos arbitrários.",
+  "remediation": "É recomendável que o botão de logout esteja presente em todas as páginas do aplicativo, que ele invalide a sessão tanto no cliente quanto no servidor, e que o servidor rejeite quaisquer outras conexões feitas com o mesmo token.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/06-Session_Management_Testing/06-Testing_for_Logout_Functionality",
+    "https://cwe.mitre.org/data/definitions/287.html"
+  ]
+}

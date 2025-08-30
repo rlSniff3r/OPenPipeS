@@ -1,0 +1,11 @@
+{
+  "title": "Transmission of Sensitive Information Via Unencrypted Channels",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "Informações sensíveis, como credenciais de login, dados pessoais ou financeiros, estão sendo transmitidas por canais não criptografados (ex.: HTTP ou protocolos legados). Isso expõe os dados a interceptação por atacantes.",
+  "observation": "Confidencialidade: Dados sensíveis podem ser lidos por atacantes durante o trânsito.",
+  "remediation": "Configurar a aplicação e o servidor para transmitir informações sensíveis apenas por canais criptografados, preferencialmente HTTPS com TLS 1.2 ou superior.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://cwe.mitre.org/data/definitions/319.html"
+  ]
+}

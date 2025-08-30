@@ -1,0 +1,11 @@
+{
+  "title": "Sensitive Information in URL",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "A aplicação expõe informações sensíveis diretamente na URL (ex.: parâmetros contendo tokens de autenticação, IDs de sessão, credenciais). Isso aumenta o risco de vazamento, já que URLs podem ser registradas em logs, caches, históricos e encaminhadas em cabeçalhos referer.",
+  "observation": "Confidencialidade: Dados sensíveis podem ser acessados por terceiros não autorizados.",
+  "remediation": "Evitar incluir dados sensíveis em URLs. Utilizar métodos seguros de transmissão, como POST com TLS, ou armazenar tokens de sessão em cookies protegidos.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://cwe.mitre.org/data/definitions/523.html"
+  ]
+}

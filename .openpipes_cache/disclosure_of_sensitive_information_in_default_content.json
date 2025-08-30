@@ -1,0 +1,12 @@
+{
+  "title": "Disclosure of Sensitive Information in Default Content",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Isso ocorre quando arquivos padrão permanecem acessíveis após a instalação de um serviço ou aplicação. Devido ao tipo de informação que divulgam, como o tipo e a versão do servidor web utilizado, a presença de arquivos padrão em um servidor web representa uma ameaça.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "Para corrigir, todos os arquivos padrão que não sejam necessários para o funcionamento do servidor devem ser removidos, incluindo as páginas padrão instaladas junto com o servidor.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/02-Fingerprint_Web_Server",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/04-Enumerate_Applications_on_Webserver",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/08-Fingerprint_Web_Application_Framework"
+  ]
+}

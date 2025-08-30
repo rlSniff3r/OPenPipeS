@@ -1,0 +1,10 @@
+{
+  "title": "Disclosure of Sensitive Information in Application Cookies",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "A configuração dos cookies expõe informações sensíveis tanto no nome pré-estabelecido do cookie quanto em seu conteúdo, o que leva a essa vulnerabilidade. Por exemplo, um cookie com o nome do software com o qual foi criado.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "Para evitar esse tipo de divulgação de informações, é necessário ocultar os dados exibidos nos cookies ou alterar seus nomes ou conteúdos.Para corrigir as vulnerabilidades publicadas dos componentes detectados, normalmente é necessário seguir as recomendações do fabricante, o que geralmente envolve atualizar o software ou aplicar um patch específico.Pode ser necessário decidir entre parar de oferecer o serviço até que uma solução seja encontrada ou assumir o risco de continuar sem uma solução publicada.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/08-Fingerprint_Web_Application_Framework"
+  ]
+}

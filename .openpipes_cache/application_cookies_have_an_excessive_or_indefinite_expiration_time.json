@@ -1,0 +1,11 @@
+{
+  "title": "Application Cookies Have an Excessive or Indefinite Expiration Time.",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O atributo Expires é usado para:Definir cookies persistentes.Limitar a duração se uma sessão durar muito.Forçar a exclusão de um cookie configurando uma data no passado.Diferente dos cookies de sessão, os cookies persistentes serão usados pelo navegador até expirarem. Uma vez passada a data de expiração, o navegador excluirá o cookie.A falta de expiração adequada da sessão pode aumentar a probabilidade de sucesso de certos ataques. Por exemplo, um atacante pode interceptar um ID de sessão, possivelmente por um sniffer de rede ou ataque Cross-site Scripting. Embora tempos curtos de expiração não ajudem se um token roubado for usado imediatamente, eles protegem contra a reprodução contínua do ID de sessão. Em outro cenário, um usuário pode acessar um site a partir de um computador compartilhado (como em biblioteca, lan house ou ambiente de trabalho aberto). Expiração insuficiente da sessão poderia permitir que um atacante usasse o botão de voltar do navegador para acessar páginas previamente visitadas pela vítima.",
+  "observation": "Controle de Acesso: Bypass do Mecanismo de Proteção: Um atacante poderia permanecer logado por muito tempo, podendo reutilizar IDs antigos ou deletados e referências diretas.",
+  "remediation": "Somente cookies persistentes devem ser configurados usando o atributo Expires. No entanto, é crucial verificar se nenhum dado sensível está presente no cookie persistente. Por exemplo, se um cookie persistente for usado para armazenar informações necessárias para autenticação, um atacante com acesso a ele poderia provar sua identidade na aplicação.Portanto, devemos garantir que um cookie contendo informações sensíveis não tenha o atributo 'Expires' configurado.Além disso, é recomendável definir tempos de expiração curtos para reduzir a probabilidade de um possível atacante reutilizá-los.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/06-Session_Management_Testing/02-Testing_for_Cookies_Attributes",
+    "https://cwe.mitre.org/data/definitions/613.html"
+  ]
+}

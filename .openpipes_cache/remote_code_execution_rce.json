@@ -1,0 +1,12 @@
+{
+  "title": "Remote Code Execution (RCE)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "Ataques conhecidos como execução remota de código (RCE) permitem que um invasor execute remotamente código malicioso em um computador. Uma vulnerabilidade de RCE pode resultar na execução de malware ou na tomada completa de uma máquina comprometida por um invasor.",
+  "observation": "Controle de acesso: execute códigos ou comandos não autorizados: essa fraqueza pode levar à exposição de recursos ou funcionalidades a agentes não intencionais, possivelmente fornecendo aos invasores informações confidenciais ou até mesmo executando códigos arbitrários.",
+  "remediation": "Restrinja a origem, seja uma entrada ou um caminho aberto que leva a um aplicativo, a partir do qual o RCE está sendo acessado.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/11.1-Testing_for_File_Inclusion",
+    "https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html",
+    "https://cwe.mitre.org/data/definitions/20.html"
+  ]
+}

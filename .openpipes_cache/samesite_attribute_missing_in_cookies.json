@@ -1,0 +1,13 @@
+{
+  "title": "Samesite Attribute Missing in Cookies",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Foi descoberto que os cookies criados pelo aplicativo não utilizam o mecanismo de proteção SameSite no momento do acesso ao site. Essa proteção previne potenciais ataques de falsificação de solicitação entre sites (CSRF), regulando como os cookies são enviados em solicitações para outros domínios.",
+  "observation": "Confidencialidade: Modificar Dados do Aplicativo: Se o site não impuser defesa adicional contra ataques CSRF, a não utilização dos valores &quot;Lax&quot; ou &quot;Strict&quot; pode aumentar o risco de exposição a ataques CSRF. A probabilidade de violação de integridade é baixa, pois um ataque bem-sucedido não depende apenas de um atributo SameSite inseguro. Para realizar um ataque CSRF, muitas condições devem ser atendidas, como a ausência de tokens CSRF, a ausência de confirmações para ações sensíveis no site, um cabeçalho &quot;Content-Type&quot; &quot;simples&quot; na solicitação HTTP, entre outras.",
+  "remediation": "Sempre que possível, é aconselhável criar cookies com o atributo &#39;SameSite&#39; definido como o valor &#39;Strict&#39;. Definir-Cookie: = ; Caminho=/; Expira= ; Domínio= ; Seguro; HttpOnly; SameSite=Rigoroso",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/06-Session_Management_Testing/02-Testing_for_Cookies_Attributes",
+    "https://cwe.mitre.org/data/definitions/1275.html",
+    "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html",
+    "https://cwe.mitre.org/data/definitions/1275.html"
+  ]
+}

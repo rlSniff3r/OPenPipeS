@@ -1,0 +1,10 @@
+{
+  "title": "CA Certificates",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Uma Autoridade Certificadora (CA) é responsável por emitir certificados digitais que validam a posse de chaves públicas. Caso uma CA falhe ou seja revogada, os certificados emitidos por ela tornam-se não confiáveis. Além disso, certificados autoassinados, que não passam por validação externa, também podem resultar em conexões TLS não confiáveis.",
+  "observation": "Controle de Acesso: Assumir Identidade: Pode ser atribuída confiança a uma entidade maliciosa.Outros: Dados de uma fonte não confiável podem ser integrados.Confidencialidade: Dados podem ser expostos a uma entidade falsa.",
+  "remediation": "Instalar no servidor um certificado confiável emitido por uma autoridade certificadora de confiança.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/299.html"
+  ]
+}

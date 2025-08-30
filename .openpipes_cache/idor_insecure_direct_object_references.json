@@ -1,0 +1,12 @@
+{
+  "title": "IDOR (insecure Direct Object References)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "Quando um aplicativo concede acesso direto a objetos com base na entrada do usuário, isso é conhecido como &quot;referência direta a objeto insegura&quot; (IDOR). Essa vulnerabilidade permite que invasores ignorem a autenticação e obtenham acesso direto a recursos do sistema, como arquivos ou registros de banco de dados. Ao alterar o valor de um parâmetro usado para apontar diretamente para um objeto, um invasor pode ignorar a autenticação e obter acesso irrestrito aos recursos. Esses recursos podem incluir arquivos do sistema, entradas de banco de dados de outros usuários, etc. Isso ocorre porque o aplicativo usa a entrada fornecida pelo usuário para recuperar um objeto sem realizar verificações de autorização suficientes.",
+  "observation": "Controle de acesso: Mecanismo de proteção de bypass: Um invasor pode executar um número arbitrário de tentativas de autenticação usando senhas diferentes e, eventualmente, obter acesso à conta alvo. Controle de acesso: obtenha privilégios ou assuma identidade: é possível escalonamento horizontal de privilégios (um usuário pode visualizar/modificar informações de outro usuário). Controle de acesso: obtenha privilégios ou assuma identidade: a escalada vertical de privilégios é possível se a chave controlada pelo usuário for, na verdade, um sinalizador que indica o status do administrador, permitindo que o invasor obtenha acesso administrativo.",
+  "remediation": "Evite exibir referências a itens secretos, como nomes de arquivos ou chaves. O lado do servidor deve implementar corretamente a validação de parâmetros e a verificação de objetos para todas as referências. Os tokens devem ser criados de forma a restringir sua atribuição ao usuário e impedir que sejam compartilhados com o público.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/05-Authorization_Testing/04-Testing_for_Insecure_Direct_Object_References",
+    "https://cwe.mitre.org/data/definitions/706.html",
+    "https://cwe.mitre.org/data/definitions/813.html"
+  ]
+}

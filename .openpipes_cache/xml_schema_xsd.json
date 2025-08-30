@@ -1,0 +1,10 @@
+{
+  "title": "XML Schema (XSD)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:L",
+  "description": "Você tem maior controle sobre o tipo de entrada do usuário que pode ser fornecida em sua aplicação ao adicionar esquemas aos seus arquivos XML. Quando feito corretamente, isso reduz drasticamente o vetor de ataque de um invasor. No entanto, como uma linha de defesa adicional, você deve sempre aplicar sua própria validação e rejeição de entrada. Essa estratégia também é preferível porque você também deseja neutralizar e registrar solicitações e entradas do usuário.",
+  "observation": "Disponibilidade: DoS: Consumo de recursos (memória): Um invasor pode fornecer valores inesperados e causar uma falha no programa ou consumo excessivo de recursos, como memória e CPU. Confidencialidade: Leitura de arquivos ou diretórios: Um invasor pode ler dados confidenciais se conseguir controlar referências de recursos. Disponibilidade: Executar códigos ou comandos não autorizados: Um invasor pode usar entradas maliciosas para modificar dados ou possivelmente alterar o fluxo de controle de maneiras inesperadas, incluindo execução de comandos arbitrários.",
+  "remediation": "Verifique se o esquema XSD está validado para garantir que o documento XML esteja formatado corretamente e, em seguida, valide cada campo de entrada antes que os dados sejam processados.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/20.html"
+  ]
+}

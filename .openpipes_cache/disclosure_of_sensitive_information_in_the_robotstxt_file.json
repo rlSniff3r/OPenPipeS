@@ -1,0 +1,12 @@
+{
+  "title": "Disclosure of Sensitive Information in the 'robots.txt' File",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Alguns programas utilizam robôs de indexação para navegar automaticamente em sites com o objetivo de indexá-los. Qualquer usuário pode acessar o arquivo \"robots.txt\", que é usado para especificar diretórios e recursos que o administrador deseja que sejam indexados ou não. A configuração desse arquivo precisa ser tratada com cautela, pois pode revelar quais recursos são sensíveis.O arquivo \"robots.txt\" pode conter recursos sensíveis que podem ser usados por um atacante para lançar ataques mais sofisticados e direcionados com base nos dados coletados.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "O arquivo 'robots.txt' não deve ser usado como método de restrição de acesso a áreas inseguras da aplicação. Além da proteção contra robôs de indexação, o acesso a essas seções deve ser devidamente controlado contra ataques potenciais.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/03-Review_Webserver_Metafiles_for_Information_Leakage",
+    "https://cwe.mitre.org/data/definitions/200.html",
+    "https://developers.google.com/search/docs/advanced/robots/intro"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Self-signed SSL/TLS Certificate",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "O servidor utiliza um certificado SSL/TLS autoassinado. Embora permita comunicação criptografada, esse tipo de certificado não garante autenticidade, já que não foi emitido por uma autoridade de certificação confiável.",
+  "observation": "Confidencialidade: Um atacante pode realizar ataques man-in-the-middle, interceptando dados sensíveis.",
+  "remediation": "Substituir o certificado autoassinado por um certificado válido emitido por uma autoridade de certificação confiável.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://cwe.mitre.org/data/definitions/295.html"
+  ]
+}

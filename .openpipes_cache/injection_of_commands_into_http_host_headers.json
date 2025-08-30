@@ -1,0 +1,11 @@
+{
+  "title": "Injection of Commands Into HTTP Host Headers.",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "Um servidor web normalmente hospeda vários aplicativos web no mesmo endereço IP, referenciando cada aplicativo por meio do host virtual. Em uma solicitação HTTP de entrada, os servidores web normalmente enviam a solicitação ao host virtual de destino com base no valor fornecido no cabeçalho Host. Sem a validação adequada do valor do cabeçalho, o invasor pode fornecer dados inválidos, fazendo com que o servidor web: Envie as solicitações para o primeiro host virtual da lista. Causar um redirecionamento para um domínio controlado pelo invasor. Execute um envenenamento do cache da web. Manipule a funcionalidade de redefinição de senha.",
+  "observation": "Controle de acesso: execute códigos ou comandos não autorizados: essa fraqueza pode levar à exposição de recursos ou funcionalidades a agentes não intencionais, possivelmente fornecendo aos invasores informações confidenciais ou até mesmo executando códigos arbitrários.",
+  "remediation": "Para filtrar, escapar ou codificar dados não seguros enviados do servidor em um cabeçalho de resposta HTTP, execute a validação de saída. Desabilite a capacidade do navegador do cliente de executar scripts.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/17-Testing_for_Host_Header_Injection",
+    "https://cwe.mitre.org/data/definitions/644.html"
+  ]
+}

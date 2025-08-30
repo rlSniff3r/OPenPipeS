@@ -1,0 +1,12 @@
+{
+  "title": "Disclosure of Sensitive Information in HTTP Headers",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Essa situação ocorre quando a aplicação revela o tipo e/ou versão de um componente interno usado, ao expor informações nos cabeçalhos do protocolo HTTP. Através dessas informações, o sistema operacional, um de seus serviços (web, e-mail, transferência de arquivos...) ou um de seus componentes (PHP, mod_proxy, WebDAV...) pode ser identificado.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "Para evitar esse tipo de divulgação de informações, é necessário ocultar os dados exibidos nos cabeçalhos do protocolo. Uma correção, que geralmente consiste em uma atualização ou aplicação de patch específico, é tipicamente necessária para corrigir as vulnerabilidades publicadas dos componentes detectados, devendo-se seguir as recomendações do fabricante do software vulnerável.Pode ser necessário decidir entre interromper a oferta do serviço até que uma solução seja encontrada ou assumir o risco de continuar oferecendo mesmo na ausência de uma correção publicada.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/02-Fingerprint_Web_Server",
+    "https://cwe.mitre.org/data/definitions/200.html",
+    "https://wiki.owasp.org/index.php/Testing_for_Web_Application_Fingerprint_(OWASP-IG-004)"
+  ]
+}

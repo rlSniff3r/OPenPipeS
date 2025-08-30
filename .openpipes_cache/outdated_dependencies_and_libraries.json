@@ -1,0 +1,11 @@
+{
+  "title": "Outdated Dependencies and Libraries",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Pesquisadores de segurança publicam vulnerabilidades descobertas em bibliotecas, frameworks, módulos e sistemas operacionais na lista CVE. Essa base é pública e pode ser usada por atacantes para explorar aplicações desatualizadas.",
+  "observation": "Outros: Redução de Manutenibilidade: O atacante pode identificar vulnerabilidades em componentes desatualizados e explorá-los em novos vetores de ataque.",
+  "remediation": "Mantenha sempre as bibliotecas e dependências atualizadas com as versões mais recentes fornecidas pelo fabricante. Utilize ferramentas como o OWASP Dependency-Check no ciclo de vida da aplicação para identificar CVEs em dependências utilizadas.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/01-Test_Network_Infrastructure_Configuration",
+    "https://cwe.mitre.org/data/definitions/477.html"
+  ]
+}

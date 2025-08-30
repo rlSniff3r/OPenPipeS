@@ -1,0 +1,10 @@
+{
+  "title": "Expired SSL/TLS Certificate",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "O certificado SSL/TLS utilizado pelo servidor está expirado, o que compromete a confiança dos usuários e pode permitir ataques de interceptação.",
+  "observation": "Confidencialidade: Um atacante pode explorar a falha de confiança para interceptar dados sensíveis.",
+  "remediation": "Renovar o certificado SSL/TLS antes de sua data de expiração e implementar processos de monitoramento para evitar que certificados caduquem no futuro.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/295.html"
+  ]
+}

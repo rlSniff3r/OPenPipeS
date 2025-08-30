@@ -1,0 +1,10 @@
+{
+  "title": "Disclosure of Sensitive Information Due to Improper Handling of Application Errors.",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "Erros verbais que não são controlados adequadamente frequentemente resultam em respostas que informam o usuário sobre a arquitetura interna do aplicativo. Versões de softwares instalados ou informações de bancos de dados são alguns exemplos de dados que podem ser recuperados dessa maneira.",
+  "observation": "Confidencialidade: Leitura de dados do aplicativo: O invasor obtém informações de uma resposta de mensagem de erro",
+  "remediation": "Para impedir que o aplicativo exiba informações confidenciais da sua infraestrutura ou banco de dados, implemente um sistema adequado de redirecionamentos para páginas seguras ou textos genéricos na resposta.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/08-Testing_for_Error_Handling/01-Testing_For_Improper_Error_Handling"
+  ]
+}

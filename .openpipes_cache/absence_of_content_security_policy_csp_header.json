@@ -1,0 +1,15 @@
+{
+  "title": "Absence of Content Security Policy (CSP) Header",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O cabeçalho HTTP Content-Security-Policy aumenta a segurança ao limitar os recursos que o navegador pode carregar, como JavaScript, CSS e outros.",
+  "observation": "Controle de Acesso: Obter Privilégios ou Assumir Identidade: Um atacante pode obter privilégios modificando ou lendo dados críticos, ou acessando funcionalidades privilegiadas insuficientemente protegidas.Controle de Acesso: Mecanismo de Proteção Bypassado: Verificações de controle de acesso podem ser contornadas.Confidencialidade: Ler Dados da Aplicação: Dados podem ser expostos a uma entidade que se passa por confiável, resultando em vazamento de informações.Controle de Acesso: Modificar Dados da Aplicação: Um atacante pode induzir o usuário a executar ações ocultas (clickjacking). O impacto varia conforme a aplicação. Exemplo: em uma rede social, isso poderia alterar configurações de privacidade.",
+  "remediation": "Ative o CSP incluindo o cabeçalho Content-Security-Policy nas respostas HTTP, instruindo o navegador a aplicar as políticas definidas.Exemplo: Content-Security-Policy: script-src https://example.com:*;&gt;",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/07-Test_HTTP_Strict_Transport_Security",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/12-Test_for_Content_Security_Policy",
+    "https://cwe.mitre.org/data/definitions/16.html",
+    "https://cwe.mitre.org/data/definitions/693.html",
+    "https://wiki.owasp.org/index.php/OWASP_Secure_Headers_Project",
+    "https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Absence of Token Anti-csrf",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "Um ataque CSRF tem como objetivo enganar um usuário para executar, sem saber, funcionalidades em uma aplicação web vulnerável, beneficiando o atacante e prejudicando o usuário afetado.Especificamente, o ataque é realizado forçando o navegador de um usuário desavisado a fazer uma requisição ao site vulnerável, requisição que o usuário realizará sem perceber, enquanto estiver logado no site, já que as credenciais já estabelecidas (ID de sessão, cookies, ...) serão usadas automaticamente.Diferente dos ataques XSS, que exploram a confiança que um usuário tem em um site específico, o Cross Site Request Forgery explora a confiança que um site tem em um usuário específico. Trata-se de uma vulnerabilidade de autenticação insuficiente, na qual a aplicação não valida corretamente a origem da requisição.",
+  "observation": "Controle de Acesso: DoS: Falha, Saída ou Reinício: As consequências variarão dependendo da funcionalidade vulnerável ao CSRF. Um atacante poderia efetivamente realizar qualquer operação como se fosse a vítima. Se a vítima for um administrador ou usuário privilegiado, as consequências podem incluir obter controle total sobre a aplicação web — deletar ou roubar dados, desinstalar o produto ou usá-lo para lançar outros ataques contra todos os usuários do produto. Como o atacante possui a identidade da vítima, o alcance do CSRF é limitado apenas pelos privilégios da vítima.",
+  "remediation": "A aplicação deve ser atualizada para incluir suporte a tokens anti-CSRF em quaisquer formulários sensíveis acessíveis durante uma sessão autenticada.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/05-Testing_for_Cross_Site_Request_Forgery",
+    "https://cwe.mitre.org/data/definitions/352.html"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Invalid SSL/TLS Certificate",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "O certificado SSL/TLS apresentado pelo servidor não é válido. Ele pode estar expirado, ter sido emitido por uma autoridade de certificação não confiável ou não corresponder ao nome do host. Isso compromete a confiança do usuário na comunicação criptografada.",
+  "observation": "Confidencialidade: O invasor pode realizar ataques man-in-the-middle, interceptando e lendo dados sensíveis.",
+  "remediation": "Instalar um certificado SSL/TLS válido, emitido por uma autoridade de certificação confiável e devidamente configurado para o domínio da aplicação.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://cwe.mitre.org/data/definitions/295.html"
+  ]
+}

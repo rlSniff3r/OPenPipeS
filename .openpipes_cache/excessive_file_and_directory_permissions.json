@@ -1,0 +1,11 @@
+{
+  "title": "Excessive File and Directory Permissions",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "Conceder permissões mais amplas do que o necessário a arquivos ou diretórios aumenta o risco de exposição de dados sensíveis ou modificação não autorizada. Isso é especialmente perigoso quando envolve configurações, execução de programas ou dados críticos de usuários.Exemplos: arquivos executáveis acessíveis por usuários não autorizados, ou arquivos de configuração contendo credenciais/API tokens com permissões de leitura para todos.",
+  "observation": "Confidencialidade: Ler Dados da Aplicação: Código injetado pode acessar arquivos/dados restritos.Confidencialidade: Ler Arquivos ou Diretórios: Um atacante pode acessar dados sensíveis de forma direta ou através de funcionalidades privilegiadas mal protegidas.",
+  "remediation": "Configure corretamente as permissões de arquivos e diretórios para prevenir acesso desnecessário a recursos críticos por usuários não autorizados.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/09-Test_File_Permission",
+    "https://cwe.mitre.org/data/definitions/732.html"
+  ]
+}

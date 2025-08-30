@@ -1,0 +1,11 @@
+{
+  "title": "SSL/TLS Certificate Not Trusted",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "O certificado SSL/TLS apresentado pelo servidor não é confiável, geralmente porque foi emitido por uma autoridade de certificação (CA) desconhecida ou não confiável. Isso compromete a confiança na comunicação criptografada.",
+  "observation": "Confidencialidade: Possibilidade de ataques man-in-the-middle, permitindo leitura de dados sensíveis.",
+  "remediation": "Instalar um certificado válido emitido por uma autoridade de certificação confiável e garantir a configuração correta no servidor.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://cwe.mitre.org/data/definitions/295.html"
+  ]
+}

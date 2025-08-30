@@ -1,0 +1,10 @@
+{
+  "title": "Cryptographic Modules Must Fail Securely - Padding Oracle Attack",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "Quando um módulo criptográfico falha de forma insegura, o dispositivo deve ser colocado em estado de erro para que não funcione mais.",
+  "observation": "Confidencialidade: Ler dados do aplicativo: O invasor pode ler informações confidenciais",
+  "remediation": "Recomendamos que o módulo criptográfico passe por seus próprios testes usando o padrão do Instituto Nacional de Padrões e Tecnologia (NIST) para verificar se ele falha com segurança.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/310.html"
+  ]
+}

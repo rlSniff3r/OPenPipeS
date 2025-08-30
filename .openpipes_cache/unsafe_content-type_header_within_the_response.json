@@ -1,0 +1,10 @@
+{
+  "title": "Unsafe Content-type Header Within the Response",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Definir corretamente os cabeçalhos de conteúdo é essencial para reforçar a segurança das aplicações, reduzindo a exposição a ataques como drive-by download. Cabeçalhos incorretos podem permitir que navegadores, como o Internet Explorer, interpretem arquivos de forma incorreta, levando a falhas de segurança.",
+  "observation": "Controle de Acesso: Mecanismo de Proteção Bypassado: Verificações de controle de acesso podem ser contornadas.",
+  "remediation": "Exemplo de cabeçalhos Content-Type seguros:Content-Type: text/html; charset=UTF-8Content-Type: application/json;",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/173.html"
+  ]
+}

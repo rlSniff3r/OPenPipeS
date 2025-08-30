@@ -1,0 +1,11 @@
+{
+  "title": "Sensitive Information Sent Via GET Method",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "A aplicação transmite informações sensíveis (como credenciais ou tokens de sessão) através do método GET em parâmetros de URL. Isso é inseguro, pois tais dados podem ser registrados em históricos de navegação, caches, logs de servidor ou até mesmo expostos em referers.",
+  "observation": "Confidencialidade: Dados sensíveis podem ser expostos acidentalmente em diversos locais de armazenamento.",
+  "remediation": "Evitar o envio de informações sensíveis pelo método GET. Utilizar POST ou cabeçalhos de autorização apropriados em conexões criptografadas.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://cwe.mitre.org/data/definitions/523.html"
+  ]
+}

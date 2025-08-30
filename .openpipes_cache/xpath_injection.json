@@ -1,0 +1,12 @@
+{
+  "title": "XPATH Injection",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "Semelhante à injeção de SQL, os ataques de injeção de XPath ocorrem quando um site cria uma consulta XPath para dados XML usando dados fornecidos pelo usuário. XPath é um tipo de declaração descritiva direta que permite pesquisar uma informação específica no XML. Você pode especificar atributos específicos a serem procurados e padrões a serem correspondidos, assim como em SQL. É prática comum aceitar algum tipo de entrada na string de consulta ao usar XML para um site, a fim de identificar o conteúdo a ser encontrado e exibido na página. Essas consultas podem ser alteradas para retornar mais dados do que deveriam ou até mesmo executar código do lado do servidor se o invasor enviar uma string XPath maliciosa.",
+  "observation": "Controle de acesso: Mecanismo de proteção de bypass: Em alguns casos, o código injetável controla a autenticação; isso pode levar a uma vulnerabilidade remota. Controle de acesso: obtenha privilégios ou assuma identidade: o código injetado pode acessar recursos que o invasor está diretamente impedido de acessar. Outros: Executar código ou comandos não autorizados: Ataques de injeção de código podem levar à perda de integridade dos dados em quase todos os casos, pois os dados do plano de controle injetados são sempre incidentais à recuperação ou gravação de dados. Além disso, a injeção de código pode frequentemente resultar na execução de código arbitrário. Não repúdio: ocultar atividades: muitas vezes, as ações executadas pelo código de controle injetado não são registradas.",
+  "remediation": "Antes de serem incluídas em consultas XPATH (XML), as entradas do usuário devem ser rigorosamente validadas. É recomendável utilizar uma lista de permissões que restrinja os caracteres ou valores que o aplicativo aceitará como entrada do usuário. Se a lista de permissões não for uma opção, uma alternativa menos preferida é empregar uma lista negra que, no mínimo, elimine os caracteres &quot;&quot;&#39;/ @ = * [] (y)",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/09-Testing_for_XPath_Injection",
+    "https://owasp.org/www-community/attacks/XPATH_Injection",
+    "https://cwe.mitre.org/data/definitions/94.html"
+  ]
+}

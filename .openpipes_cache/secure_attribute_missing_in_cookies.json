@@ -1,0 +1,12 @@
+{
+  "title": "Secure Attribute Missing in Cookies",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Os atributos Secure e HttpOnly são usados para garantir que os cookies sejam enviados com segurança e não possam ser acessados por scripts ou terceiros indesejados. Um cookie com o atributo Secure só é enviado ao servidor em conjunto com uma solicitação HTTPS criptografada. A API JavaScript não pode acessar um cookie com o atributo HttpOnly; em vez disso, o servidor o recebe.",
+  "observation": "Confidencialidade: Leitura de dados do aplicativo: Um invasor que realiza um ataque bem-sucedido de cross-site scripting ou man-in-the-middle poderá ler o conteúdo do cookie e exfiltrar as informações obtidas.",
+  "remediation": "Os atributos HttpOnly e Secure devem ser usados pelo servidor ao definir cookies para mitigar essa vulnerabilidade. Um exemplo é fornecido abaixo: Definir-Cookie: cookie1=info1; Seguro; Somente HTTP",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/614.html https://cwe.mitre.org/data/definitions/1004.html",
+    "https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies",
+    "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+  ]
+}

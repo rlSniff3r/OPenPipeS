@@ -1,0 +1,11 @@
+{
+  "title": "File Path Manipulation",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "Quando dados controláveis pelo usuário são inseridos em um arquivo ou caminho de URL usado no servidor para acessar recursos locais, que podem estar localizados dentro ou fora da raiz da web, são criadas vulnerabilidades de manipulação de caminho de arquivo. Se um caminho de arquivo estiver vulnerável, um invasor pode alterá-lo para acessar recursos diferentes.",
+  "observation": "Confidencialidade: Leitura de arquivos ou diretórios: Um invasor pode ler dados confidenciais se conseguir controlar referências de recursos. Integridade: modificar arquivos ou diretórios: um invasor pode modificar dados confidenciais, gravando os dados diretamente em um armazenamento de dados que não esteja devidamente restrito ou acessando funcionalidades privilegiadas e insuficientemente protegidas para gravar os dados.",
+  "remediation": "Acreditar que todas as entradas são maliciosas. Use uma lista de entradas que estejam em estrita conformidade com as especificações como parte de uma estratégia de validação de entradas &quot;aceitar entradas consideradas boas&quot;. Qualquer entrada que não esteja em estrita conformidade com as especificações deve ser rejeitada ou alterada. Use listas de permissões rigorosas que restrinjam o conjunto de caracteres que pode ser usado na validação de nomes de arquivos. Para evitar vulnerabilidades como a CWE-23, permita apenas um único caractere &quot;.&quot; no nome do arquivo e mantenha separadores de diretório como &quot;/&quot; fora.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/35.html",
+    "https://capec.mitre.org/data/definitions/126.html"
+  ]
+}

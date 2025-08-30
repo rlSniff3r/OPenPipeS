@@ -1,0 +1,10 @@
+{
+  "title": "Use of Insecure SSL/TLS Cipher Suites",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "Os conjuntos de cifras (cipher suites) configurados no servidor não garantem um nível adequado de segurança ou apresentam vulnerabilidades conhecidas. Isso pode permitir que um invasor explore falhas no processo de criptografia, comprometendo a confidencialidade ou integridade da comunicação.",
+  "observation": "Confidencialidade: Um atacante pode conseguir descriptografar informações sensíveis.Integridade: Um atacante pode modificar dados em trânsito sem ser detectado.",
+  "remediation": "Configure o servidor para utilizar apenas conjuntos de cifras seguros e modernos, desabilitando algoritmos fracos ou obsoletos, como RC4, DES e 3DES.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/326.html"
+  ]
+}

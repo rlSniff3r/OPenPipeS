@@ -1,0 +1,11 @@
+{
+  "title": "Session Hijacking",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "O ataque de sequestro de sessão consiste em explorar o mecanismo de controle de sessão da web, que normalmente é gerenciado por um token de sessão. Como a comunicação HTTP utiliza diversas conexões TCP diferentes, o servidor web precisa de um método para reconhecer as conexões de cada usuário. O método mais útil se baseia em um token que o servidor web envia ao navegador do cliente após a autenticação bem-sucedida. Um token de sessão normalmente é composto por uma string de largura variável e pode ser usado de diversas maneiras, como na URL, no cabeçalho da solicitação HTTP como um cookie, em outras partes do cabeçalho da solicitação HTTP ou até mesmo no corpo da solicitação HTTP. O ataque de sequestro de sessão compromete o token de sessão roubando ou prevendo um token de sessão válido para obter acesso não autorizado ao servidor web. O token de sessão pode ser comprometido de diferentes maneiras; as mais comuns são: - Previsão de token de sessão. - Varredura de sessão. - Ataques do lado do cliente (XSS, código JavaScript malicioso, cavalos de Troia, etc.). - Ataque man-in-the-middle. - Ataque man-in-the-browser.",
+  "observation": "Controle de acesso: Mecanismo de proteção de bypass: Um invasor pode permanecer conectado por muito tempo, o que pode reutilizar IDs antigos ou excluídos e referências diretas.",
+  "remediation": "Utilize processos de geração de chaves de sessão padrão do setor que geram chaves de sessão usando muita entropia e criptografam e assinam adequadamente os tokens de identidade em trânsito. Você pode contar com diversos servidores web e de aplicativos comuns para realizar essa tarefa. Para cada sessão, use um tempo limite de sessão. Após esse período, encerre a sessão do usuário caso ele não tenha efetuado logout explicitamente. Uma nova chave de sessão deverá ser gerada se o usuário efetuar login novamente.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/06-Session_Management_Testing/09-Testing_for_Session_Hijacking",
+    "https://capec.mitre.org/data/definitions/593.html"
+  ]
+}

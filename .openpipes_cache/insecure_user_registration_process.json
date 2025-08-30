@@ -1,0 +1,11 @@
+{
+  "title": "Insecure User Registration Process",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "Algumas aplicações web automatizam (ou parcialmente automatizam) o processo de registro de usuários. Dependendo dos requisitos de segurança, a identificação necessária pode variar de nenhuma até identificação forte. Quando o processo não segue boas práticas, um atacante pode registrar contas maliciosas ou até controlar contas de outros usuários.",
+  "observation": "Controle de Acesso: Executar Código ou Comandos Não Autorizados: Essa fraqueza pode expor recursos ou funcionalidades a atores indevidos, potencialmente permitindo acesso a informações sensíveis ou execução de código arbitrário.",
+  "remediation": "Implemente requisitos de identificação e verificação alinhados ao nível de segurança dos dados que estão sendo protegidos pelas credenciais.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/03-Identity_Management_Testing/02-Test_User_Registration_Process",
+    "https://cwe.mitre.org/data/definitions/287.html"
+  ]
+}

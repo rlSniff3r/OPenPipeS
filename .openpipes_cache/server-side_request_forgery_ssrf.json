@@ -1,0 +1,11 @@
+{
+  "title": "Server-side Request Forgery (SSRF)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "A vulnerabilidade SSRF (Server-Side Request Forgery) surge quando é possível direcionar o servidor para enviar uma solicitação a qualquer domínio usando os dados de entrada do usuário. Quando o usuário que faz a solicitação não recebe a resposta do servidor, essa vulnerabilidade pode se tornar &quot;cega&quot;. Nenhuma resposta é fornecida neste caso. No entanto, com base no tempo de resposta do servidor, é possível realizar uma enumeração das máquinas próximas na rede.",
+  "observation": "Confidencialidade: Leitura de dados do aplicativo: O código injetado pode acessar dados/arquivos restritos. Integridade: Executar códigos ou comandos não autorizados: O invasor pode criar ou substituir arquivos críticos usados para executar códigos, como programas ou bibliotecas.",
+  "remediation": "Colocar na lista de permissões as entradas permitidas por esse parâmetro é a mitigação adequada para essa vulnerabilidade. Em outras palavras, aceite apenas os caminhos para os recursos que você realmente precisa acessar, pois, a partir de agora, fazer o contrário concede ao usuário www-data acesso a qualquer área do sistema de permissões onde ele possa ler.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/19-Testing_for_Server-Side_Request_Forgery",
+    "https://cwe.mitre.org/data/definitions/918.html"
+  ]
+}

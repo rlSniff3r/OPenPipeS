@@ -1,0 +1,10 @@
+{
+  "title": "Absence of Referrer Policy Header",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Requisições feitas a partir de um documento ou ao navegar para fora dele são associadas ao cabeçalho Referer. Embora o cabeçalho possa ser suprimido com o atributo noreferrer, autores podem desejar controlar diretamente esse comportamento por motivos de privacidade e segurança.Privacidade: por exemplo, uma rede social pode não querer expor a URL do perfil de um usuário ao site de destino ao seguir links externos.Segurança: uma aplicação web que usa HTTPS e identificadores de sessão na URL pode querer evitar que esses identificadores vazem pelo cabeçalho Referer ao acessar outros sites.Existem outros cenários de vazamento de URLs de capacidade que não são mitigados apenas pelo controle do Referer.",
+  "observation": "Controle de Acesso: Mecanismo de Proteção Bypassado: Verificações de controle de acesso podem ser contornadas.",
+  "remediation": "O cabeçalho HTTP Referrer-Policy define quanto dos dados do referenciador deve ser incluído nas requisições. Recomenda-se configurar valores como:Referrer-Policy: no-referrerReferrer-Policy: same-origin",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/116.html"
+  ]
+}

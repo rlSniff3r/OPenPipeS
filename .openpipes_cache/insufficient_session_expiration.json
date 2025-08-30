@@ -1,0 +1,10 @@
+{
+  "title": "Insufficient Session Expiration",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Os cookies de sessão exclusivos de usuários autenticados, normalmente usados por aplicativos da web, devem ser configurados com um tempo de vida útil para que expirem após um período máximo definido. Por isso, se um usuário efetuar login em outro computador sem encerrar a sessão manualmente, qualquer outro usuário que efetuar login nesse computador e acessar o aplicativo continuará na sessão do usuário autenticado anterior.",
+  "observation": "Controle de acesso: Mecanismo de proteção de bypass: Um invasor pode permanecer conectado por muito tempo, o que pode reutilizar IDs antigos ou excluídos e referências diretas.",
+  "remediation": "Reduza os tempos de expiração das sessões.",
+  "references": [
+    "https://owasp.org/www-community/Session_Timeout"
+  ]
+}

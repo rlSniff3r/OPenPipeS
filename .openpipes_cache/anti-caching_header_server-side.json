@@ -1,0 +1,10 @@
+{
+  "title": "Anti-caching Header (server-side)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Cabeçalhos anti-cache impedem que dados sensíveis sejam armazenados em proxies reversos, balanceadores de carga e módulos de cache da aplicação. Quando não implementados corretamente, informações podem ser armazenadas e expostas. Exemplos de má configuração:Cache-Control: max-age=315360000, public (qualquer cache pode armazenar)Cache-Control: private (navegadores podem armazenar)",
+  "observation": "Confidencialidade: Ler Dados da Aplicação: O atacante pode ser capaz de ler informações sensíveis",
+  "remediation": "Essa vulnerabilidade pode ser reduzida configurando corretamente cabeçalhos anti-cache. Um exemplo apropriado seria:Cache-Control: no-storePragma: no-cache (apenas para compatibilidade retroativa com clientes HTTP/1.0)",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/524.html"
+  ]
+}

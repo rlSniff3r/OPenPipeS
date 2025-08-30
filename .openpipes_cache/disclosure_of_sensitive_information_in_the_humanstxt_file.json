@@ -1,0 +1,11 @@
+{
+  "title": "Disclosure of Sensitive Information in the 'humans.txt' File",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O arquivo \"humans.txt\" é um projeto para informar mais sobre as pessoas que criam um site.Esse arquivo pode conter informações sensíveis que poderiam ser usadas por um atacante para lançar ataques mais sofisticados e direcionados com base nos dados coletados.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "É recomendado remover do arquivo \"humans.txt\" todos os dados privados que não sejam necessários para o desenvolvimento da aplicação.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/03-Review_Webserver_Metafiles_for_Information_Leakage",
+    "https://cwe.mitre.org/data/definitions/200.html"
+  ]
+}

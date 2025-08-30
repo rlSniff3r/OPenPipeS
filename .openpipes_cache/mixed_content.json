@@ -1,0 +1,14 @@
+{
+  "title": "Mixed Content",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "Conteúdo carregado via protocolo HTTP é utilizado por uma aplicação que funciona sob HTTPS. Como qualquer dado transmitido por HTTP pode ser interceptado e alterado por um atacante, essa prática é considerada insegura.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "O servidor web deve ser configurado para suportar apenas HTTPS. Além disso, é recomendável utilizar o cabeçalho HSTS e redirecionar todas as requisições HTTP para HTTPS.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/03-Testing_for_Sensitive_Information_Sent_via_Unencrypted_Channels",
+    "https://cwe.mitre.org/data/definitions/16.html",
+    "https://cwe.mitre.org/data/definitions/319.html",
+    "https://capec.mitre.org/data/definitions/117.html"
+  ]
+}

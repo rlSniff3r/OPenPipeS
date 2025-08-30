@@ -1,0 +1,12 @@
+{
+  "title": "CSS Content Injection",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Semelhante ao funcionamento das injeções de HTML ou XSS, as injeções de CSS permitem que hackers insiram código CSS no lado do cliente, que será interpretado pelo navegador da vítima ao acessar uma URL. Foi demonstrado que é possível extrair dados do DOM usando apenas CSS, apesar de este não ter o mesmo potencial que HTML ou JavaScript e ser capaz apenas de exportar estilos.",
+  "observation": "Disponibilidade: DoS: Consumo de recursos (memória): Um invasor pode fornecer valores inesperados e causar uma falha no programa ou consumo excessivo de recursos, como memória e CPU. Confidencialidade: Leitura de arquivos ou diretórios: Um invasor pode ler dados confidenciais se conseguir controlar referências de recursos. Disponibilidade: Executar códigos ou comandos não autorizados: Um invasor pode usar entradas maliciosas para modificar dados ou possivelmente alterar o fluxo de controle de maneiras inesperadas, incluindo execução de comandos arbitrários.",
+  "remediation": "Esse tipo de ataque pode ser interrompido validando adequadamente os conteúdos que o servidor recebe e envia, ou higienizando corretamente a entrada do usuário.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/11-Client-side_Testing/05-Testing_for_CSS_Injection",
+    "https://research.securitum.com/css-data-exfiltration-in-firefox-via-single-injection-point/",
+    "https://cwe.mitre.org/data/definitions/20.html"
+  ]
+}

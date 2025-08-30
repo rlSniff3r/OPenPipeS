@@ -1,0 +1,12 @@
+{
+  "title": "Disclosure of Internal Server Paths and Directories",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "Esse problema ocorre sempre que o caminho absoluto de um servidor web ou de uma aplicação nele hospedada pode ser identificado por algum mecanismo, como mensagens de erro ou rastreamento de parâmetros enviados.Assim, é possível descobrir o diretório absoluto do servidor onde o conteúdo web é armazenado.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "A ação corretiva depende do tipo de falha que levou à divulgação. Se a informação foi obtida via mensagem de erro, é essencial substituir essas mensagens por respostas genéricas que apenas indiquem uma situação anormal, sem detalhes técnicos. Caso o caminho tenha sido revelado por parâmetro de aplicação, a lógica deve ser alterada para exibir apenas caminhos relativos, ou nenhum.É recomendado substituir as mensagens de erro do servidor por mensagens genéricas e usar o arquivo de configuração do servidor para aplicar essas alterações.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/04-Enumerate_Applications_on_Webserver",
+    "https://cwe.mitre.org/data/definitions/538.html",
+    "https://www.owasp.org/index.php/Full_Path_Disclosure"
+  ]
+}

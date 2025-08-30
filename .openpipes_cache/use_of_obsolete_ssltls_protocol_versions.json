@@ -1,0 +1,11 @@
+{
+  "title": "Use of Obsolete SSL/TLS Protocol Versions",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Para impedir que um atacante leia ou altere dados transmitidos entre cliente e servidor, a comunicação deve ser criptografada. O método mais utilizado é o HTTPS, que substitui o protocolo SSL obsoleto pelo TLS. Usando um certificado digital confiável, o servidor pode demonstrar ao cliente que está conectado ao servidor correto.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "No servidor web, versões inseguras dos protocolos SSL/TLS devem ser desativadas.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://cwe.mitre.org/data/definitions/326.html"
+  ]
+}

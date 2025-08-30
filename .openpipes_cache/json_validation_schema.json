@@ -1,0 +1,10 @@
+{
+  "title": "JSON Validation Schema",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:L",
+  "description": "Um vocabulário chamado JSON Schema permite que você anote e valide documentos JSON. Você tem mais controle sobre os tipos de entrada de usuário que podem ser fornecidos em seu aplicativo ao adicionar esquemas aos seus arquivos JSON. Quando feito corretamente, isso reduz drasticamente o vetor de um invasor. No entanto, como uma linha de defesa adicional, você deve sempre aplicar sua própria validação e rejeição de entrada. Essa estratégia também é preferível porque você também deseja neutralizar e registrar solicitações e entradas do usuário.",
+  "observation": "Disponibilidade: DoS: Consumo de recursos (memória): Um invasor pode fornecer valores inesperados e causar uma falha no programa ou consumo excessivo de recursos, como memória e CPU. Confidencialidade: Leitura de arquivos ou diretórios: Um invasor pode ler dados confidenciais se conseguir controlar referências de recursos. Disponibilidade: Executar códigos ou comandos não autorizados: Um invasor pode usar entradas maliciosas para modificar dados ou possivelmente alterar o fluxo de controle de maneiras inesperadas, incluindo execução de comandos arbitrários.",
+  "remediation": "Para garantir uma solicitação JSON formatada corretamente, confirme se a validação do esquema JSON ocorre. Em seguida, valide cada campo de entrada antes de qualquer processamento de dados.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/20.html"
+  ]
+}

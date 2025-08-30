@@ -1,0 +1,12 @@
+{
+  "title": "Untrusted Digital Certificate",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O certificado digital do servidor é considerado inseguro ou não confiável devido a parâmetros incorretos. Isso aumenta o risco de quebra de confidencialidade e confiabilidade do sistema.",
+  "observation": "Outros: Impacto Técnico: Varia conforme o contexto.",
+  "remediation": "Emitir e instalar um certificado digital confiável, reconhecido por navegadores (emitido por uma autoridade certificadora válida, dentro do prazo de validade e com o nome comum igual ao domínio do site).",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security",
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/04-Testing_for_Weak_Encryption",
+    "https://cwe.mitre.org/data/definitions/16.html"
+  ]
+}

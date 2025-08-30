@@ -1,0 +1,11 @@
+{
+  "title": "Disclosure of Sensitive Information (generic)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Uma senha, por exemplo, é uma informação sensível que pode ser valiosa por si só ou ser usada para lançar outros ataques mais graves (como obter uma mensagem de erro não controlada). O conteúdo de mensagens de erro pode ser usado por um invasor para apoiar o lançamento de outro ataque mais direcionado. Uma exploração de enumeração de diretórios ou falha de path traversal, por exemplo, pode revelar o caminho completo da aplicação instalada.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "Crie \"áreas seguras\" dentro do sistema onde as fronteiras de confiança possam ser claramente definidas. Não permita que informações sensíveis atravessem essas fronteiras e adote extrema cautela ao interagir com compartimentos fora de áreas seguras.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/05-Review_Webpage_Content_for_Information_Leakage",
+    "https://cwe.mitre.org/data/definitions/200.html"
+  ]
+}

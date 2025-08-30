@@ -1,0 +1,11 @@
+{
+  "title": "Identification of Management Panels",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Painéis de administração ou autenticação de aplicações não devem estar expostos publicamente na internet. O acesso a essas interfaces deve ser restrito, preferencialmente por meio de VPNs.",
+  "observation": "Confidencialidade: Ler Dados da Aplicação: O atacante pode obter informações sensíveis.",
+  "remediation": "Restringir o acesso a painéis de administração/autenticação exclusivamente por VPNs, evitando a exposição direta à Internet.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/05-Enumerate_Infrastructure_and_Application_Admin_Interfaces",
+    "https://cwe.mitre.org/data/definitions/16.html"
+  ]
+}

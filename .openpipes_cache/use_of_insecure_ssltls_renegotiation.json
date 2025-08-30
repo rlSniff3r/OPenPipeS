@@ -1,0 +1,11 @@
+{
+  "title": "Use of Insecure SSL/TLS Renegotiation",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N",
+  "description": "A renegociação SSL/TLS insegura pode permitir que um invasor intercepte e injete tráfego malicioso em uma conexão criptografada, explorando a vulnerabilidade conhecida como ataque de renegociação.",
+  "observation": "Confidencialidade: Possibilidade de leitura de dados transmitidos.Integridade: Possibilidade de injeção de dados em sessões existentes.",
+  "remediation": "Desabilitar renegociação insegura e garantir que o servidor aceite apenas renegociação segura (Secure Renegotiation).",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/326.html",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "title": "Secure Client-initiated Renegotiation",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Durante a negociação de conexões SSL/TLS, o servidor consome mais recursos que o cliente. Se o servidor permitir que o cliente solicite renegociação da conexão, um atacante pode abusar desse recurso enviando múltiplas requisições, consumindo recursos e potencialmente causando negação de serviço (DoS).",
+  "observation": "Confidencialidade: Ler Dados da Aplicação: O atacante pode ser capaz de acessar informações sensíveis.",
+  "remediation": "Aplicar os patches mais recentes. Em sistemas que utilizam OpenSSL, atualizar para a versão 0.9.8l ou superior. Como mitigação, também é possível desabilitar a renegociação iniciada pelo cliente sem a necessidade de atualização.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security"
+  ]
+}

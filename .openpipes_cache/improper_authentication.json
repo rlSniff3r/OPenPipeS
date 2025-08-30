@@ -1,0 +1,10 @@
+{
+  "title": "Improper Authentication",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "O pedido não prova ou não prova suficientemente que a alegação de um ator de possuir uma identidade específica é verdadeira.",
+  "observation": "Controle de acesso: execute códigos ou comandos não autorizados: essa fraqueza pode levar à exposição de recursos ou funcionalidades a agentes não intencionais, possivelmente fornecendo aos invasores informações confidenciais ou até mesmo executando códigos arbitrários.",
+  "remediation": "Utilize uma estrutura ou biblioteca para autenticação, como o recurso de autenticação OWASP ESAPI.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/287.html"
+  ]
+}

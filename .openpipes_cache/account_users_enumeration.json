@@ -1,0 +1,13 @@
+{
+  "title": "Account (users) Enumeration",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "Devido a erros de configuração ou decisões de design, aplicações web frequentemente indicam se um nome de usuário existe no sistema. Por exemplo, ao enviar credenciais incorretas, a mensagem de erro pode revelar se o problema é o usuário inexistente ou a senha incorreta. Um atacante pode usar essas informações para compilar listas de usuários e depois realizar ataques de força bruta ou com credenciais padrão.",
+  "observation": "Confidencialidade: Ler Dados da Aplicação: O atacante pode ser capaz de ler informações sensíveis.Controle de Acesso: Mecanismo de Proteção Bypassado: Verificações de controle de acesso podem ser contornadas.",
+  "remediation": "Boas práticas para evitar essa vulnerabilidade incluem:Evitar o uso de dados públicos (alias, e-mail, etc.) como identificadores de login.Durante o desenvolvimento, otimizar o processo de autenticação para não ter tempos de resposta diferentes conforme a existência do usuário.Não exibir mensagens de erro que indiquem se o usuário existe ou não.Manter comportamento uniforme da aplicação independentemente da existência do usuário.Gerar identificadores de usuário de forma aleatória, nunca sequencial.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/03-Identity_Management_Testing/04-Testing_for_Account_Enumeration_and_Guessable_User_Account",
+    "https://cwe.mitre.org/data/definitions/203.html",
+    "https://cwe.mitre.org/data/definitions/204.html",
+    "https://cwe.mitre.org/data/definitions/200.html"
+  ]
+}

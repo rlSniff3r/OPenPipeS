@@ -1,0 +1,12 @@
+{
+  "title": "Disclosure of Sensitive Information in the Metadata of Files Available in the Application",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O termo \"metadados\" refere-se a informações de caráter descritivo sobre um documento. Também podem incluir informações de administração e gerenciamento.O conjunto de dados que caracteriza ou define uma determinada informação associada a eles é chamado de metadados. Ao enriquecer a informação a que estão ligados, os metadados tornam a interpretação computacional muito mais completa e melhoram a recuperação de documentos.Já foi identificado que metadados podem ser explorados para extrair informações sensíveis.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "É recomendado que todos os arquivos disponibilizados pela aplicação tenham seus metadados removidos antes de serem publicados na rede, mitigando essa vulnerabilidade.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/05-Review_Webpage_Content_for_Information_Leakage",
+    "https://cwe.mitre.org/data/definitions/200.html",
+    "https://capec.mitre.org/data/definitions/118.html"
+  ]
+}

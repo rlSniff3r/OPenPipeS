@@ -1,0 +1,12 @@
+{
+  "title": "Remote Code Execution (RCE) by Injection of Local Files",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+  "description": "Utilizando os procedimentos de chamada de arquivo vulneráveis do aplicativo, a inclusão de arquivo local (LFI) é o processo de inclusão de arquivos que já estão no servidor. Por exemplo, quando uma página recebe uma entrada que é o caminho para um arquivo local, essa vulnerabilidade se manifesta. Caracteres que atravessam o diretório podem ser injetados para acessar outros arquivos no servidor se essa entrada não for devidamente higienizada.",
+  "observation": "Controle de acesso: execute códigos ou comandos não autorizados: essa fraqueza pode levar à exposição de recursos ou funcionalidades a agentes não intencionais, possivelmente fornecendo aos invasores informações confidenciais ou até mesmo executando códigos arbitrários.",
+  "remediation": "A melhor maneira de se livrar de vulnerabilidades de inclusão de arquivos é nunca fornecer nenhuma entrada de usuário a nenhuma API de sistema/framework de arquivos. Se isso não for possível, o aplicativo pode manter uma lista de arquivos permitidos que a página pode incluir e, em seguida, usar um número de índice ou outro identificador para acessar o arquivo desejado. Para que usuários mal-intencionados não possam manipular a rota, qualquer solicitação que contenha um identificador inválido deve ser rejeitada. É aconselhável seguir as recomendações do guia OWASP (https://cheatsheetseries.owasp.org/cheatsheets/File Upload Cheat Sheet.html) para boas práticas de remediação contra vulnerabilidades de inclusão de arquivos.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/11.1-Testing_for_File_Inclusion",
+    "https://cwe.mitre.org/data/definitions/20.html",
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/07-Input_Validation_Testing/11-Testing_for_Code_Injection"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Directory Listing",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "O directory listing é um recurso que, quando habilitado, faz com que servidores web listem o conteúdo de um diretório quando não há um arquivo de índice presente (ex.: index.php ou index.html). Assim, se um diretório for acessado sem arquivo de índice e o listing estiver habilitado, o servidor exibirá uma listagem de arquivos.Quando isso acontece, há um problema de vazamento de dados, que pode ser explorado para a construção de outros ataques, incluindo vulnerabilidades como XSS. Embora útil em ambientes de desenvolvimento, não é uma boa prática para servidores em produção.O fato de um servidor permitir a listagem de diretórios traz várias implicações de segurança:Permite que usuários baixem arquivos ou acessem diretórios que não deveriam estar disponíveis.Pode revelar informações técnicas úteis para atacantes sobre o servidor web.Exibe todo o conteúdo de um diretório, sem distinguir entre arquivos públicos e privados.Isso frequentemente ocorre por acidente, quando o servidor não encontra um arquivo de índice válido.",
+  "observation": "Confidencialidade: Leitura de Arquivos ou Diretórios: Expor o conteúdo de um diretório pode permitir que o atacante acesse código-fonte ou obtenha informações úteis para explorar vulnerabilidades, como horários de criação de arquivos ou informações embutidas em nomes. Pode também comprometer dados privados ou confidenciais.",
+  "remediation": "Configurar corretamente o servidor. Servidores web como NGINX, Apache ou IIS devem ser configurados para impedir a listagem de diretórios ou a navegação por caminhos. Por exemplo, em Apache, pode-se criar um arquivo .htaccess no diretório da aplicação para desabilitar o directory listing. Também é possível remover as diretivas Indexes e MultiViews do arquivo httpd.conf.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/04-Enumerate_Applications_on_Webserver",
+    "https://cwe.mitre.org/data/definitions/548.html"
+  ]
+}

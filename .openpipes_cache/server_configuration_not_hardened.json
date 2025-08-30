@@ -1,0 +1,11 @@
+{
+  "title": "Server Configuration Not Hardened",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Qualquer parte da pilha da aplicação (serviços de rede, plataforma, servidor web, banco de dados, frameworks, código customizado, VMs ou containers) pode sofrer com falhas de configuração insegura. Essas falhas podem permitir acessos indevidos e, em casos graves, comprometer todo o sistema.",
+  "observation": "Confidencialidade: Ler Dados da Aplicação: O atacante pode obter informações sensíveis.",
+  "remediation": "Adotar processos de instalação segura, como:Automatizar um processo de hardening repetível para todos os ambientes (dev, QA e produção).Instalar apenas componentes necessários, removendo recursos não utilizados.Revisar e aplicar patches, updates e configurações recomendadas pelo fabricante.Segregar ambientes com arquiteturas segmentadas ou uso de containers.Enviar cabeçalhos de segurança ao cliente.Verificar periodicamente a efetividade das configurações aplicadas.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/05-Enumerate_Infrastructure_and_Application_Admin_Interfaces",
+    "https://cwe.mitre.org/data/definitions/16.html"
+  ]
+}

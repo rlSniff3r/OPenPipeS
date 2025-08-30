@@ -1,0 +1,10 @@
+{
+  "title": "Allocation of Resources Without Limits or Throttling",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+  "description": "Em violação da política de segurança esperada, o software aloca recursos reutilizáveis sem impor limites sobre a quantidade ou tamanho desses recursos. Isso pode permitir abuso ou indisponibilidade.",
+  "observation": "Disponibilidade: DoS: Consumo de Recursos: Ao alocar recursos sem limites, um atacante pode impedir que outros sistemas, aplicações ou processos acessem o mesmo tipo de recurso.",
+  "remediation": "Recomendações:Defina limites mínimos e máximos para alocação de recursos e especifique comportamentos aceitáveis quando os limites forem atingidos.Projete mecanismos de limitação (throttling) na arquitetura para impedir que usuários não autorizados consumam recursos excessivamente.Estabeleça limites por usuário, configuráveis pelo administrador.Implemente autenticação forte e controle de acesso para prevenir abusos.Valide entradas no lado servidor, mesmo que haja verificações no cliente, pois estas podem ser facilmente contornadas.Considere monitorar a taxa de requisições e bloquear quando ultrapassar o limite definido.Na implementação, utilize sempre uma estratégia de validação de entrada positiva (lista de valores aceitos) e rejeite entradas inválidas.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/770.html"
+  ]
+}

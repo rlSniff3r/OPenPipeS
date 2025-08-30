@@ -1,0 +1,15 @@
+{
+  "title": "Lack of Security HTTP Headers",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Cabeçalhos de segurança são implementados como cabeçalhos HTTP de resposta que instruem o navegador sobre como se comportar em situações específicas, reduzindo o risco de exploração de vulnerabilidades no cliente. A configuração de segurança completa necessária para estabelecer uma conexão segura com o cliente não está presente nas respostas do servidor.",
+  "observation": "Controle de Acesso: Mecanismo de Proteção Bypassado: Verificações de controle de acesso para dados ou funcionalidades específicas do usuário podem ser contornadas.",
+  "remediation": "É recomendada a implementação de todos os cabeçalhos de segurança HTTP nas respostas do servidor. Valores recomendados:Strict-Transport-Security (HSTS): max-age=31536000; includeSubDomains.Content-Security-Policy: default-src https: 'self'.X-XSS-Protection:1X-Frame-Options: 'DENY' (se não for possível, 'SAMEORIGIN').X-Content-Type-Options: nosniff.Cache-Control: no-store.Referrer-Policy: 'no-referrer' (ou 'same-origin').Permissions-Policy: Defina as funções mínimas permitidas e negue as demais.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/07-Test_HTTP_Strict_Transport_Security",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/12-Test_for_Content_Security_Policy",
+    "https://cwe.mitre.org/data/definitions/16.html",
+    "https://cwe.mitre.org/data/definitions/693.html",
+    "https://wiki.owasp.org/index.php/OWASP_Secure_Headers_Project",
+    "https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration"
+  ]
+}

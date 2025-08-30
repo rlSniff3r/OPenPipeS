@@ -1,0 +1,12 @@
+{
+  "title": "HTTP Parameter Pollution (HPP)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "A Poluição de Parâmetros HTTP se aproveita do comportamento incorreto do aplicativo ao responder a requisições HTTP que têm o mesmo parâmetro definido no servidor, mas foram enviadas com valores diferentes. A Poluição de Parâmetros HTTP se aproveita do comportamento incorreto do aplicativo ao responder a requisições HTTP que têm o mesmo parâmetro definido no servidor, mas foram enviadas com valores diferentes.",
+  "observation": "Integridade: Estado inesperado: Um invasor pode manipular parâmetros no aplicativo",
+  "remediation": "Esse tipo de ataque seria evitado higienizando adequadamente os dados de entrada, verificando o número de instâncias de parâmetros individuais em uma solicitação e procurando por solicitações com atribuições duplicadas.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/04-Testing_for_HTTP_Parameter_Pollution",
+    "https://cwe.mitre.org/data/definitions/235.html",
+    "https://capec.mitre.org/data/definitions/460.html"
+  ]
+}

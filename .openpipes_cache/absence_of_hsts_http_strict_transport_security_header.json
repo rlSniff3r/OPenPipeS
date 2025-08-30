@@ -1,0 +1,15 @@
+{
+  "title": "Absence of HSTS (HTTP Strict Transport Security) Header",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O cabeçalho HTTP \"Strict-Transport-Security\" (HSTS) é usado para impedir tentativas de interceptação de comunicações, cookies, etc. Esse mecanismo permite que um servidor web declare que apenas conexões HTTP seguras (sobre TLS/SSL) são permitidas para comunicação do navegador.",
+  "observation": "Controle de Acesso: Obter Privilégios ou Assumir Identidade: Um atacante pode obter acesso não autorizado ao sistema recuperando credenciais de autenticação de um usuário legítimo.",
+  "remediation": "Defina o cabeçalho HTTP Strict-Transport-Security, que instrui o navegador do cliente a redirecionar automaticamente solicitações recebidas via HTTP para o protocolo seguro HTTPS, em vez de usar ou forçar um protocolo inseguro.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/07-Test_HTTP_Strict_Transport_Security",
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/12-Test_for_Content_Security_Policy",
+    "https://cwe.mitre.org/data/definitions/16.html",
+    "https://cwe.mitre.org/data/definitions/693.html",
+    "https://wiki.owasp.org/index.php/OWASP_Secure_Headers_Project",
+    "https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration"
+  ]
+}

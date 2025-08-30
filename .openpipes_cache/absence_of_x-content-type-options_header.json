@@ -1,0 +1,10 @@
+{
+  "title": "Absence of X-content-type-options Header",
+  "cvssv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Certos callbacks de API precisam ter cabeçalhos de segurança corretamente configurados para proteger contra ataques como Reflective File Download e injeções diversas.Também é necessário verificar se entradas de usuários são refletidas na resposta da API e, caso sejam dinâmicas, validar e codificá-las para evitar XSS e ataques de execução de métodos de mesma origem.",
+  "observation": "Controle de Acesso: Mecanismo de Proteção Bypassado: Verificações de controle de acesso podem ser contornadas.",
+  "remediation": "Sanitize a entrada da API; escapar caracteres não é suficiente — apenas valores alfanuméricos devem ser permitidos. Garanta que o cabeçalho X-Content-Type-Options esteja presente em todas as respostas da API com valor nosniff, para impedir que o navegador interprete arquivos como outro tipo de conteúdo.Adicione também:Content-Disposition: attachment; filename=\"filename.extension\"com a extensão correspondente ao tipo de arquivo, em APIs cujo retorno não será renderizado.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/116.html"
+  ]
+}

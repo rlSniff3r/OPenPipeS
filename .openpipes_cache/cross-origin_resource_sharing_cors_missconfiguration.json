@@ -1,0 +1,13 @@
+{
+  "title": "Cross-origin Resource Sharing (CORS) Missconfiguration",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N",
+  "description": "CORS significa Cross-Origin Resource Sharing (Compartilhamento de Recursos entre Origens). É um recurso que oferece a possibilidade de: - Uma aplicação web expor recursos a todos os domínios ou a domínios restritos. - Um cliente web fazer uma solicitação AJAX para recursos em um domínio diferente do seu domínio de origem. Uma política CORS irrestrita pode ser abusada de diversas maneiras, o que pode colocar em risco a confidencialidade, a disponibilidade e a integridade das informações do usuário.",
+  "observation": "Outro: Varia de acordo com o contexto: Um invasor pode acessar qualquer funcionalidade que seja inadvertidamente acessível à fonte.",
+  "remediation": "Permita somente os domínios ou subdomínios confiáveis nos quais o aplicativo deve confiar no cabeçalho Access-Control-Allow-Origin.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/11-Client-side_Testing/07-Testing_Cross_Origin_Resource_Sharing",
+    "https://cwe.mitre.org/data/definitions/942.html",
+    "https://developer.mozilla.org/es/docs/Web/HTTP/CORS",
+    "https://stackoverflow.com/questions/1653308/access-control-allow-origin-multiple-origin-domains"
+  ]
+}

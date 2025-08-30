@@ -1,0 +1,12 @@
+{
+  "title": "Predictable Session ID",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "O principal objetivo do ataque de predição de sessão é prever valores de ID de sessão que permitam a um invasor contornar o processo de autenticação de um aplicativo. Um invasor pode prever um valor de ID de sessão válido e obter acesso ao aplicativo investigando e compreendendo o processo de geração de ID de sessão. Primeiro, o invasor precisa coletar alguns valores válidos de ID de sessão, usados para identificar usuários autenticados. Em seguida, ele precisa entender a estrutura do ID de sessão, as informações usadas para criá-lo e o algoritmo de criptografia ou hash usado pelo aplicativo para protegê-lo. Algumas implementações ruins usam IDs de sessão compostos pelo nome de usuário ou outras informações previsíveis, como o carimbo de data/hora ou o endereço IP do cliente. Na pior das hipóteses, essas informações são usadas em texto simples ou codificadas usando algum algoritmo fraco, como a codificação base64. Além disso, o invasor pode implementar uma técnica de força bruta para gerar e testar diferentes valores do ID da sessão até obter acesso ao aplicativo.",
+  "observation": "Controle de acesso: Mecanismo de proteção de bypass: Um invasor pode permanecer conectado por muito tempo, o que pode reutilizar IDs antigos ou excluídos e referências diretas.",
+  "remediation": "Ao utilizar hashes e variáveis não repetíveis, como registros de data e hora, uma sessão não previsível deve ser gerada.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/06-Session_Management_Testing/01-Testing_for_Session_Management_Schema",
+    "https://cwe.mitre.org/data/definitions/1018.html",
+    "https://owasp.org/www-community/attacks/Session_Prediction"
+  ]
+}

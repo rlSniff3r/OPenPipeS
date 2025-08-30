@@ -1,0 +1,10 @@
+{
+  "title": "Disclosure of Sensitive Information Indexed in Web Search Engines or Other Public Sources",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Os mecanismos de busca podem ser usados para realizar o reconhecimento de sites e aplicações. Existem elementos diretos e indiretos na descoberta e reconhecimento por mecanismos de busca: métodos diretos estão relacionados à pesquisa nos índices e conteúdos associados em caches, enquanto os métodos indiretos estão relacionados ao aprendizado de informações sensíveis sobre a estrutura e configuração ao buscar em fóruns, grupos de discussão e sites.Usando buscadores como Google, DuckDuckGo ou Bing é possível encontrar informações potencialmente sensíveis, como:Diagramas e configurações de rede.Mensagens e e-mails arquivados de administradores ou outros profissionais-chave.Procedimentos de login e formatos de nome de usuário.Nomes de usuário, senhas e chaves privadas.Arquivos de configuração de terceiros ou serviços em nuvem.Conteúdo de mensagens de erro reveladoras.Versões de desenvolvimento, testes, testes de aceitação do usuário (UAT) e versões de teste das aplicações.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "Antes de publicar uma aplicação, é essencial considerar a sensibilidade dos dados nela expostos a fim de prevenir a divulgação acidental de informações confidenciais.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/stable/4-Web_Application_Security_Testing/01-Information_Gathering/01-Conduct_Search_Engine_Discovery_Reconnaissance_for_Information_Leakage"
+  ]
+}

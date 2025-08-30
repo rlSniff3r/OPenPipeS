@@ -1,0 +1,10 @@
+{
+  "title": "Improper Check for Certificate Revocation (OCSP Stapling)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N",
+  "description": "Quando uma autoridade certificadora perde confiança, os certificados emitidos por ela precisam ser revogados rapidamente para evitar ataques Man-in-the-Middle. A ausência de verificação apropriada pode permitir que certificados comprometidos continuem sendo aceitos.",
+  "observation": "Controle de Acesso: Assumir Identidade: A confiança pode ser atribuída a uma entidade que não é quem afirma ser.Outros: Dados de uma fonte não confiável (e possivelmente maliciosa) podem ser integrados.Confidencialidade: Dados podem ser expostos a uma entidade que se passa por legítima.",
+  "remediation": "Implementar corretamente o processo de revogação via CRL (Certificate Revocation List) ou OCSP. Garantir acesso rápido às informações de certificados revogados para evitar que certificados comprometidos sejam aceitos.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/299.html"
+  ]
+}

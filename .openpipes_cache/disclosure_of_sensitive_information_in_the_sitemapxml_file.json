@@ -1,0 +1,11 @@
+{
+  "title": "Disclosure of Sensitive Information in the 'sitemap.xml' File",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "Um desenvolvedor ou organização pode fornecer detalhes sobre os recursos disponíveis na aplicação e suas conexões no arquivo \"sitemap.xml\".O arquivo \"sitemap.xml\" pode conter recursos sensíveis que podem ser usados por um atacante para lançar ataques mais avançados e direcionados com base nos dados coletados.",
+  "observation": "Confidencialidade: Leitura de Dados da Aplicação: O invasor pode conseguir ler informações sensíveis.",
+  "remediation": "É recomendado remover do arquivo \"sitemap.xml\" quaisquer dados sensíveis que não sejam necessários para o desenvolvimento da aplicação.",
+  "references": [
+    "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/01-Information_Gathering/03-Review_Webserver_Metafiles_for_Information_Leakage",
+    "https://cwe.mitre.org/data/definitions/200.html"
+  ]
+}
