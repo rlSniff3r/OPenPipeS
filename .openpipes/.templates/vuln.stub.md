@@ -5,6 +5,7 @@ t_IP: 179.179.179.4
 Tipo: Broken Access Control
 Severidade: Crítica
 CVSS: 9.4
+cvss_v: cvss:vector:here
 ---
 
 title
@@ -29,6 +30,8 @@ observation
 ***
 
 remediation
+
+<br>
 
 > [!tldr] Referências
 ***
