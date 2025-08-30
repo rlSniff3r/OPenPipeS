@@ -1,9 +1,0 @@
-{
-  "tipo": "Security Logging and Monitoring Failures",
-  "cwe": "CWE-778",
-  "wstg_id": "WSTG-LOGN-01",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/11-Testing_for_Error_Handling/01-Testing_for_Error_Handling",
-  "owasp_url": "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html",
-  "descricao": "A ausência ou a má configuração de mecanismos de registro e monitoramento dificulta a detecção e resposta a atividades maliciosas ou incidentes de segurança."
-}

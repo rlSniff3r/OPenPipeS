@@ -1,9 +1,0 @@
-{
-  "tipo": "Cross-Site Scripting (XSS)",
-  "cwe": "CWE-79",
-  "wstg_id": "WSTG-INPV-01",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/01-Testing_for_Reflected_Cross_Site_Scripting",
-  "owasp_url": "https://owasp.org/www-community/attacks/xss/",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/XSS_Prevention_Cheat_Sheet.html",
-  "descricao": "XSS permite que atacantes injetem scripts maliciosos em páginas web, impactando a confidencialidade e a integridade dos usuários."
-}

@@ -1,9 +1,0 @@
-{
-  "tipo": "Sensitive Data Exposure",
-  "cwe": "CWE-311",
-  "wstg_id": "WSTG-CRYP-02",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Testing_for_Weak_Encryption",
-  "owasp_url": "https://owasp.org/www-community/attacks/Information_exposure",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html",
-  "descricao": "Exposição de dados sensíveis ocorre quando informações críticas não são protegidas adequadamente em trânsito ou em repouso."
-}

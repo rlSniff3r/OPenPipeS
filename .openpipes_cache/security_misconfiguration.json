@@ -1,9 +1,0 @@
-{
-  "tipo": "Security Misconfiguration",
-  "cwe": "CWE-933",
-  "wstg_id": "WSTG-CONF-01",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/06-Configuration_and_Deployment_Management_Testing/01-Testing_for_Misconfiguration",
-  "owasp_url": "https://owasp.org/www-community/attacks/Misconfiguration",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/Configuration_Guidelines.html",
-  "descricao": "O ambiente de execução da aplicação está configurado de forma insegura, expondo interfaces de administração, mensagens de erro detalhadas ou módulos desnecessários."
-}

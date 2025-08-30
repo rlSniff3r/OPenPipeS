@@ -1,9 +1,0 @@
-{
-  "tipo": "Cryptographic Failures",
-  "cwe": "CWE-311",
-  "wstg_id": "WSTG-CRYP-02",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/12-Testing_for_Weak_Encryption/",
-  "owasp_url": "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html",
-  "descricao": "A aplicação falha em proteger dados sensíveis em repouso ou em trânsito, resultando em possíveis exposições de informações confidenciais como credenciais, números de cartão ou informações pessoais."
-}

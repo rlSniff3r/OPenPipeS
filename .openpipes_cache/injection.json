@@ -1,9 +1,0 @@
-{
-  "tipo": "SQL Injection",
-  "cwe": "CWE-89",
-  "wstg_id": "WSTG-INPV-05",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/05-Testing_for_SQL_Injection",
-  "owasp_url": "https://owasp.org/www-community/attacks/SQL_Injection",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html",
-  "descricao": "A aplicação falha em tratar inputs de usuário de maneira suficientemente adequada. É possível injetar comandos SQL que são executados pelo banco de dados, comprometendo a integridade das informações."
-}

@@ -1,9 +1,0 @@
-{
-  "tipo": "Server-Side Request Forgery (SSRF)",
-  "cwe": "CWE-918",
-  "wstg_id": "WSTG-INPV-09",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/09-Testing_for_SSRF",
-  "owasp_url": "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_(SSRF)/",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/SSRF_Prevention_Cheat_Sheet.html",
-  "descricao": "A aplicação permite que requisições sejam feitas para destinos internos ou externos sem validação adequada, possibilitando escaneamento interno ou exfiltração de dados via SSRF."
-}

@@ -1,9 +1,0 @@
-{
-  "tipo": "Vulnerable and Outdated Components",
-  "cwe": "CWE-1104",
-  "wstg_id": "WSTG-CONF-06",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/06-Configuration_and_Deployment_Management_Testing/06-Testing_for_Vulnerable_Components",
-  "owasp_url": "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/Vulnerable_Dependency_Management_Cheat_Sheet.html",
-  "descricao": "A aplicação utiliza bibliotecas, dependências ou frameworks desatualizados, que contêm vulnerabilidades conhecidas e passíveis de exploração."
-}

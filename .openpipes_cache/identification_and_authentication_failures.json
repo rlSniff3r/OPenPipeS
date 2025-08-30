@@ -1,9 +1,0 @@
-{
-  "tipo": "Identification and Authentication Failures",
-  "cwe": "CWE-287",
-  "wstg_id": "WSTG-ATHN-01",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/09-Authentication_Testing/01-Testing_for_Credentials_Transported_in_Cleartext",
-  "owasp_url": "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html",
-  "descricao": "A aplicação não implementa corretamente controles de autenticação, permitindo acesso não autorizado, reutilização de sessões, ou transporte inseguro de credenciais."
-}

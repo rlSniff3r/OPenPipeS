@@ -1,9 +1,0 @@
-{
-  "tipo": "Insecure Design",
-  "cwe": "CWE-1008",
-  "wstg_id": "WSTG-INFO-02",
-  "wstg_url": "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Information_Gathering/02-Fingerprint_Web_Server",
-  "owasp_url": "https://owasp.org/Top10/A04_2021-Insecure_Design/",
-  "cheatsheet_url": "https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html",
-  "descricao": "A arquitetura da aplicação permite fluxos inseguros ou falha em prever abusos de funcionalidades, resultando em riscos evitáveis devido à ausência de modelagem de ameaças ou validações antecipadas."
-}
