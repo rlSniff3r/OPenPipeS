@@ -5,21 +5,32 @@ t_IP: 179.179.179.4
 Tipo: Broken Access Control
 Severidade: Crítica
 CVSS: 9.4
-endpoint: /api/
-CWE: CWE-000
-WSTG: https://owasp.org/
-OWASP: ref_link
-Cheatsheet: https://cheatsheetseries.owasp.org/
 ---
+
+title
 
 <br>
 
-> [!tldr] Descrição
+> [!note] Descrição
 ***
 
-Descritivo da vulnerabilidade...
+description
+
+<br>
+
+> [!danger] Impacto
+***
+
+observation
 
 <br>
 
 > [!success] Recomendação
 ***
+
+remediation
+
+> [!tldr] Referências
+***
+
+references
