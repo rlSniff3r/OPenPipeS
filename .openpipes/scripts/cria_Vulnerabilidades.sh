@@ -3,7 +3,9 @@
 # Configs
 source $HOME/.openpipes/config.sh
 
-CACHE_DIR="$HOME/.openpipes_cache"
+CACHE_DIR="$HOME/.openpipes_cache/"
+obsdir="$HOME/.obsidianFixedMount/"
+tpdir="$HOME/.templates/"
 
 # Seleciona alvo
 echo "[*] Selecione o alvo:"
@@ -69,6 +71,8 @@ sed -i "0,/^remediation/{s|^remediation.*|$remediation|}" "$vulnDir/$filename"
 # Referências (prefixa cada uma com "- ")
 #sed -i "0,/^references/{s|^references.*|- $references|}" "$vulnDir/$filename"
 awk -v r="$references" 'c==0 && /^references/ { print "- " r; c=1; next } { print }' "$vulnDir/$filename" > tmp && mv tmp "$vulnDir/$filename"
+
+sed -i "s/Vulnerabilidades/Vulnerabilidades\n\n## $emoji [[${vulnDir}\\filename|${title}]]/g" ${target_file}
 
 echo "[✔] Vulnerabilidade criada com sucesso: $filename"
 

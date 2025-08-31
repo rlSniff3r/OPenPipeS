@@ -66,7 +66,7 @@ for host in $(ls -d nmap-* 2>/dev/null); do
             /^# 🚩 Progresso/ {print; print prog; in_prog=1; next}
             in_prog && /^- / {next}
             {print}
-        ' "$tpdir/targetTemplate_v1.0.md"
+        ' "$tpdir/target.stub.md"
     } > "$alvoFile"
 
     # Cria Dashboard com nome substituído
