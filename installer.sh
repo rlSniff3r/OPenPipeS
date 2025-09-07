@@ -10,6 +10,10 @@ config_file="$HOME/.openpipes/config.sh"
 
 echo $path
 
+echo "stty sane" > ~/.profile
+
+. ~/.profile
+
 echo "##############################################################"
 echo " Copying .openpipes folder to your \$HOME ... "
 echo "##############################################################"
@@ -42,7 +46,7 @@ echo "##############################################################"
 echo " Downgrading dnsrecon to version 1.1.3 ... "
 echo "##############################################################"
 
-wget $dnsrecon_ver && unzip 1.1.3.zip && sudo rm -rf $dnsrecon_dir/* && sudo mkdir -p $dnsrecon_dir && sudo cp -r dnsrecon-1.1.3/* $dnsrecon_dir
+wget $dnsrecon_ver && unzip 1.1.3.zip && sudo mv $dnsrecon_dir $dnsrecon_dir-original && sudo mkdir -p $dnsrecon_dir && sudo cp -r dnsrecon-1.1.3/* $dnsrecon_dir
 
 echo "##############################################################"
 echo " Updating repositories and installing RDAP ... "
