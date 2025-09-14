@@ -4,7 +4,7 @@ amass_ver="https://github.com/owasp-amass/amass/releases/download/v3.20.0/amass_
 amass_path=$(which amass)
 dnsrecon_ver="https://github.com/darkoperator/dnsrecon/archive/refs/tags/1.1.3.zip"
 dnsrecon_dir=$(readlink -f $(which dnsrecon) | rev | sed 's-^[^/]*--' | rev)
-path="$(which ls | rev | sed 's-^[^/]*--' | rev)"
+path="$(echo $PATH | sed -z 's/:/\n/g' | grep "/usr" | head -n1)"
 scripts_dir="$HOME/.openpipes/scripts/"
 config_file="$HOME/.openpipes/config.sh"
 
@@ -37,6 +37,12 @@ for file in $(ls $scripts_dir/* | rev | cut -d "/" -f1 | rev);do
 done
 
 echo "##############################################################"
+echo " Updating repositories and installing RDAP ... "
+echo "##############################################################"
+
+sudo apt-get update && sudo apt install rdap -y
+
+echo "##############################################################"
 echo " Downgrading amass to version 3.20.0 ... "
 echo "##############################################################"
 
@@ -49,10 +55,28 @@ echo "##############################################################"
 wget $dnsrecon_ver && unzip 1.1.3.zip && sudo mv $dnsrecon_dir $dnsrecon_dir-original && sudo mkdir -p $dnsrecon_dir && sudo cp -r dnsrecon-1.1.3/* $dnsrecon_dir
 
 echo "##############################################################"
-echo " Updating repositories and installing RDAP ... "
+echo " Instalado jq JSON Parser ... "
 echo "##############################################################"
 
-sudo apt-get update && sudo apt install rdap -y
+sudo apt-get install jq
+
+echo "##############################################################"
+echo " Instalado gf ... "
+echo "##############################################################"
+
+sudo apt-get install gf
+
+echo "##############################################################"
+echo " Instalado Golang GO ... "
+echo "##############################################################"
+
+sudo apt install golang-go
+
+echo "##############################################################"
+echo " Installing HTTPX ... "
+echo "##############################################################"
+
+go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
 
 echo "##############################################################"
 echo " Populating local cache with top 10 vulnerabilities  ... "

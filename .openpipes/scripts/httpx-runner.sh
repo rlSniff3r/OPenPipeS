@@ -67,8 +67,18 @@ for dir in "$base_dir"/nmap-*; do
     echo "http://$domain" >> "$target_list"
     echo "https://$domain" >> "$target_list"
   done
+
+  # Garantir que o hostname (nome do diretório / nmap-<host>) também seja testado
+  if [[ ! " ${seen[*]} " =~ " $targetName " ]]; then
+    seen+=("$targetName")
+    echo "http://$targetName" >> "$target_list"
+    echo "https://$targetName" >> "$target_list"
+  fi
+
+  # Sempre mantenha os IPs como fallback
   echo "http://$ip" >> "$target_list"
   echo "https://$ip" >> "$target_list"
+
 
   timestamp=$(date +%Y%m%d-%H%M%S)
   json_out="$dir/httpx-$timestamp.json"
