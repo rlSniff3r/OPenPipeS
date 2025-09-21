@@ -5,10 +5,41 @@
 # ░▀░░░▀▀▀░▀░▀░▀▀▀░▀▀▀░▀▀▀░▀▀▀░▀▀▀░▀░▀
 
 # ─────────────────────────────────────────────────────────────
-# katana-buster.sh v1.0
+# katana-buster.sh v1.0 (modificado)
 # Executa Feroxbuster + Katana paralelamente em URLs construídas
 # Gera arquivos integrados ao Obsidian: endpoints.md, ferox-katana.md etc.
+# Adicionado: --dns-only e --ip-only
 # ─────────────────────────────────────────────────────────────
+
+# === PARSING SIMPLES DE FLAGS ===
+DNS_ONLY=
+IP_ONLY=
+
+# Remover flags conhecidas dos parâmetros, deixando apenas alvos (se houver)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dns-only)
+      DNS_ONLY=1
+      shift
+      ;;
+    --ip-only)
+      IP_ONLY=1
+      shift
+      ;;
+    --) # fim dos options
+      shift
+      break
+      ;;
+    -*)
+      # Não reconhece outras flags aqui — deixe para o resto do script (ou trate como alvo)
+      break
+      ;;
+    *)
+      # primeiro parâmetro não-flag: para a fase de parsing
+      break
+      ;;
+  esac
+done
 
 # === CONFIGURAÇÃO GLOBAL ===
 source $HOME/.openpipes/config.sh
@@ -70,17 +101,29 @@ process_target() {
   fi
 
   # === 4. Construção manual de URLs === [MODIFICADO]
+  # Determina se vamos incluir IPs e/ou DNS baseando-se nas flags globais
+  include_ip=true
+  include_dns=true
+  if [[ -n "$DNS_ONLY" ]]; then
+    include_ip=false
+    include_dns=true
+  fi
+  if [[ -n "$IP_ONLY" ]]; then
+    include_ip=true
+    include_dns=false
+  fi
+
   for port in "${http_ports[@]}" "${ports_fallback[@]}"; do
     if [[ "$port" == "80" ]]; then
-      echo "http://$ip" >> urls.txt
-      [[ -n "$dns" ]] && echo "http://$dns" >> urls.txt
+      $include_ip && echo "http://$ip" >> urls.txt
+      $include_dns && [[ -n "$dns" ]] && echo "http://$dns" >> urls.txt
     elif [[ "$port" == "443" ]]; then
-      echo "https://$ip" >> urls.txt
-      [[ -n "$dns" ]] && echo "https://$dns" >> urls.txt
+      $include_ip && echo "https://$ip" >> urls.txt
+      $include_dns && [[ -n "$dns" ]] && echo "https://$dns" >> urls.txt
     else
-      echo "http://$ip:$port" >> urls.txt
-      echo "https://$ip:$port" >> urls.txt
-      [[ -n "$dns" ]] && {
+      $include_ip && echo "http://$ip:$port" >> urls.txt
+      $include_ip && echo "https://$ip:$port" >> urls.txt
+      $include_dns && [[ -n "$dns" ]] && {
         echo "http://$dns:$port" >> urls.txt
         echo "https://$dns:$port" >> urls.txt
       }
