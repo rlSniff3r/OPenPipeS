@@ -1,525 +1,423 @@
-#!/usr/bin/env bash
-# installer.sh - OPenPipeS installer (robusto, idempotente, opinionated)
-# Author: ChatGPT (assistente)
-# Purpose: install and configure dependencies for OPenPipeS repo
-# Usage:
-#   sudo ./installer.sh [--yes] [--dry-run] [--skip-go] [--skip-amass] [--skip-dnsrecon] [--skip-httpx] [--skip-nuclei] [--skip-nuclei-templates] [--skip-ferox] [--skip-katana] [--skip-gf] [--skip-jq] [--install-all]
-#
-# Examples:
-#   sudo ./installer.sh --yes
-#   ./installer.sh --dry-run --skip-nuclei
-#
+#!/bin/bash
+
+# ═══════════════════════════════════════════════════════════════════════════
+# OPenPipeS - Instalador Automático
+# Autor: Rafael Luís da Silva
+# ═══════════════════════════════════════════════════════════════════════════
+
 set -euo pipefail
-IFS=$'\n\t'
 
-### -------------------------
-### CONFIGURABLE VERSIONS
-### -------------------------
-AMASS_VERSION="3.20.0"
-DNSRECON_VERSION="1.1.3"
+# Cores
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# pinned go installs (use module@version if desired)
-HTTPX_GO_PKG="github.com/projectdiscovery/httpx/cmd/httpx@latest"
-NUCLEI_GO_PKG="github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest"
-FEROX_GO_PKG="github.com/epi052/feroxbuster@latest"      # note: feroxbuster also available as binary
-KATANA_GO_PKG="github.com/projectdiscovery/katana/cmd/katana@latest"
-GF_REPO="https://github.com/tomnomnom/gf"
-GF_PATTERNS_REPO="https://github.com/1ndianl33t/Gf-Patterns"
+# Diretórios
+OPENPIPES_HOME="${HOME}/.openpipes"
+OPENPIPES_BIN="${OPENPIPES_HOME}/bin"
+OPENPIPES_SCRIPTS="${OPENPIPES_HOME}/scripts"
+OPENPIPES_TEMPLATES="${OPENPIPES_HOME}/.templates"
+OPENPIPES_CACHE="${OPENPIPES_HOME}_cache"
+OPENPIPES_CONFIG="${OPENPIPES_HOME}/config.sh"
 
-# Install directories & paths
-BIN_DIR="/usr/local/bin"
-OPENPIPES_DIR="$(pwd)"
-OPENPIPES_CONFIG_DIR="${OPENPIPES_DIR}/.openpipes"
-OPENPIPES_CONFIG_FILE="${OPENPIPES_CONFIG_DIR}/config.sh"
-CACHE_DIR="${OPENPIPES_DIR}/.openpipes_cache"
-
-# flags (default)
-DRY_RUN=0
-AUTO_YES=0
-SKIP_GO=0
-SKIP_AMASS=0
-SKIP_DNSRECON=0
-SKIP_HTTPX=0
-SKIP_NUCLEI=0
-SKIP_NUCLEI_TEMPLATES=0
-SKIP_FEROX=0
-SKIP_KATANA=0
-SKIP_GF=0
-SKIP_JQ=0
-INSTALL_ALL=0
-
-### -------------------------
-### COLORS & UTILS
-### -------------------------
-info()    { printf "\e[1;34m[INFO]\e[0m %s\n" "$*"; }
-ok()      { printf "\e[1;32m[ OK ]\e[0m %s\n" "$*"; }
-warn()    { printf "\e[1;33m[WARN]\e[0m %s\n" "$*"; }
-err()     { printf "\e[1;31m[ERR ]\e[0m %s\n" "$*"; }
-run()     { if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: %s\n" "$*"; else eval "$*"; fi; }
-
-usage() {
-  cat <<EOF
-OPenPipeS installer - usage
-
-sudo ./installer.sh [options]
-
-Options:
-  --yes                      Non-interactive; answer yes to prompts
-  --dry-run                  Show actions without executing (safe)
-  --install-all              Try to install everything (default unless using skips)
-  --skip-go                  Skip Go toolchain install
-  --skip-amass               Skip amass install
-  --skip-dnsrecon            Skip dnsrecon install
-  --skip-httpx               Skip httpx install
-  --skip-nuclei              Skip nuclei install
-  --skip-nuclei-templates    Skip fetching nuclei-templates
-  --skip-ferox               Skip feroxbuster install
-  --skip-katana              Skip katana install
-  --skip-gf                  Skip gf and patterns install
-  --skip-jq                  Skip jq install (some scripts use it)
-  -h, --help                 Show this help
-
-EOF
-  exit 1
-}
-
-### -------------------------
-### PARSE ARGS
-### -------------------------
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --dry-run) DRY_RUN=1; shift ;;
-    --yes) AUTO_YES=1; shift ;;
-    --skip-go) SKIP_GO=1; shift ;;
-    --skip-amass) SKIP_AMASS=1; shift ;;
-    --skip-dnsrecon) SKIP_DNSRECON=1; shift ;;
-    --skip-httpx) SKIP_HTTPX=1; shift ;;
-    --skip-nuclei) SKIP_NUCLEI=1; shift ;;
-    --skip-nuclei-templates) SKIP_NUCLEI_TEMPLATES=1; shift ;;
-    --skip-ferox) SKIP_FEROX=1; shift ;;
-    --skip-katana) SKIP_KATANA=1; shift ;;
-    --skip-gf) SKIP_GF=1; shift ;;
-    --skip-jq) SKIP_JQ=1; shift ;;
-    --install-all) INSTALL_ALL=1; shift ;;
-    -h|--help) usage ;;
-    *) warn "Unknown option: $1"; usage ;;
-  esac
-done
-
-if [ "$INSTALL_ALL" -eq 1 ]; then
-  SKIP_GO=0; SKIP_AMASS=0; SKIP_DNSRECON=0; SKIP_HTTPX=0; SKIP_NUCLEI=0; SKIP_NUCLEI_TEMPLATES=0; SKIP_FEROX=0; SKIP_KATANA=0; SKIP_GF=0; SKIP_JQ=0
-fi
-
-confirm() {
-  local prompt="$1"
-  if [ "$AUTO_YES" -eq 1 ]; then return 0; fi
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: would ask: %s\n" "$prompt"; return 0; fi
-  read -rp "$prompt [y/N]: " ans
-  case "$ans" in
-    [Yy]* ) return 0 ;;
-    * ) return 1 ;;
-  esac
-}
-
-### -------------------------
-### SIMPLE OS DETECTION
-### -------------------------
-OS=""
-PKG=""
-if [ "$(uname -s)" = "Darwin" ]; then
-  OS="macos"
-  PKG="brew"
-else
-  if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    case "${ID_LIKE:-$ID}" in
-      *debian*|*ubuntu*|debian|ubuntu) OS="debian"; PKG="apt-get" ;;
-      *rhel*|*fedora*|rhel|fedora|centos) OS="rhel"; PKG="yum" ;;
-      *) OS="linux"; PKG="apt-get" ;;
+log() {
+    local level=$1
+    shift
+    case $level in
+        INFO)  echo -e "${GREEN}[+]${NC} $*" ;;
+        WARN)  echo -e "${YELLOW}[!]${NC} $*" ;;
+        ERROR) echo -e "${RED}[-]${NC} $*" ;;
+        STEP)  echo -e "${CYAN}[*]${NC} $*" ;;
     esac
-  else
-    OS="linux"
-    PKG="apt-get"
-  fi
-fi
-info "Detected OS: $OS (pkg: $PKG)"
-
-### -------------------------
-### HELPERS
-### -------------------------
-backup_if_exists() {
-  local file="$1"
-  if [ -e "$file" ]; then
-    local stamp
-    stamp="$(date +%Y%m%d_%H%M%S)"
-    local dest="${file}.orig_${stamp}"
-    info "Backing up existing '$file' -> '$dest'"
-    run "sudo cp -a \"$file\" \"$dest\""
-  fi
 }
 
-ensure_dir() {
-  local dir="$1"
-  if [ ! -d "$dir" ]; then
-    info "Creating $dir"
-    run "mkdir -p \"$dir\""
-  fi
+banner() {
+    clear
+    echo -e "${CYAN}"
+    cat << "EOF"
+   ___  ____            ____  _            ____  
+  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___/ ___| 
+ | | | | |_) / _ \ '_ \| |_) | | '_ \ / _ \___ \ 
+ | |_| |  __/  __/ | | |  __/| | |_) |  __/___) |
+  \___/|_|   \___|_| |_|_|   |_| .__/ \___|____/ 
+                                |_|               
+EOF
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}           INSTALADOR AUTOMÁTICO v2.0${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
 }
 
-install_pkg() {
-  local pkgname="$1"
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: would install package %s\n" "$pkgname"; return; fi
-
-  case "$PKG" in
-    apt-get)
-      if ! command -v apt-get >/dev/null 2>&1; then err "apt-get not found"; return 1; fi
-      sudo apt-get update -y
-      sudo apt-get install -y "$pkgname"
-      ;;
-    yum)
-      sudo yum install -y "$pkgname"
-      ;;
-    brew)
-      brew install "$pkgname"
-      ;;
-    *)
-      warn "Unknown package manager: $PKG - try installing $pkgname manually"
-      return 1
-      ;;
-  esac
-}
-
-install_snap_if_missing() {
-  # some systems may use snap for certain packages (left optional)
-  true
-}
-
-install_go() {
-  if [ "$SKIP_GO" -eq 1 ]; then info "Skipping Go install (flag)"; return 0; fi
-  if command -v go >/dev/null 2>&1; then
-    ok "Go already installed: $(go version)"
-    return 0
-  fi
-  info "Installing Go (if possible)..."
-  case "$OS" in
-    debian)
-      install_pkg "golang-go"
-      ;;
-    rhel)
-      install_pkg "golang"
-      ;;
-    macos)
-      install_pkg "go"
-      ;;
-    *)
-      warn "Unable to install Go automatically for OS=$OS; please install go >= 1.18 manually."
-      ;;
-  esac
-  if command -v go >/dev/null 2>&1; then ok "Go installed: $(go version)"; else warn "Go not installed or not in PATH."
-  fi
-}
-
-install_jq() {
-  if [ "$SKIP_JQ" -eq 1 ]; then info "Skipping jq (flag)"; return 0; fi
-  if command -v jq >/dev/null 2>&1; then ok "jq exists: $(jq --version)"; return 0; fi
-  info "Installing jq..."
-  case "$PKG" in
-    apt-get) install_pkg "jq" ;;
-    yum) install_pkg "jq" || install_pkg "epel-release" && install_pkg "jq" ;;
-    brew) install_pkg "jq" ;;
-    *) warn "Please install jq manually." ;;
-  esac
-}
-
-install_basic_utils() {
-  # common utilities used by scripts
-  info "Ensuring basic utilities (curl, wget, unzip, git, python3) are present..."
-  PKGS=(curl wget unzip git python3 python3-pip ca-certificates)
-  for p in "${PKGS[@]}"; do
-    if ! command -v "$p" >/dev/null 2>&1; then
-      warn "Package $p not found - attempting to install via package manager"
-      install_pkg "$p" || warn "Failed to install $p automatically"
-    else
-      ok "$p present"
+check_root() {
+    if [[ $EUID -eq 0 ]]; then
+        log ERROR "Não execute como root!"
+        exit 1
     fi
-  done
 }
 
-download_and_extract() {
-  local url="$1"; local dest_dir="$2"; local strip_root="${3:-1}"
-  ensure_dir "$dest_dir"
-  local tmp
-  tmp="$(mktemp -d)"
-  run "curl -L --fail -o \"$tmp/archive\" \"$url\""
-  run "unzip -o \"$tmp/archive\" -d \"$tmp/extracted\" >/dev/null 2>&1 || tar -xf \"$tmp/archive\" -C \"$tmp/extracted\" >/dev/null 2>&1 || true"
-  if [ "$strip_root" -eq 1 ]; then
-    # move contents of first subdir into dest_dir
-    local first
-    first="$(find \"$tmp/extracted\" -maxdepth 1 -mindepth 1 -type d | head -n1 || true)"
-    if [ -n "$first" ]; then
-      run "cp -r \"$first/\"* \"$dest_dir/\" || true"
-    else
-      run "cp -r \"$tmp/extracted\"/* \"$dest_dir/\" || true"
+check_os() {
+    if [[ ! -f /etc/debian_version ]]; then
+        log WARN "Este instalador foi testado apenas no Kali/Debian/Ubuntu"
+        echo -ne "${YELLOW}Deseja continuar? [s/N]:${NC} "
+        read -r resp
+        [[ ! "$resp" =~ ^[sS]$ ]] && exit 1
     fi
-  else
-    run "cp -r \"$tmp/extracted\"/* \"$dest_dir/\" || true"
-  fi
-  run "rm -rf \"$tmp\""
 }
 
-install_amass() {
-  if [ "$SKIP_AMASS" -eq 1 ]; then info "Skipping amass (flag)"; return 0; fi
-  if command -v amass >/dev/null 2>&1; then
-    ok "amass exists: $(amass -version 2>&1 | head -n1 || true)"
-  fi
+create_directories() {
+    log STEP "Criando estrutura de diretórios..."
+    
+    mkdir -p "$OPENPIPES_HOME"
+    mkdir -p "$OPENPIPES_BIN"
+    mkdir -p "$OPENPIPES_SCRIPTS"
+    mkdir -p "$OPENPIPES_TEMPLATES"
+    mkdir -p "$OPENPIPES_CACHE"
+    
+    log INFO "Diretórios criados em: $OPENPIPES_HOME"
+}
 
-  info "Installing amass v${AMASS_VERSION}..."
-  local arch
-  arch="$(uname -m)"
-  case "$arch" in
-    x86_64|amd64) arch="amd64" ;;
-    aarch64|arm64) arch="arm64" ;;
-    *) arch="amd64" ;;
-  esac
+install_apt_packages() {
+    log STEP "Instalando pacotes via APT..."
+    
+    local packages=(
+        nmap
+        curl
+        wget
+        git
+        jq
+        python3
+        python3-pip
+        python3-venv
+        golang-go
+        build-essential
+        whois
+        dnsutils
+    )
+    
+    log INFO "Atualizando repositórios..."
+    sudo apt update
+    
+    log INFO "Instalando pacotes base..."
+    sudo apt install -y "${packages[@]}"
+    
+    log INFO "Pacotes APT instalados!"
+}
 
-  local tmp_url="https://github.com/OWASP/Amass/releases/download/v${AMASS_VERSION}/amass_linux_${arch}.zip"
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: would download %s\n" "$tmp_url"; return 0; fi
-
-  local tmpdir
-  tmpdir="$(mktemp -d)"
-  info "Downloading $tmp_url..."
-  if ! curl -L --fail -o "${tmpdir}/amass.zip" "$tmp_url"; then
-    warn "Could not download amass from $tmp_url. You may need to fetch it manually."
-  else
-    run "unzip -o \"${tmpdir}/amass.zip\" -d \"${tmpdir}\" >/dev/null 2>&1 || true"
-    if [ -f "${tmpdir}/amass" ]; then
-      backup_if_exists "${BIN_DIR}/amass"
-      run "sudo cp -a \"${tmpdir}/amass\" \"${BIN_DIR}/amass\""
-      run "sudo chmod +x \"${BIN_DIR}/amass\""
-      ok "amass v${AMASS_VERSION} installed to ${BIN_DIR}/amass"
-    else
-      warn "amass binary not found inside downloaded archive"
+install_go_tools() {
+    log STEP "Instalando ferramentas Go..."
+    
+    # Configurar GOPATH se necessário
+    if [[ -z "${GOPATH:-}" ]]; then
+        export GOPATH="$HOME/go"
+        export PATH="$PATH:$GOPATH/bin"
+        echo 'export GOPATH="$HOME/go"' >> ~/.bashrc
+        echo 'export PATH="$PATH:$GOPATH/bin"' >> ~/.bashrc
     fi
-  fi
-  run "rm -rf \"$tmpdir\""
-}
-
-install_dnsrecon() {
-  if [ "$SKIP_DNSRECON" -eq 1 ]; then info "Skipping dnsrecon (flag)"; return 0; fi
-  if command -v dnsrecon >/dev/null 2>&1; then
-    ok "dnsrecon exists: $(dnsrecon -V 2>&1 || true)"
-  fi
-
-  info "Installing dnsrecon v${DNSRECON_VERSION}..."
-  local url="https://github.com/darkoperator/dnsrecon/archive/refs/tags/${DNSRECON_VERSION}.zip"
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: would download %s\n" "$url"; return 0; fi
-
-  local tmpdir
-  tmpdir="$(mktemp -d)"
-  run "curl -L --fail -o \"${tmpdir}/dnsrecon.zip\" \"$url\""
-  run "unzip -o \"${tmpdir}/dnsrecon.zip\" -d \"${tmpdir}\" >/dev/null 2>&1 || true"
-  # dnsrecon v1.1.3 structure: dnsrecon-1.1.3/dnsrecon.py etc
-  local extracted
-  extracted="$(find "${tmpdir}" -maxdepth 1 -type d -name 'dnsrecon*' | head -n1)"
-  if [ -n "$extracted" ]; then
-    # Copy dnsrecon script to /usr/local/bin and make executable
-    backup_if_exists "${BIN_DIR}/dnsrecon"
-    if [ -f "${extracted}/dnsrecon.py" ]; then
-      run "sudo cp -a \"${extracted}/dnsrecon.py\" \"${BIN_DIR}/dnsrecon\""
-      run "sudo chmod +x \"${BIN_DIR}/dnsrecon\""
-      ok "dnsrecon installed to ${BIN_DIR}/dnsrecon"
-    else
-      warn "dnsrecon.py not found in archive; you may need to install dnsrecon manually."
+    
+    # httpx
+    if ! command -v httpx &>/dev/null; then
+        log INFO "Instalando httpx..."
+        go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
     fi
-  else
-    warn "Could not extract dnsrecon archive; check download URL."
-  fi
-  run "rm -rf \"$tmpdir\""
-}
-
-install_httpx() {
-  if [ "$SKIP_HTTPX" -eq 1 ]; then info "Skipping httpx (flag)"; return 0; fi
-  if command -v httpx >/dev/null 2>&1; then ok "httpx exists: $(httpx -version 2>&1 || true)"; return 0; fi
-  if [ "$SKIP_GO" -eq 1 ]; then warn "Skipping httpx: go not available"; return 1; fi
-  info "Installing httpx via 'go install'..."
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: go install %s\n" "$HTTPX_GO_PKG"; return 0; fi
-  run "GOBIN=${BIN_DIR} go install ${HTTPX_GO_PKG}"
-  ok "httpx installed to ${BIN_DIR}"
-}
-
-install_nuclei() {
-  if [ "$SKIP_NUCLEI" -eq 1 ]; then info "Skipping nuclei (flag)"; return 0; fi
-  if command -v nuclei >/dev/null 2>&1; then ok "nuclei exists: $(nuclei -version 2>&1 || true)"; return 0; fi
-  if [ "$SKIP_GO" -eq 1 ]; then warn "Skipping nuclei: go not available"; return 1; fi
-  info "Installing nuclei via 'go install'..."
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: go install %s\n" "$NUCLEI_GO_PKG"; return 0; fi
-  run "GOBIN=${BIN_DIR} go install ${NUCLEI_GO_PKG}"
-  ok "nuclei installed to ${BIN_DIR}"
-  if [ "$SKIP_NUCLEI_TEMPLATES" -eq 0 ]; then
-    fetch_nuclei_templates
-  fi
-}
-
-fetch_nuclei_templates() {
-  info "Fetching nuclei-templates (git clone/update)..."
-  ensure_dir "${OPENPIPES_DIR}/.openpipes_templates"
-  if [ -d "${OPENPIPES_DIR}/nuclei-templates" ]; then
-    info "Updating existing nuclei-templates..."
-    if [ "$DRY_RUN" -eq 0 ]; then
-      (cd "${OPENPIPES_DIR}/nuclei-templates" && git pull --rebase || true)
+    
+    # nuclei
+    if ! command -v nuclei &>/dev/null; then
+        log INFO "Instalando nuclei..."
+        go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+        nuclei -update-templates
     fi
-  else
-    run "git clone https://github.com/projectdiscovery/nuclei-templates.git \"${OPENPIPES_DIR}/nuclei-templates\" || true"
-  fi
-  ok "nuclei-templates is ready (in ${OPENPIPES_DIR}/nuclei-templates)"
+    
+    # katana
+    if ! command -v katana &>/dev/null; then
+        log INFO "Instalando katana..."
+        go install github.com/projectdiscovery/katana/cmd/katana@latest
+    fi
+    
+    # gf (GrepFuzzable)
+    if ! command -v gf &>/dev/null; then
+        log INFO "Instalando gf..."
+        go install github.com/tomnomnom/gf@latest
+        
+        # Instalar padrões
+        mkdir -p ~/.gf
+        git clone https://github.com/1ndianl33t/Gf-Patterns ~/.gf-patterns 2>/dev/null || true
+        cp -r ~/.gf-patterns/*.json ~/.gf/ 2>/dev/null || true
+    fi
+    
+    log INFO "Ferramentas Go instaladas!"
 }
 
-install_ferox() {
-  if [ "$SKIP_FEROX" -eq 1 ]; then info "Skipping feroxbuster (flag)"; return 0; fi
-  if command -v feroxbuster >/dev/null 2>&1; then ok "feroxbuster exists: $(feroxbuster -V 2>&1 || true)"; return 0; fi
-  if [ "$SKIP_GO" -eq 1 ]; then warn "Skipping feroxbuster: go not available"; return 1; fi
-  info "Installing feroxbuster via go install..."
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: go install %s\n" "$FEROX_GO_PKG"; return 0; fi
-  run "GOBIN=${BIN_DIR} go install ${FEROX_GO_PKG}"
-  ok "feroxbuster installed to ${BIN_DIR}"
+install_rust_tools() {
+    log STEP "Instalando ferramentas Rust..."
+    
+    # Instalar Rust se necessário
+    if ! command -v cargo &>/dev/null; then
+        log INFO "Instalando Rust..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source "$HOME/.cargo/env"
+    fi
+    
+    # feroxbuster
+    if ! command -v feroxbuster &>/dev/null; then
+        log INFO "Instalando feroxbuster..."
+        cargo install feroxbuster
+    fi
+    
+    log INFO "Ferramentas Rust instaladas!"
 }
 
-install_katana() {
-  if [ "$SKIP_KATANA" -eq 1 ]; then info "Skipping katana (flag)"; return 0; fi
-  if command -v katana >/dev/null 2>&1; then ok "katana exists: $(katana -h >/dev/null 2>&1 || true)"; return 0; fi
-  if [ "$SKIP_GO" -eq 1 ]; then warn "Skipping katana: go not available"; return 1; fi
-  info "Installing katana via go install..."
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: go install %s\n" "$KATANA_GO_PKG"; return 0; fi
-  run "GOBIN=${BIN_DIR} go install ${KATANA_GO_PKG}"
-  ok "katana installed to ${BIN_DIR}"
-}
-
-install_gf() {
-  if [ "$SKIP_GF" -eq 1 ]; then info "Skipping gf (flag)"; return 0; fi
-  if command -v gf >/dev/null 2>&1; then ok "gf exists: $(gf -h >/dev/null 2>&1 || true)"; return 0; fi
-  info "Installing gf (tomnomnom) and patterns..."
-  run "go install github.com/tomnomnom/gf@latest"
-  run "GFPATH=\$HOME/.gf && mkdir -p \"\$GFPATH\""
-  if [ ! -d "$HOME/.gf" ] || [ ! -f "$HOME/.gf/README.md" ]; then
-    run "git clone ${GF_PATTERNS_REPO} /tmp/gf-patterns || true"
-    run "cp -r /tmp/gf-patterns/* \$HOME/.gf/ || true"
-    run "rm -rf /tmp/gf-patterns || true"
-  fi
-  ok "gf installed and patterns copied to \$HOME/.gf"
+install_python_tools() {
+    log STEP "Instalando ferramentas Python..."
+    
+    # Criar venv para LinkFinder
+    if [[ ! -d "$HOME/.venv-jsfinder" ]]; then
+        log INFO "Criando ambiente virtual para LinkFinder..."
+        python3 -m venv "$HOME/.venv-jsfinder"
+    fi
+    
+    # Instalar LinkFinder
+    source "$HOME/.venv-jsfinder/bin/activate"
+    pip install --upgrade pip
+    pip install linkfinder
+    deactivate
+    
+    # Criar wrapper para linkfinder.py
+    cat > "$OPENPIPES_BIN/linkfinder.py" << 'WRAPPER'
+#!/bin/bash
+source "$HOME/.venv-jsfinder/bin/activate"
+python -m linkfinder "$@"
+deactivate
+WRAPPER
+    chmod +x "$OPENPIPES_BIN/linkfinder.py"
+    
+    # Instalar outras ferramentas Python
+    pip3 install --user papaparse cvss-calculator
+    
+    log INFO "Ferramentas Python instaladas!"
 }
 
 install_additional_tools() {
-  install_jq
-  install_go
-  # whois, rdap etc
-  for p in whois rdap; do
-    if ! command -v "$p" >/dev/null 2>&1; then
-      warn "Utility $p not found - attempting to install via package manager"
-      install_pkg "$p" || warn "Failed to auto-install $p"
-    else
-      ok "$p present"
+    log STEP "Instalando ferramentas adicionais..."
+    
+    # amass
+    if ! command -v amass &>/dev/null; then
+        log INFO "Instalando amass..."
+        go install -v github.com/owasp-amass/amass/v4/...@master
     fi
-  done
+    
+    # dnsrecon (geralmente já vem no Kali)
+    if ! command -v dnsrecon &>/dev/null; then
+        log INFO "Instalando dnsrecon..."
+        pip3 install --user dnsrecon
+    fi
+    
+    # rdap
+    if ! command -v rdap &>/dev/null; then
+        log INFO "Instalando rdap..."
+        go install github.com/openrdap/rdap/cmd/rdap@latest
+    fi
+    
+    log INFO "Ferramentas adicionais instaladas!"
 }
 
-install_nuclei_local_templates() {
-  if [ "$SKIP_NUCLEI_TEMPLATES" -eq 1 ]; then info "Skipping nuclei templates (flag)"; return 0; fi
-  fetch_nuclei_templates
+install_wordlists() {
+    log STEP "Instalando wordlists..."
+    
+    # SecLists
+    if [[ ! -d /usr/share/wordlists/seclists ]]; then
+        log INFO "Clonando SecLists..."
+        sudo git clone https://github.com/danielmiessler/SecLists.git /usr/share/wordlists/seclists
+    fi
+    
+    # Parse dirb/big.txt
+    if [[ -f /usr/share/wordlists/dirb/big.txt ]]; then
+        log INFO "Preparando wordlist customizada..."
+        cat /usr/share/wordlists/dirb/big.txt | sort -u > /tmp/big-parsed.txt
+        sudo mv /tmp/big-parsed.txt /usr/share/wordlists/dirb/big-parsed.txt
+    fi
+    
+    log INFO "Wordlists instaladas!"
 }
 
-install_kits_and_helpers() {
-  # Other small helpers: jsfinder-runner dependencies etc.
-  # python packages that scripts reference can be installed here (best-effort)
-  if command -v pip3 >/dev/null 2>&1; then
-    info "Installing Python helper packages (requests, pyyaml)..."
-    run "pip3 install --user requests pyyaml"
-  fi
+copy_scripts() {
+    log STEP "Copiando scripts para $OPENPIPES_SCRIPTS..."
+    
+    # Verificar se estamos no diretório do projeto
+    if [[ ! -f "./scripts/recon.sh" ]]; then
+        log ERROR "Scripts não encontrados no diretório atual!"
+        log INFO "Execute este instalador a partir do diretório raiz do OPenPipeS"
+        exit 1
+    fi
+    
+    # Copiar todos os scripts
+    cp -r ./scripts/* "$OPENPIPES_SCRIPTS/"
+    
+    # Criar symlinks no bin
+    for script in "$OPENPIPES_SCRIPTS"/*.sh; do
+        script_name=$(basename "$script")
+        ln -sf "$script" "$OPENPIPES_BIN/${script_name}"
+        chmod +x "$OPENPIPES_BIN/${script_name}"
+    done
+    
+    log INFO "Scripts copiados e linkados!"
 }
 
-write_openpipes_config() {
-  ensure_dir "$OPENPIPES_CONFIG_DIR"
-  if [ -f "$OPENPIPES_CONFIG_FILE" ]; then
-    ok "Config exists: $OPENPIPES_CONFIG_FILE (backing up)"
-    backup_if_exists "$OPENPIPES_CONFIG_FILE"
-  fi
-  if [ "$DRY_RUN" -eq 1 ]; then printf "DRYRUN: would create config at %s\n" "$OPENPIPES_CONFIG_FILE"; return 0; fi
+copy_templates() {
+    log STEP "Copiando templates..."
+    
+    if [[ -d "./.openpipes/.templates" ]]; then
+        cp -r ./.openpipes/.templates/* "$OPENPIPES_TEMPLATES/"
+        log INFO "Templates copiados!"
+    else
+        log WARN "Templates não encontrados em ./.openpipes/.templates"
+    fi
+}
 
-  info "Creating interactive .openpipes/config.sh (will NOT store secrets insecurely if you choose not to)"
-  local openai_key=""
-  local st_key=""
-  local github_token=""
-  if [ "$AUTO_YES" -eq 0 ]; then
-    read -rp "OpenAI API key (leave empty to skip): " openai_key
-    read -rp "SecurityTrails API key (leave empty to skip): " st_key
-    read -rp "GitHub token (leave empty to skip): " github_token
-  fi
+copy_cache() {
+    log STEP "Copiando cache de vulnerabilidades..."
+    
+    if [[ -d "./.openpipes_cache" ]]; then
+        cp -r ./.openpipes_cache/* "$OPENPIPES_CACHE/"
+        log INFO "Cache de vulnerabilidades copiado! (${OPENPIPES_CACHE})"
+    else
+        log WARN "Cache não encontrado em ./.openpipes_cache"
+    fi
+}
 
-  cat > "$OPENPIPES_CONFIG_FILE" <<EOF
-# OPenPipeS configuration (auto-generated)
-# Do not commit secrets to git. Edit this file to change settings.
-export OPENPIPES_OPENAI_KEY="${openai_key}"
-export OPENPIPES_SECURITYTRAILS_KEY="${st_key}"
-export OPENPIPES_GITHUB_TOKEN="${github_token}"
-# obsdir: location of your Obsidian vault root (update manually if needed)
-export OPENPIPES_OBSDIR="\$HOME/ObsidianVault"
+create_config() {
+    log STEP "Criando arquivo de configuração..."
+    
+    cat > "$OPENPIPES_CONFIG" << 'EOF'
+#!/bin/bash
+
+# Diretório base dos projetos
+proj_dir=""
+
+# Nome do projeto atual
+proj_name=""
+
+# Caminho completo (será construído automaticamente)
+proj_path="$proj_dir/$proj_name"
+
+# Diretório do Obsidian (vault)
+obsdir="$HOME/.obsidianFixedMount/"
+
+# Diretório de templates
+tpdir="$OPENPIPES_TEMPLATES"
+
+# Diretório base de varreduras
+base_dir="$proj_path/Varreduras/"
+
+# API Keys
+securitytrailskey=""
+OPENAI_API_KEY=""
 EOF
-  run "chmod 600 \"$OPENPIPES_CONFIG_FILE\" || true"
-  ok "Config written to $OPENPIPES_CONFIG_FILE"
+    
+    log INFO "Arquivo de configuração criado: $OPENPIPES_CONFIG"
+    log WARN "IMPORTANTE: Edite este arquivo antes de usar o OPenPipeS!"
 }
 
-final_tweaks() {
-  info "Finalizing: ensuring directories & perms"
-  ensure_dir "$CACHE_DIR"
-  ensure_dir "$OPENPIPES_CONFIG_DIR/.templates"
-  # copy templates from repo to config dir if they exist in .openpipes/.templates
-  if [ -d "${OPENPIPES_DIR}/.openpipes/.templates" ]; then
-    run "cp -r \"${OPENPIPES_DIR}/.openpipes/.templates\" \"$OPENPIPES_CONFIG_DIR/\" || true"
-  fi
-  ok "Finalization complete"
+setup_path() {
+    log STEP "Configurando PATH..."
+    
+    # Adicionar ao .bashrc se ainda não estiver lá
+    if ! grep -q "OPENPIPES_BIN" ~/.bashrc; then
+        echo "" >> ~/.bashrc
+        echo "# OPenPipeS" >> ~/.bashrc
+        echo "export OPENPIPES_HOME=\"$OPENPIPES_HOME\"" >> ~/.bashrc
+        echo "export PATH=\"\$PATH:\$OPENPIPES_HOME/bin\"" >> ~/.bashrc
+        log INFO "PATH configurado no ~/.bashrc"
+    fi
+    
+    # Criar comando principal
+    cat > "$OPENPIPES_BIN/openpipes" << 'OPENPIPES_CMD'
+#!/bin/bash
+bash "$HOME/.openpipes/bin/openpipes-orchestrator.sh" "$@"
+OPENPIPES_CMD
+    chmod +x "$OPENPIPES_BIN/openpipes"
+    
+    # Copiar orquestrador
+    cat > "$OPENPIPES_BIN/openpipes-orchestrator.sh" << 'ORCH_PLACEHOLDER'
+# Este arquivo será substituído pelo orquestrador real
+echo "Orquestrador não instalado corretamente!"
+ORCH_PLACEHOLDER
+    
+    log INFO "Comando 'openpipes' criado!"
 }
 
-### -------------------------
-### MAIN FLOW
-### -------------------------
-info "=== OPenPipeS Installer starting ==="
+create_obsidian_mount() {
+    log STEP "Configurando ponto de montagem do Obsidian..."
+    
+    mkdir -p "$HOME/.obsidianFixedMount"
+    
+    echo -ne "${CYAN}Deseja criar uma estrutura inicial no Obsidian? [S/n]:${NC} "
+    read -r resp
+    
+    if [[ ! "$resp" =~ ^[nN]$ ]]; then
+        mkdir -p "$HOME/.obsidianFixedMount/Pentest/Alvos"
+        cp "$OPENPIPES_TEMPLATES/Dashboard_Global.md" "$HOME/.obsidianFixedMount/Pentest/" 2>/dev/null || true
+        cp "$OPENPIPES_TEMPLATES/Tarefas.md" "$HOME/.obsidianFixedMount/Pentest/" 2>/dev/null || true
+        log INFO "Estrutura inicial criada!"
+    fi
+}
 
-install_basic_utils
+final_setup() {
+    log STEP "Finalizando instalação..."
+    
+    # Recarregar PATH temporariamente
+    export PATH="$PATH:$OPENPIPES_BIN"
+    
+    log INFO "Instalação concluída!"
+    echo ""
+    echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}Próximos passos:${NC}"
+    echo ""
+    echo -e "1. ${YELLOW}Recarregue seu shell:${NC}"
+    echo -e "   ${BLUE}source ~/.bashrc${NC}"
+    echo ""
+    echo -e "2. ${YELLOW}Configure o arquivo:${NC}"
+    echo -e "   ${BLUE}nano $OPENPIPES_CONFIG${NC}"
+    echo ""
+    echo -e "3. ${YELLOW}Execute o orquestrador:${NC}"
+    echo -e "   ${BLUE}openpipes${NC}"
+    echo ""
+    echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+}
 
-install_additional_tools
+# Main
+main() {
+    banner
+    check_root
+    check_os
+    
+    log INFO "Bem-vindo ao instalador do OPenPipeS!"
+    echo ""
+    echo -ne "${YELLOW}Deseja prosseguir com a instalação? [S/n]:${NC} "
+    read -r resp
+    [[ "$resp" =~ ^[nN]$ ]] && exit 0
+    
+    echo ""
+    
+    create_directories
+    install_apt_packages
+    install_go_tools
+    install_rust_tools
+    install_python_tools
+    install_additional_tools
+    install_wordlists
+    copy_scripts
+    copy_templates
+    copy_cache
+    create_config
+    setup_path
+    create_obsidian_mount
+    final_setup
+    
+    echo ""
+    log INFO "Instalação completa! 🎉"
+}
 
-install_go
-
-install_jq
-
-if [ "$SKIP_AMASS" -eq 0 ]; then install_amass; fi
-if [ "$SKIP_DNSRECON" -eq 0 ]; then install_dnsrecon; fi
-if [ "$SKIP_HTTPX" -eq 0 ]; then install_httpx; fi
-if [ "$SKIP_NUCLEI" -eq 0 ]; then install_nuclei; fi
-if [ "$SKIP_FEROX" -eq 0 ]; then install_ferox; fi
-if [ "$SKIP_KATANA" -eq 0 ]; then install_katana; fi
-if [ "$SKIP_GF" -eq 0 ]; then install_gf; fi
-
-install_kits_and_helpers
-
-write_openpipes_config
-
-final_tweaks
-
-ok "=== OPenPipeS Installer finished ==="
-
-cat <<EOF
-
-Next steps / notes:
-- Verify that binaries are in your PATH (e.g. which amass httpx nuclei feroxbuster katana)
-- Edit .openpipes/config.sh and set OPENPIPES_OBSDIR to your Obsidian Vault path.
-- If you installed nuclei, run: nuclei -update-templates (or use the cloned nuclei-templates)
-- If you want to pin go-installed versions: edit the script variable (e.g. HTTPX_GO_PKG)
-- This installer makes best-effort installs on Debian/Ubuntu/Fedora/macOS.
-- For other distros, install the listed packages manually.
-
-If you want, eu já adapto o script para:
-- adicionar verificação de checksums para downloads (amass/dnsrecon)
-- travar versões específicas para httpx/nuclei/ferox/katana (substituir @latest por tags)
-- gerar um playbook Ansible/Dockerfile para ambiente reprodutível
-
-EOF
+main "$@"

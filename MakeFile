@@ -1,0 +1,148 @@
+.PHONY: help install uninstall clean update test config status
+
+# Cores
+CYAN := \033[0;36m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+RED := \033[0;31m
+NC := \033[0m
+
+# Variáveis
+OPENPIPES_HOME := $(HOME)/.openpipes
+OPENPIPES_BIN := $(OPENPIPES_HOME)/bin
+OPENPIPES_CONFIG := $(OPENPIPES_HOME)/config.sh
+
+help: ## Mostra esta ajuda
+	@echo "$(CYAN)"
+	@echo "   ___  ____            ____  _            ____  "
+	@echo "  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___/ ___| "
+	@echo " | | | | |_) / _ \ '_ \| |_) | | '_ \ / _ \___ \ "
+	@echo " | |_| |  __/  __/ | | |  __/| | |_) |  __/___) |"
+	@echo "  \___/|_|   \___|_| |_|_|   |_| .__/ \___|____/ "
+	@echo "                                |_|               $(NC)"
+	@echo ""
+	@echo "$(GREEN)Comandos disponíveis:$(NC)"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-15s$(NC) %s\n", $$1, $$2}'
+	@echo ""
+
+install: ## Instala o OPenPipeS completamente
+	@echo "$(CYAN)[*] Iniciando instalação...$(NC)"
+	@chmod +x install.sh
+	@./install.sh
+	@echo "$(GREEN)[+] Instalação concluída!$(NC)"
+	@echo "$(YELLOW)[!] Execute: source ~/.bashrc$(NC)"
+
+uninstall: ## Remove o OPenPipeS
+	@echo "$(RED)[!] Removendo OPenPipeS...$(NC)"
+	@read -p "Tem certeza? [s/N]: " confirm; \
+	if [ "$$confirm" = "s" ] || [ "$$confirm" = "S" ]; then \
+		rm -rf $(OPENPIPES_HOME); \
+		rm -rf $(HOME)/.openpipes_cache; \
+		sed -i '/# OPenPipeS/,+2d' $(HOME)/.bashrc; \
+		echo "$(GREEN)[+] OPenPipeS removido!$(NC)"; \
+	else \
+		echo "$(YELLOW)[!] Cancelado.$(NC)"; \
+	fi
+
+clean: ## Limpa arquivos temporários
+	@echo "$(CYAN)[*] Limpando arquivos temporários...$(NC)"
+	@find . -type f -name "*.pyc" -delete
+	@find . -type d -name "__pycache__" -delete
+	@find . -type f -name "*.log" -delete
+	@echo "$(GREEN)[+] Limpeza concluída!$(NC)"
+
+update: ## Atualiza templates e scripts
+	@echo "$(CYAN)[*] Atualizando OPenPipeS...$(NC)"
+	@git pull origin main
+	@cp -r ./scripts/* $(OPENPIPES_HOME)/scripts/
+	@cp -r ./.openpipes/.templates/* $(OPENPIPES_HOME)/.templates/
+	@cp -r ./.openpipes_cache/* $(HOME)/.openpipes_cache/
+	@echo "$(GREEN)[+] Atualização concluída!$(NC)"
+
+config: ## Abre o arquivo de configuração
+	@if [ -f $(OPENPIPES_CONFIG) ]; then \
+		$(EDITOR) $(OPENPIPES_CONFIG); \
+	else \
+		echo "$(RED)[-] Configuração não encontrada. Execute 'make install' primeiro.$(NC)"; \
+	fi
+
+status: ## Mostra status da instalação
+	@echo "$(CYAN)[*] Status do OPenPipeS:$(NC)"
+	@echo ""
+	@if [ -d $(OPENPIPES_HOME) ]; then \
+		echo "$(GREEN)✓$(NC) Instalado em: $(OPENPIPES_HOME)"; \
+	else \
+		echo "$(RED)✗$(NC) Não instalado"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "$(CYAN)Ferramentas:$(NC)"
+	@for tool in nmap httpx nuclei katana feroxbuster amass; do \
+		if command -v $$tool > /dev/null 2>&1; then \
+			echo "$(GREEN)✓$(NC) $$tool"; \
+		else \
+			echo "$(RED)✗$(NC) $$tool"; \
+		fi; \
+	done
+	@echo ""
+
+test: ## Testa a instalação
+	@echo "$(CYAN)[*] Testando instalação...$(NC)"
+	@echo ""
+	@if [ -f $(OPENPIPES_BIN)/openpipes ]; then \
+		echo "$(GREEN)✓$(NC) Orquestrador OK"; \
+	else \
+		echo "$(RED)✗$(NC) Orquestrador não encontrado"; \
+	fi
+	@if [ -f $(OPENPIPES_CONFIG) ]; then \
+		echo "$(GREEN)✓$(NC) Configuração OK"; \
+	else \
+		echo "$(RED)✗$(NC) Configuração não encontrada"; \
+	fi
+	@if [ -d $(HOME)/.openpipes_cache ]; then \
+		echo "$(GREEN)✓$(NC) Cache OK ($(shell ls -1 $(HOME)/.openpipes_cache/*.json 2>/dev/null | wc -l) templates)"; \
+	else \
+		echo "$(RED)✗$(NC) Cache não encontrado"; \
+	fi
+	@echo ""
+
+backup: ## Cria backup da configuração
+	@echo "$(CYAN)[*] Criando backup...$(NC)"
+	@mkdir -p ./backups
+	@tar -czf ./backups/openpipes-backup-$(shell date +%Y%m%d-%H%M%S).tar.gz \
+		$(OPENPIPES_HOME) $(HOME)/.openpipes_cache 2>/dev/null || true
+	@echo "$(GREEN)[+] Backup criado em: ./backups/$(NC)"
+
+restore: ## Restaura backup (use: make restore BACKUP=arquivo.tar.gz)
+	@if [ -z "$(BACKUP)" ]; then \
+		echo "$(RED)[-] Use: make restore BACKUP=arquivo.tar.gz$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)[*] Restaurando backup: $(BACKUP)$(NC)"
+	@tar -xzf $(BACKUP) -C $(HOME)
+	@echo "$(GREEN)[+] Backup restaurado!$(NC)"
+
+dev: ## Modo desenvolvedor (link simbólico para scripts locais)
+	@echo "$(CYAN)[*] Configurando modo desenvolvedor...$(NC)"
+	@mkdir -p $(OPENPIPES_HOME)/bin
+	@for script in ./scripts/*.sh; do \
+		ln -sf $(shell pwd)/$$script $(OPENPIPES_BIN)/$$(basename $$script); \
+	done
+	@echo "$(GREEN)[+] Scripts linkados! Edite em: ./scripts/$(NC)"
+
+docs: ## Gera documentação (requer mdbook)
+	@echo "$(CYAN)[*] Gerando documentação...$(NC)"
+	@if command -v mdbook > /dev/null 2>&1; then \
+		mdbook build docs; \
+		echo "$(GREEN)[+] Documentação gerada em: docs/book/$(NC)"; \
+	else \
+		echo "$(YELLOW)[!] mdbook não instalado. Execute: cargo install mdbook$(NC)"; \
+	fi
+
+run: ## Executa o orquestrador
+	@if [ -f $(OPENPIPES_BIN)/openpipes ]; then \
+		$(OPENPIPES_BIN)/openpipes; \
+	else \
+		echo "$(RED)[-] OPenPipeS não instalado. Execute: make install$(NC)"; \
+	fi
