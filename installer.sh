@@ -175,7 +175,7 @@ install_python_tools() {
     # Criar venv para LinkFinder
     if [[ ! -d "$HOME/.venv-jsfinder" ]]; then
         log INFO "Criando ambiente virtual para LinkFinder..."
-        virtualenv -p=$(which python3) "$HOME/.venv-jsfinder"
+        python3 -m venv "$HOME/.venv-jsfinder"
     fi
     
     # Instalar LinkFinder
