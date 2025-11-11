@@ -103,6 +103,16 @@ install_apt_packages() {
     log INFO "Instalando pacotes base..."
     sudo apt install -y "${packages[@]}"
     
+    # Fix para hook quebrado do dnsrecon (se existir)
+    if dpkg -l | grep -q dnsrecon; then
+        log WARN "Detectado dnsrecon via APT (pode causar conflitos)..."
+        log INFO "Removendo dnsrecon do APT..."
+        sudo apt remove --purge dnsrecon -y 2>/dev/null || true
+        sudo rm -f /var/lib/dpkg/info/dnsrecon.* 2>/dev/null || true
+        sudo rm -f /usr/share/python3/runtime.d/dnsrecon.rtupdate 2>/dev/null || true
+        sudo dpkg --configure -a || true
+    fi
+    
     log INFO "Pacotes APT instalados!"
 }
 
@@ -193,6 +203,10 @@ deactivate
 WRAPPER
     chmod +x "$OPENPIPES_BIN/linkfinder.py"
     
+    # Instalar dnsrecon via pip (versão específica 1.1.3)
+    log INFO "Instalando dnsrecon 1.1.3 via pip..."
+    pip3 install --user dnsrecon==1.1.3
+    
     # Instalar outras ferramentas Python
     pip3 install --user papaparse cvss-calculator
     
@@ -208,11 +222,7 @@ install_additional_tools() {
         go install -v github.com/owasp-amass/amass/v4/...@master
     fi
     
-    # dnsrecon (geralmente já vem no Kali)
-    if ! command -v dnsrecon &>/dev/null; then
-        log INFO "Instalando dnsrecon..."
-        pip3 install --user dnsrecon
-    fi
+    # dnsrecon já foi instalado via pip em install_python_tools()
     
     # rdap
     if ! command -v rdap &>/dev/null; then
