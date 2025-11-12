@@ -28,8 +28,8 @@ help: ## Mostra esta ajuda
 
 install: ## Instala o OPenPipeS completamente
 	@echo "$(CYAN)[*] Iniciando instalação...$(NC)"
-	@chmod +x install.sh
-	@./install.sh
+	@chmod +x installer.sh
+	@./installer.sh
 	@echo "$(GREEN)[+] Instalação concluída!$(NC)"
 	@echo "$(YELLOW)[!] Execute: source ~/.bashrc$(NC)"
 
@@ -110,7 +110,7 @@ test: ## Testa a instalação
 backup: ## Cria backup da configuração
 	@echo "$(CYAN)[*] Criando backup...$(NC)"
 	@mkdir -p ./backups
-	@tar -czf ./backups/openpipes-backup-$(shell date +%Y%m%d-%H%M%S).tar.gz \
+	@tar -czf ./backups/openpipes-backup-$(shell date +%Y%m%d-%H%M).tar.gz \
 		$(OPENPIPES_HOME) $(HOME)/.openpipes_cache 2>/dev/null || true
 	@echo "$(GREEN)[+] Backup criado em: ./backups/$(NC)"
 

@@ -8,12 +8,7 @@
 set -euo pipefail
 
 # Cores
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+source ~/colorCodes.sh
 
 # Diretórios
 OPENPIPES_HOME="${HOME}/.openpipes"
@@ -190,10 +185,14 @@ install_python_tools() {
     
     # Instalar LinkFinder
     source "$HOME/.venv-jsfinder/bin/activate"
-    pip install --upgrade pip
-    pip install linkfinder
+    git clone https://github.com/GerbenJavado/LinkFinder.git
+    cd LinkFinder
+    pip install -r requirements.txt
+    pip install .
+    cp linkfinder.py $OPENPIPES_BIN
     deactivate
-    
+    chmod +x "$OPENPIPES_BIN/linkfinder.py"
+
     # Criar wrapper para linkfinder.py
     cat > "$OPENPIPES_BIN/linkfinder.py" << 'WRAPPER'
 #!/bin/bash
@@ -201,12 +200,15 @@ source "$HOME/.venv-jsfinder/bin/activate"
 python -m linkfinder "$@"
 deactivate
 WRAPPER
-    chmod +x "$OPENPIPES_BIN/linkfinder.py"
     
-    # Instalar dnsrecon via pip (versão específica 1.1.3)
-    log INFO "Instalando dnsrecon 1.1.3 via pip..."
-    pip3 install --user dnsrecon==1.1.3
-    
+    # Baixar DNSRecon 1.1.3 e atualizar symlink
+    log INFO "Baixando dnsrecon-1.1.3..."
+    cd $OPENPIPES_BIN
+    wget https://github.com/darkoperator/dnsrecon/archive/refs/tags/1.1.3.tar.gz
+    tar -xvf 1.1.3.tar.gz
+    sudo ln -sf $OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py $(which dnsrecon)
+    rm -rf 1.1.3.tar.gz
+
     # Instalar outras ferramentas Python
     pip3 install --user papaparse cvss-calculator
     
@@ -217,10 +219,18 @@ install_additional_tools() {
     log STEP "Instalando ferramentas adicionais..."
     
     # amass
+    log INFO "Instalando amass 3.20.0..."
     if ! command -v amass &>/dev/null; then
-        log INFO "Instalando amass..."
-        go install -v github.com/owasp-amass/amass/v4/...@master
+        amass_atual="$OPENPIPES_BIN/amass"
+    else
+        amass_atual=$(which amass)
+        sudo mv $amass_atual $amass_atual.bkp
     fi
+    cd $OPENPIPES_BIN
+    wget https://github.com/owasp-amass/amass/releases/download/v3.20.0/amass_linux_amd64.zip
+    unzip amass_linux_amd64.zip
+    mv amass_linux_amd64 amass-3.20.0
+    sudo ln -sf $OPENPIPES_BIN/amass-3.20.0/amass $amass_atual
     
     # dnsrecon já foi instalado via pip em install_python_tools()
     
@@ -245,7 +255,7 @@ install_wordlists() {
     # Parse dirb/big.txt
     if [[ -f /usr/share/wordlists/dirb/big.txt ]]; then
         log INFO "Preparando wordlist customizada..."
-        cat /usr/share/wordlists/dirb/big.txt | sort -u > /tmp/big-parsed.txt
+        cat /usr/share/wordlists/dirb/big.txt | grep -v "%" > /tmp/big-parsed.txt
         sudo mv /tmp/big-parsed.txt /usr/share/wordlists/dirb/big-parsed.txt
     fi
     
