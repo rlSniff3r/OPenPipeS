@@ -201,7 +201,7 @@ python -m linkfinder "$@"
 deactivate
 WRAPPER
     
-    # Baixar DNSRecon 1.1.3 e atualizar symlink
+    # Download e instalação do dnsrecon versão 1.1.3 e atualização d symlink
     log INFO "Baixando dnsrecon-1.1.3..."
     cd $OPENPIPES_BIN
     wget https://github.com/darkoperator/dnsrecon/archive/refs/tags/1.1.3.tar.gz
@@ -218,7 +218,7 @@ WRAPPER
 install_additional_tools() {
     log STEP "Instalando ferramentas adicionais..."
     
-    # amass
+    # Download e instalação do amass versão 3.20.0
     log INFO "Instalando amass 3.20.0..."
     if ! command -v amass &>/dev/null; then
         amass_atual="$OPENPIPES_BIN/amass"
