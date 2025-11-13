@@ -239,19 +239,19 @@ install_python_tools() {
     # ========================================================================
     # VENV Isolado para LinkFinder (conflitos de versão)
     # ========================================================================
-    if [[ ! -d "$HOME/.venv-linkfinder" ]]; then
+    if [[ ! -d "$HOME/.venv-jsfinder" ]]; then
         log INFO "Criando VENV isolado para LinkFinder..."
-        python3 -m venv "$HOME/.venv-linkfinder"
+        python3 -m venv "$HOME/.venv-jsfinder"
     fi
     
     log INFO "Instalando LinkFinder em VENV isolado..."
-    source "$HOME/.venv-linkfinder/bin/activate"
+    source "$HOME/.venv-jsfinder/bin/activate"
     
-    if [[ ! -d "$HOME/.venv-linkfinder/LinkFinder" ]]; then
-        git clone https://github.com/GerbenJavado/LinkFinder.git "$HOME/.venv-linkfinder/LinkFinder"
+    if [[ ! -d "$HOME/.venv-jsfinder/LinkFinder" ]]; then
+        git clone https://github.com/GerbenJavado/LinkFinder.git "$HOME/.venv-jsfinder/LinkFinder"
     fi
     
-    cd "$HOME/.venv-linkfinder/LinkFinder"
+    cd "$HOME/.venv-jsfinder/LinkFinder"
     pip install -r requirements.txt
     pip install .
     
@@ -260,7 +260,7 @@ install_python_tools() {
     # Criar wrapper que ativa o VENV correto
     cat > "$OPENPIPES_BIN/linkfinder.py" << 'LINKFINDER_WRAPPER'
 #!/bin/bash
-source "$HOME/.venv-linkfinder/bin/activate"
+source "$HOME/.venv-jsfinder/bin/activate"
 python -m linkfinder "$@"
 deactivate
 LINKFINDER_WRAPPER
@@ -569,7 +569,7 @@ final_setup() {
     echo ""
     echo -e "${CYAN}Estratégia Python implementada:${NC}"
     echo -e "  - ${GREEN}VENV Global:${NC} $OPENPIPES_VENV"
-    echo -e "  - ${GREEN}VENV LinkFinder:${NC} ~/.venv-linkfinder"
+    echo -e "  - ${GREEN}VENV LinkFinder:${NC} ~/.venv-jsfinder"
     echo -e "  - ${GREEN}Scripts wrapper:${NC} /usr/local/bin/*.py"
     echo ""
     echo -e "${YELLOW}Compatível com PEP 668 (sem --break-system-packages)${NC}"
