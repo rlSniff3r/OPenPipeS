@@ -12,6 +12,7 @@ set -euo pipefail
 source ~/colorCodes.sh
 
 # Diretórios
+OPENPIPES_INSTALL_DIR="$(pwd)"
 OPENPIPES_HOME="${HOME}/.openpipes"
 OPENPIPES_BIN="${OPENPIPES_HOME}/bin"
 OPENPIPES_SCRIPTS="${OPENPIPES_HOME}/scripts"
@@ -381,20 +382,20 @@ copy_scripts() {
     log STEP "Copiando scripts para $OPENPIPES_SCRIPTS..."
     
     # Verificar se estamos no diretório do projeto
-    if [[ ! -d ".openpipes/scripts" ]]; then
+    if [[ ! -d "$OPENPIPES_INSTALL_DIR/.openpipes/scripts" ]]; then
         log ERROR "Diretório scripts/ não encontrado!"
         log INFO "Execute este instalador a partir do diretório raiz do OPenPipeS"
         exit 1
     fi
     
     # Copiar todos os scripts bash
-    cp -r .openpipes/scripts/* "$OPENPIPES_SCRIPTS/"
+    cp -r $OPENPIPES_INSTALL_DIR/.openpipes/scripts/* "$OPENPIPES_SCRIPTS/"
     
-    # Copiar scripts bash do módulo OSINT People
-    if [[ -d "./.openpipes/scripts" ]]; then
-        log INFO "Instalando scripts bash do módulo OSINT People..."
+    # Copiar scripts bash do diretório ./.openpipes/scripts/
+    if [[ -d "$OPENPIPES_INSTALL_DIR/.openpipes/scripts" ]]; then
+        log INFO "Instalando scripts bash..."
         
-        for sh_script in ./.openpipes/scripts/*.sh; do
+        for sh_script in $OPENPIPES_INSTALL_DIR/.openpipes/scripts/*.sh; do
             if [[ -f "$sh_script" ]]; then
                 script_name=$(basename "$sh_script")
                 cp "$sh_script" "$OPENPIPES_SCRIPTS/"
@@ -418,22 +419,22 @@ copy_scripts() {
 copy_templates() {
     log STEP "Copiando templates..."
     
-    if [[ -d "./.openpipes/.templates" ]]; then
-        cp -r ./.openpipes/.templates/* "$OPENPIPES_TEMPLATES/"
+    if [[ -d "$OPENPIPES_INSTALL_DIR/.openpipes/.templates" ]]; then
+        cp -r $OPENPIPES_INSTALL_DIR/.openpipes/.templates/* "$OPENPIPES_TEMPLATES/"
         log INFO "Templates copiados!"
     else
-        log WARN "Templates não encontrados em ./.openpipes/.templates"
+        log WARN "Templates não encontrados em $OPENPIPES_INSTALL_DIR/.openpipes/.templates"
     fi
 }
 
 copy_cache() {
     log STEP "Copiando cache de vulnerabilidades..."
     
-    if [[ -d "./.openpipes_cache" ]]; then
-        cp -r ./.openpipes_cache/* "$OPENPIPES_CACHE/"
+    if [[ -d "$OPENPIPES_INSTALL_DIR/.openpipes_cache" ]]; then
+        cp -r $OPENPIPES_INSTALL_DIR/.openpipes_cache/* "$OPENPIPES_CACHE/"
         log INFO "Cache de vulnerabilidades copiado! (${OPENPIPES_CACHE})"
     else
-        log WARN "Cache não encontrado em ./.openpipes_cache"
+        log WARN "Cache não encontrado em $OPENPIPES_INSTALL_DIR/.openpipes_cache"
     fi
 }
 
