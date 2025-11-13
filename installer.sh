@@ -2,7 +2,7 @@
 
 # ═══════════════════════════════════════════════════════════════════════════
 # OPenPipeS - Instalador Automático
-# Autor: Rafael Luís da Silva
+# Autor: Rafael Luís da Silva & Claude A.I.
 # Versão: 2.2 - Estratégia VENV correta (PEP 668 compliant)
 # ═══════════════════════════════════════════════════════════════════════════
 
