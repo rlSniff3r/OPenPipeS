@@ -231,8 +231,6 @@ install_python_tools() {
         beautifulsoup4 \
         lxml \
         tqdm \
-        papaparse \
-        cvss-calculator
     
     deactivate
     log INFO "Dependências instaladas no VENV global!"
