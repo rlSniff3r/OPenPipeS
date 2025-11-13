@@ -8,6 +8,8 @@
 
 set -euo pipefail
 
+cp colorCodes.sh ~
+
 # Cores
 source ~/colorCodes.sh
 
