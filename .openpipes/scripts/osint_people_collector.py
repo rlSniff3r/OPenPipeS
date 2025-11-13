@@ -58,7 +58,6 @@ class RateLimiter:
                 if sleep_time > 0:
                     log.debug(f"Rate limit reached, sleeping {sleep_time:.2f}s")
                     time.sleep(sleep_time)
-            
             self.timestamps.append(time.time())
             return func(*args, **kwargs)
         return wrapper
