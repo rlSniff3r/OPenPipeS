@@ -5,13 +5,18 @@ osint_people_enricher_v1.0.py
 Purpose:
 - Python-based aggregator & enricher for people-focused OSINT (defensive).
 - Entity resolution with fuzzy matching and scoring.
-- File-searcher module: enumerates public documents (pdf, docx, xlsx, png, jpg, etc.) from given seeds (Wayback/GitHub/public buckets), downloads them, extracts metadata (author, creator, titles), extracts text, and searches for sensitive patterns (internal IPs, hostnames, usernames, paths).
-- Writes results as JSON and updates Obsidian Markdown notes (frontmatter evidence entries) in the OpenPipeS structure.
+- File-searcher module: enumerates public documents from Wayback/GitHub/public buckets,
+  downloads them, extracts metadata (author, creator, titles), extracts text, and
+  searches for sensitive patterns (internal IPs, hostnames, usernames, paths).
+- Writes results as JSON and updates Obsidian Markdown notes (frontmatter evidence entries)
+  in the OpenPipeS structure.
+
+VERSION: 1.1 - UNMASKED (No email masking - full data for client security reports)
 
 Security model:
 - Requires an authorization file supplied with --auth to run.
-- Masks emails by default; unmask only if AUTH file contains ALLOW_UNMASK.
-- Raw downloaded files are saved to a configurable raw dir and can be GPG-encrypted later (not implemented here).
+- NO MASKING - All data visible for security assessment purposes.
+- Raw downloaded files are saved to a configurable raw dir and can be GPG-encrypted later.
 
 Usage:
   python3 osint_people_enricher_v1.0.py --target example.com --auth /path/to/auth.txt --seeds seeds.txt
@@ -22,7 +27,7 @@ Outputs:
   $OBSDIR/Pentest/Alvos/<target>/osint_people.json  (structured output)
 
 Requirements (pip):
-  requests, rapidfuzz, python-docx, openpyxl, pillow, pdfminer.six, pikepdf, exifread, PyYAML, dataclasses-json
+  requests, rapidfuzz, python-docx, openpyxl, pillow, pdfminer.six, pikepdf, exifread, PyYAML
 
 This is a defensive tool. Do not use to target individuals outside the authorized scope.
 """
@@ -82,28 +87,18 @@ class Config:
         self.people_dir = obsdir / 'Pentest' / 'Alvos' / target / 'OSINT' / 'Pessoas'
         self.candidates_file = obsdir / 'Pentest' / 'Alvos' / target / 'osint' / 'people' / 'raw' / 'candidates.ndjson'
         self.output_struct = obsdir / 'Pentest' / 'Alvos' / target / 'OSINT' / 'osint_people.json'
-        self.allow_unmask = False
         self._read_auth()
 
     def _read_auth(self):
         if not self.auth_file.exists():
             raise FileNotFoundError("Authorization file not found")
-        txt = self.auth_file.read_text(encoding='utf-8', errors='ignore')
-        if 'ALLOW_UNMASK' in txt:
-            self.allow_unmask = True
+        LOG.info(f"Authorization file verified: {self.auth_file}")
 
 
 # ---------- Utilities ----------
 
 def safe_mkdir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
-
-
-def mask_email(email: str) -> str:
-    if not email or '@' not in email:
-        return email
-    user, domain = email.split('@', 1)
-    return f"{user[:1]}***@{domain}"
 
 
 def sha1_of_file(p: Path) -> str:
@@ -122,7 +117,6 @@ def sha1_of_file(p: Path) -> str:
 def extract_pdf_metadata_and_text(path: Path) -> Dict[str, Any]:
     meta = {}
     try:
-        # metadata via pikepdf
         with pikepdf.Pdf.open(path) as pdf:
             md = pdf.docinfo
             for k, v in md.items():
@@ -180,7 +174,6 @@ def extract_image_metadata_and_text(path: Path) -> Dict[str, Any]:
     try:
         img = Image.open(str(path))
         info = img._getexif() or {}
-        # map to human tags
         for k, v in info.items():
             tag = ExifTags.TAGS.get(k, k)
             meta[tag] = v
@@ -219,14 +212,13 @@ def find_sensitive_patterns(text: str) -> Dict[str, List[str]]:
 # ---------- File searcher (Wayback + GitHub + S3 heuristics) ----------
 
 def wayback_file_urls(domain: str, limit: int = 500) -> List[str]:
-    """Query the webarchive CDX API for likely document URLs. Conservative and passive."""
+    """Query the webarchive CDX API for likely document URLs."""
     urls = []
     try:
         q = f"http://web.archive.org/cdx/search/cdx?url=*.{domain}/*&output=json&fl=original&filter=statuscode:200&collapse=urlkey&limit={limit}"
         r = requests.get(q, timeout=20)
         if r.status_code == 200:
             j = r.json()
-            # first row may be header
             for row in j[1:]:
                 u = row[0]
                 if any(u.lower().endswith(ext) for ext in SENSITIVE_EXTS):
@@ -237,6 +229,7 @@ def wayback_file_urls(domain: str, limit: int = 500) -> List[str]:
 
 
 def github_raw_file_urls_for_org(org: str, token: Optional[str] = None, per_repo_limit: int = 50) -> List[str]:
+    token = token or os.environ.get('GITHUB_TOKEN')
     urls = []
     headers = {'Accept': 'application/vnd.github.v3+json'}
     if token:
@@ -250,7 +243,6 @@ def github_raw_file_urls_for_org(org: str, token: Optional[str] = None, per_repo
         repos = r.json()
         for repo in repos:
             full = repo.get('full_name')
-            # Fetch tree for repo
             tree_url = f'https://api.github.com/repos/{full}/git/trees/HEAD?recursive=1'
             rt = requests.get(tree_url, headers=headers, timeout=15)
             if rt.status_code == 200:
@@ -266,12 +258,10 @@ def github_raw_file_urls_for_org(org: str, token: Optional[str] = None, per_repo
 
 
 def public_bucket_candidate_urls(domain: str, common_names: List[str] = None) -> List[str]:
-    # Heuristic: discover typical bucket names and test for common files. This is conservative.
     if common_names is None:
         common_names = [domain, domain.replace('.', '-'), 'www-' + domain]
     candidates = []
     for name in common_names:
-        # s3 public index heuristics
         candidates.append(f'https://{name}.s3.amazonaws.com/')
         candidates.append(f'https://{name}.s3.amazonaws.com/robots.txt')
     return candidates
@@ -310,7 +300,6 @@ def analyze_downloaded_file(path: Path) -> Dict[str, Any]:
         r = extract_image_metadata_and_text(path)
         data['metadata'] = r['metadata']
     else:
-        # try to read text
         try:
             data['text'] = path.read_text(encoding='utf-8', errors='ignore')[:200000]
         except Exception:
@@ -336,7 +325,6 @@ def build_entities_from_candidates(candidates_path: Path) -> List[Dict[str, Any]
             email = obj.get('email')
             if not name and not email:
                 continue
-            # match existing entity by fuzzy name or exact email
             matched = None
             for ent in entities:
                 if email and any(e.get('email') == email for e in ent.get('emails', [])):
@@ -351,12 +339,10 @@ def build_entities_from_candidates(candidates_path: Path) -> List[Dict[str, Any]
                 matched = ent
             if email and email not in [e['value'] for e in matched['emails']]:
                 matched['emails'].append({'value': email, 'source': obj.get('source','candidate'), 'confidence': obj.get('confidence',40)})
-            # add profile links
             for k in ('github','profile_url','html_url'):
                 if k in obj:
                     matched['profiles'].append({'url': obj[k], 'source': obj.get('source','github')})
             matched['evidence'].append({'module': obj.get('module','unknown'), 'raw': obj})
-            # bump score
             matched['score'] = min(100, matched.get('score',30) + 10)
     return entities
 
@@ -369,7 +355,6 @@ def write_person_notes(entities: List[Dict[str, Any]], cfg: Config):
         name = ent.get('name','unknown')
         slug = re.sub(r'[^A-Za-z0-9_\-]', '_', name)[:80]
         md_path = cfg.people_dir / f"{slug}.md"
-        # build frontmatter
         fm = {
             'type': 'person',
             'name': name,
@@ -381,12 +366,13 @@ def write_person_notes(entities: List[Dict[str, Any]], cfg: Config):
             'generated': datetime.utcnow().isoformat() + 'Z',
             'verified': False
         }
+        # NO MASKING - All emails visible
         for e in ent.get('emails', []):
-            val = e['value']
-            if not cfg.allow_unmask:
-                val = mask_email(val)
-            fm['email'].append({'value': val, 'confidence': e.get('confidence',40), 'source': e.get('source','')})
-        # evidence
+            fm['email'].append({
+                'value': e['value'],
+                'confidence': e.get('confidence',40),
+                'source': e.get('source','')
+            })
         for ev in ent.get('evidence', []):
             raw = ev.get('raw',{})
             fm['evidence'].append({
@@ -397,7 +383,6 @@ def write_person_notes(entities: List[Dict[str, Any]], cfg: Config):
                 'timestamp': raw.get('timestamp',''),
                 'confidence': raw.get('confidence',40)
             })
-        # write file
         with md_path.open('w', encoding='utf-8') as fh:
             fh.write('---\n')
             yaml.safe_dump(fm, fh, sort_keys=False)
@@ -415,7 +400,6 @@ def write_person_notes(entities: List[Dict[str, Any]], cfg: Config):
 def run_file_search_and_analyze(cfg: Config, github_token: Optional[str] = None, wayback_limit: int = 500):
     safe_mkdir(cfg.raw_dir)
     found_files = []
-    # 1) wayback
     LOG.info('Querying Wayback for likely document URLs...')
     wb_urls = wayback_file_urls(cfg.target, limit=wayback_limit)
     LOG.info(f'Wayback returned {len(wb_urls)} candidate URLs')
@@ -430,7 +414,6 @@ def run_file_search_and_analyze(cfg: Config, github_token: Optional[str] = None,
                 found_files.append({'url': u, 'path': str(p), 'meta': meta})
         except Exception as e:
             LOG.debug(f'failed process wayback url {u}: {e}')
-    # 2) GitHub
     LOG.info('Searching GitHub org (heuristic) for raw files...')
     org = cfg.target
     gh_urls = github_raw_file_urls_for_org(org, token=github_token)
@@ -442,7 +425,6 @@ def run_file_search_and_analyze(cfg: Config, github_token: Optional[str] = None,
             LOG.info(f'Downloaded GH: {u} -> {p.name}')
             meta = analyze_downloaded_file(p)
             found_files.append({'url': u, 'path': str(p), 'meta': meta})
-    # 3) public bucket heuristics (lightweight)
     LOG.info('Testing public bucket heuristics...')
     bucket_candidates = public_bucket_candidate_urls(cfg.target)
     for u in bucket_candidates:
@@ -450,7 +432,6 @@ def run_file_search_and_analyze(cfg: Config, github_token: Optional[str] = None,
             r = requests.get(u, timeout=10)
             if r.status_code == 200:
                 LOG.info(f'Public bucket likely accessible: {u}')
-                # save index HTML
                 p = cfg.raw_dir / hashlib.sha1(u.encode()).hexdigest()[:12]
                 p = p.with_suffix('.html')
                 p.write_bytes(r.content)
@@ -458,7 +439,6 @@ def run_file_search_and_analyze(cfg: Config, github_token: Optional[str] = None,
         except Exception as e:
             LOG.debug(f'bucket check failed: {e}')
 
-    # write summary
     summary = {'generated': datetime.utcnow().isoformat() + 'Z', 'target': cfg.target, 'found': found_files}
     with cfg.output_struct.open('w', encoding='utf-8') as fh:
         json.dump(summary, fh, indent=2)
@@ -469,10 +449,10 @@ def run_file_search_and_analyze(cfg: Config, github_token: Optional[str] = None,
 # ---------- Main CLI ----------
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description='OSINT People Enricher v1.0 (defensive)')
+    p = argparse.ArgumentParser(description='OSINT People Enricher v1.1 (UNMASKED - Full data for security reports)')
     p.add_argument('--target', '-t', required=True)
     p.add_argument('--obsdir', default=str(Path.home() / 'ObsidianVault'))
-    p.add_argument('--auth', required=True, help='authorization file (must exist; include ALLOW_UNMASK to permit unmask)')
+    p.add_argument('--auth', required=True, help='authorization file (must exist)')
     p.add_argument('--templates', default=str(Path.home() / '.openpipes' / '.templates'))
     p.add_argument('--seeds', help='optional seeds file (domains, repos)')
     p.add_argument('--github-token', help='optional GitHub token to increase rate limits')
@@ -482,37 +462,27 @@ def main(argv=None):
     safe_mkdir(cfg.raw_dir)
     safe_mkdir(cfg.people_dir)
 
-    # 1) Run file search + analysis
     summary = run_file_search_and_analyze(cfg, github_token=args.github_token)
 
-    # 2) Build entities from candidates (if present)
     entities = build_entities_from_candidates(cfg.candidates_file) if cfg.candidates_file.exists() else []
 
-    # 3) From file search results, try to associate extracted metadata to entities (matching author names, usernames, emails found in metadata)
-    # simple matching: check author fields and text for names/emails
     for f in summary['found']:
         meta = f.get('meta', {})
-        # author keys
         author = None
         for k in ('Author','author','creator','Creator','lastModifiedBy'):
             v = meta.get('metadata',{}).get(k)
             if v:
                 author = v; break
         text = meta.get('text','')
-        # find emails in metadata/text
         emails = set(re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", json.dumps(meta)))
-        # try to attach evidence to entities
         for ent in entities:
-            # match by name fuzzy
             if ent.get('name') and author and fuzz.token_sort_ratio(ent['name'], author) > 85:
                 ent['evidence'].append({'module':'file_search','raw':{'file': f['url'], 'author': author}})
-            # match by email exact
             for em in emails:
                 for em_obj in ent.get('emails', []):
                     if em_obj.get('value') and em.lower() == em_obj['value'].lower():
                         ent['evidence'].append({'module':'file_search','raw':{'file': f['url'], 'email': em}})
 
-    # 4) Write notes
     write_person_notes(entities, cfg)
 
     LOG.info('Done.')

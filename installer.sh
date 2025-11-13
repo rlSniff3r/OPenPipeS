@@ -3,6 +3,7 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # OPenPipeS - Instalador Automático
 # Autor: Rafael Luís da Silva
+# Versão: 2.1 - Com suporte ao módulo OSINT People
 # ═══════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -41,7 +42,7 @@ banner() {
                                 |_|               
 EOF
     echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}           INSTALADOR AUTOMÁTICO v2.0${NC}"
+    echo -e "${GREEN}           INSTALADOR AUTOMÁTICO v2.1${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
     echo ""
 }
@@ -90,6 +91,8 @@ install_apt_packages() {
         build-essential
         whois
         dnsutils
+        exiftool
+        yq
     )
     
     log INFO "Atualizando repositórios..."
@@ -177,39 +180,76 @@ install_rust_tools() {
 install_python_tools() {
     log STEP "Instalando ferramentas Python..."
     
-    # Criar venv para LinkFinder
+    # ========================================================================
+    # Criar venv para LinkFinder (versão específica)
+    # ========================================================================
     if [[ ! -d "$HOME/.venv-jsfinder" ]]; then
         log INFO "Criando ambiente virtual para LinkFinder..."
         python3 -m venv "$HOME/.venv-jsfinder"
     fi
     
-    # Instalar LinkFinder
+    log INFO "Instalando LinkFinder..."
     source "$HOME/.venv-jsfinder/bin/activate"
-    git clone https://github.com/GerbenJavado/LinkFinder.git
-    cd LinkFinder
+    
+    # Clone e instalação
+    if [[ ! -d "$HOME/.venv-jsfinder/LinkFinder" ]]; then
+        git clone https://github.com/GerbenJavado/LinkFinder.git "$HOME/.venv-jsfinder/LinkFinder"
+    fi
+    
+    cd "$HOME/.venv-jsfinder/LinkFinder"
     pip install -r requirements.txt
     pip install .
-    cp linkfinder.py $OPENPIPES_BIN
+    
     deactivate
-    chmod +x "$OPENPIPES_BIN/linkfinder.py"
 
-    # Criar wrapper para linkfinder.py
-    cat > "$OPENPIPES_BIN/linkfinder.py" << 'WRAPPER'
+    # Criar wrapper executável para linkfinder.py
+    cat > "$OPENPIPES_BIN/linkfinder.py" << 'LINKFINDER_WRAPPER'
 #!/bin/bash
 source "$HOME/.venv-jsfinder/bin/activate"
 python -m linkfinder "$@"
 deactivate
-WRAPPER
-    
-    # Download e instalação do dnsrecon versão 1.1.3 e atualização d symlink
-    log INFO "Baixando dnsrecon-1.1.3..."
-    cd $OPENPIPES_BIN
-    wget https://github.com/darkoperator/dnsrecon/archive/refs/tags/1.1.3.tar.gz
-    tar -xvf 1.1.3.tar.gz
-    sudo ln -sf $OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py $(which dnsrecon)
-    rm -rf 1.1.3.tar.gz
+LINKFINDER_WRAPPER
+    chmod +x "$OPENPIPES_BIN/linkfinder.py"
 
+    # ========================================================================
+    # Download e instalação do dnsrecon versão 1.1.3
+    # ========================================================================
+    log INFO "Instalando dnsrecon-1.1.3..."
+    
+    if [[ ! -d "$OPENPIPES_BIN/dnsrecon-1.1.3" ]]; then
+        cd "$OPENPIPES_BIN"
+        wget -q https://github.com/darkoperator/dnsrecon/archive/refs/tags/1.1.3.tar.gz
+        tar -xzf 1.1.3.tar.gz
+        rm -f 1.1.3.tar.gz
+    fi
+    
+    # Atualizar symlink
+    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" /usr/local/bin/dnsrecon || \
+        sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" "$(which dnsrecon 2>/dev/null || echo /usr/bin/dnsrecon)"
+
+    # ========================================================================
+    # Instalar dependências do módulo OSINT People
+    # ========================================================================
+    log INFO "Instalando dependências do módulo OSINT People..."
+    
+    pip3 install --user --upgrade \
+        requests \
+        rapidfuzz \
+        python-docx \
+        openpyxl \
+        Pillow \
+        pdfminer.six \
+        pikepdf \
+        ExifRead \
+        PyYAML \
+        beautifulsoup4 \
+        lxml \
+        tqdm
+
+    # ========================================================================
     # Instalar outras ferramentas Python
+    # ========================================================================
+    log INFO "Instalando ferramentas Python adicionais..."
     pip3 install --user papaparse cvss-calculator
     
     log INFO "Ferramentas Python instaladas!"
@@ -218,21 +258,29 @@ WRAPPER
 install_additional_tools() {
     log STEP "Instalando ferramentas adicionais..."
     
+    # ========================================================================
     # Download e instalação do amass versão 3.20.0
+    # ========================================================================
     log INFO "Instalando amass 3.20.0..."
+    
     if ! command -v amass &>/dev/null; then
         amass_atual="$OPENPIPES_BIN/amass"
     else
         amass_atual=$(which amass)
-        sudo mv $amass_atual $amass_atual.bkp
+        if [[ ! -L "$amass_atual" ]]; then
+            sudo mv "$amass_atual" "${amass_atual}.bkp"
+        fi
     fi
-    cd $OPENPIPES_BIN
-    wget https://github.com/owasp-amass/amass/releases/download/v3.20.0/amass_linux_amd64.zip
-    unzip amass_linux_amd64.zip
-    mv amass_linux_amd64 amass-3.20.0
-    sudo ln -sf $OPENPIPES_BIN/amass-3.20.0/amass $amass_atual
     
-    # dnsrecon já foi instalado via pip em install_python_tools()
+    if [[ ! -d "$OPENPIPES_BIN/amass-3.20.0" ]]; then
+        cd "$OPENPIPES_BIN"
+        wget -q https://github.com/owasp-amass/amass/releases/download/v3.20.0/amass_linux_amd64.zip
+        unzip -q amass_linux_amd64.zip
+        mv amass_linux_amd64 amass-3.20.0
+        rm -f amass_linux_amd64.zip
+    fi
+    
+    sudo ln -sf "$OPENPIPES_BIN/amass-3.20.0/amass" "$amass_atual"
     
     # rdap
     if ! command -v rdap &>/dev/null; then
@@ -249,13 +297,13 @@ install_wordlists() {
     # SecLists
     if [[ ! -d /usr/share/wordlists/seclists ]]; then
         log INFO "Clonando SecLists..."
-        sudo git clone https://github.com/danielmiessler/SecLists.git /usr/share/wordlists/seclists
+        sudo git clone --depth 1 https://github.com/danielmiessler/SecLists.git /usr/share/wordlists/seclists
     fi
     
     # Parse dirb/big.txt
     if [[ -f /usr/share/wordlists/dirb/big.txt ]]; then
         log INFO "Preparando wordlist customizada..."
-        cat /usr/share/wordlists/dirb/big.txt | grep -v "%" > /tmp/big-parsed.txt
+        grep -v "%" /usr/share/wordlists/dirb/big.txt > /tmp/big-parsed.txt
         sudo mv /tmp/big-parsed.txt /usr/share/wordlists/dirb/big-parsed.txt
     fi
     
@@ -266,8 +314,8 @@ copy_scripts() {
     log STEP "Copiando scripts para $OPENPIPES_SCRIPTS..."
     
     # Verificar se estamos no diretório do projeto
-    if [[ ! -f "./scripts/recon.sh" ]]; then
-        log ERROR "Scripts não encontrados no diretório atual!"
+    if [[ ! -d "./scripts" ]]; then
+        log ERROR "Diretório scripts/ não encontrado!"
         log INFO "Execute este instalador a partir do diretório raiz do OPenPipeS"
         exit 1
     fi
@@ -275,7 +323,32 @@ copy_scripts() {
     # Copiar todos os scripts
     cp -r ./scripts/* "$OPENPIPES_SCRIPTS/"
     
-    # Criar symlinks no bin
+    # Copiar scripts Python do módulo OSINT People para /usr/local/bin
+    if [[ -d "./.openpipes/scripts" ]]; then
+        log INFO "Instalando scripts do módulo OSINT People..."
+        
+        for py_script in ./.openpipes/scripts/*.py; do
+            if [[ -f "$py_script" ]]; then
+                script_name=$(basename "$py_script")
+                sudo cp "$py_script" /usr/local/bin/
+                sudo chmod +x "/usr/local/bin/$script_name"
+                log INFO "  → $script_name instalado em /usr/local/bin/"
+            fi
+        done
+        
+        # Copiar scripts bash do módulo OSINT People
+        for sh_script in ./.openpipes/scripts/*.sh; do
+            if [[ -f "$sh_script" ]]; then
+                script_name=$(basename "$sh_script")
+                cp "$sh_script" "$OPENPIPES_SCRIPTS/"
+                ln -sf "$OPENPIPES_SCRIPTS/$script_name" "$OPENPIPES_BIN/$script_name"
+                chmod +x "$OPENPIPES_BIN/$script_name"
+                log INFO "  → $script_name instalado"
+            fi
+        done
+    fi
+    
+    # Criar symlinks no bin para scripts principais
     for script in "$OPENPIPES_SCRIPTS"/*.sh; do
         script_name=$(basename "$script")
         ln -sf "$script" "$OPENPIPES_BIN/${script_name}"
@@ -334,7 +407,26 @@ base_dir="$proj_path/Varreduras/"
 # API Keys
 securitytrailskey=""
 OPENAI_API_KEY=""
+GITHUB_TOKEN=""
+
+# OSINT People - Configurações
+OSINT_PEOPLE_AUTH_FILE="$HOME/.openpipes/osint_people_auth.txt"
 EOF
+    
+    # Criar arquivo de autorização para OSINT People
+    if [[ ! -f "$HOME/.openpipes/osint_people_auth.txt" ]]; then
+        cat > "$HOME/.openpipes/osint_people_auth.txt" << 'AUTH_EOF'
+# Arquivo de autorização OSINT People
+# Para desmascarar emails, adicione a linha: ALLOW_UNMASK
+# Use apenas para investigações autorizadas e legais
+
+AUTHORIZED_DOMAINS=example.com,target.com
+AUTHORIZED_BY=security-team
+AUTHORIZATION_DATE=$(date +%Y-%m-%d)
+PURPOSE=defensive-security-assessment
+AUTH_EOF
+        log INFO "Arquivo de autorização OSINT People criado"
+    fi
     
     log INFO "Arquivo de configuração criado: $OPENPIPES_CONFIG"
     log WARN "IMPORTANTE: Edite este arquivo antes de usar o OPenPipeS!"
@@ -401,10 +493,23 @@ final_setup() {
     echo -e "2. ${YELLOW}Configure o arquivo:${NC}"
     echo -e "   ${BLUE}nano $OPENPIPES_CONFIG${NC}"
     echo ""
-    echo -e "3. ${YELLOW}Execute o orquestrador:${NC}"
+    echo -e "3. ${YELLOW}Configure autorização OSINT People:${NC}"
+    echo -e "   ${BLUE}nano $HOME/.openpipes/osint_people_auth.txt${NC}"
+    echo ""
+    echo -e "4. ${YELLOW}Execute o orquestrador:${NC}"
     echo -e "   ${BLUE}openpipes${NC}"
     echo ""
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${CYAN}Módulo OSINT People instalado com sucesso!${NC}"
+    echo -e "${YELLOW}Scripts disponíveis:${NC}"
+    echo -e "  - ${BLUE}osint-runner-people.sh${NC}"
+    echo -e "  - ${BLUE}osint-summary-people.sh${NC}"
+    echo -e "  - ${BLUE}osint_people_collector.py${NC}"
+    echo -e "  - ${BLUE}osint_people_parser.py${NC}"
+    echo -e "  - ${BLUE}osint_doc_finder.py${NC}"
+    echo -e "  - ${BLUE}osint_people_enricher_v1.0.py${NC}"
+    echo ""
 }
 
 # Main

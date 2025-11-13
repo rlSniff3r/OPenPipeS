@@ -1,0 +1,460 @@
+# 📘 Guia de Uso - OSINT People Module v2.0
+
+**Versão:** 2.0 - Real Implementation (Unmasked)  
+**Data:** 2025-11-12  
+**Status:** ✅ Produção
+
+---
+
+## 🎯 O Que Mudou na v2.0
+
+### ✅ Implementações Completas
+
+1. **osint_people_collector.py v2.0**
+   - ✅ Coleta REAL via GitHub API
+   - ✅ Coleta via Hunter.io API
+   - ✅ Verificação de breaches (Have I Been Pwned)
+   - ✅ Deduplicação inteligente
+   - ✅ Rate limiting implementado
+   - ✅ **SEM MASKING** - Dados completos visíveis
+
+2. **osint_doc_finder.py v2.0**
+   - ✅ Busca via Wayback Machine
+   - ✅ Google Custom Search API
+   - ✅ Bing Search API
+   - ✅ GitHub Code Search
+   - ✅ Download automático de documentos
+   - ✅ Extração de metadados sensíveis
+   - ✅ Detecção de IPs internos, emails, paths
+
+3. **osint_people_enricher_v1.0.py v1.1**
+   - ✅ **REMOVIDO sistema de masking**
+   - ✅ Todos os emails visíveis
+   - ✅ Dados completos para relatórios de segurança
+
+---
+
+## 🔧 Configuração de API Keys
+
+### Variáveis de Ambiente Necessárias
+
+```bash
+# Adicionar ao ~/.bashrc ou ~/.zshrc
+
+# GitHub (OBRIGATÓRIO para melhores resultados)
+export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Hunter.io (ALTAMENTE RECOMENDADO)
+export HUNTER_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Have I Been Pwned (RECOMENDADO)
+export HIBP_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Google Custom Search (OPCIONAL mas útil)
+export GOOGLE_API_KEY="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export GOOGLE_CX="017576662512468239146:omuauf_lfve"
+
+# Bing Search (OPCIONAL)
+export BING_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+### Como Obter as API Keys
+
+#### 1. GitHub Token (GRÁTIS)
+```
+1. Acesse: https://github.com/settings/tokens
+2. Click em "Generate new token (classic)"
+3. Selecione scopes:
+   - repo (Full control)
+   - read:org
+   - read:user
+   - user:email
+4. Copie o token (começa com ghp_)
+```
+
+#### 2. Hunter.io (50 searches grátis/mês)
+```
+1. Cadastre-se: https://hunter.io/users/sign_up
+2. Acesse: https://hunter.io/api_keys
+3. Copie a API key
+```
+
+#### 3. Have I Been Pwned (US$ 3.50/mês)
+```
+1. Cadastre-se: https://haveibeenpwned.com/API/Key
+2. Pague a taxa única
+3. Copie a API key
+```
+
+#### 4. Google Custom Search (100 queries grátis/dia)
+```
+1. Crie projeto: https://console.cloud.google.com
+2. Ative Custom Search API
+3. Crie credenciais (API Key)
+4. Crie Search Engine: https://cse.google.com/cse/
+5. Copie o CX (Search Engine ID)
+```
+
+#### 5. Bing Search (1000 transactions grátis/mês)
+```
+1. Acesse: https://www.microsoft.com/en-us/bing/apis/bing-web-search-api
+2. Crie conta Azure (se não tiver)
+3. Crie recurso Bing Search v7
+4. Copie a chave da API
+```
+
+---
+
+## 🚀 Uso Básico
+
+### 1. Coleta Simples (Sem API Keys)
+
+```bash
+# Coleta apenas via GitHub (limitado)
+osint-runner-people.sh example.com
+```
+
+### 2. Coleta Completa (Com API Keys Configuradas)
+
+```bash
+# Configure as variáveis de ambiente primeiro
+export GITHUB_TOKEN="ghp_..."
+export HUNTER_API_KEY="..."
+export HIBP_API_KEY="..."
+
+# Execute a coleta
+osint-runner-people.sh example.com
+```
+
+### 3. Coleta Manual por Módulos
+
+```bash
+# 1. Coletar pessoas
+python3 /usr/local/bin/osint_people_collector.py \
+    "example" \
+    "$HOME/ObsidianVault/Pentest/Alvos/example/OSINT/People/raw_people.json"
+
+# 2. Parsear perfis
+python3 /usr/local/bin/osint_people_parser.py \
+    "$HOME/ObsidianVault/Pentest/Alvos/example/OSINT/People/raw_people.json" \
+    "$HOME/ObsidianVault/Pentest/Alvos/example/OSINT/People/"
+
+# 3. Buscar documentos
+python3 /usr/local/bin/osint_doc_finder.py \
+    "example.com" \
+    "$HOME/ObsidianVault/Pentest/Alvos/example/OSINT/People/evidences/"
+
+# 4. Gerar summary
+osint-summary-people.sh example
+```
+
+---
+
+## 📊 Estrutura de Saída
+
+```
+ObsidianVault/
+└── Pentest/
+    └── Alvos/
+        └── example/
+            └── OSINT/
+                └── People/
+                    ├── raw_people.json          # Dados brutos coletados
+                    ├── people_john_doe.md       # Perfil individual
+                    ├── people_jane_smith.md     # Perfil individual
+                    ├── osint_people_summary.md  # Dashboard global
+                    ├── _index.md                # Índice de perfis
+                    └── evidences/
+                        ├── metadata.json        # Metadados extraídos
+                        └── raw_files/
+                            ├── abc123.pdf       # Documentos baixados
+                            └── def456.docx
+```
+
+### Exemplo de Perfil Individual (people_john_doe.md)
+
+```markdown
+---
+name: "John Doe"
+email: "john.doe@example.com"
+role: "Senior DevOps Engineer"
+photo: "https://avatars.githubusercontent.com/u/12345"
+github: "https://github.com/johndoe"
+linkedin: "https://linkedin.com/in/johndoe"
+source: "github, hunter.io"
+generated: "2025-11-12T10:30:00Z"
+verified: false
+---
+
+# John Doe
+
+**Auto-generated**: 2025-11-12T10:30:00Z
+
+## Evidence (auto-collected)
+- github | member | https://github.com/johndoe | confidence: 90
+- hunter.io | email | john.doe@example.com | confidence: 95
+- hibp | breach | Found in 2 breaches | confidence: 100
+
+## 🔗 Links
+
+- **GitHub:** [https://github.com/johndoe](https://github.com/johndoe)
+- **LinkedIn:** [https://linkedin.com/in/johndoe](https://linkedin.com/in/johndoe)
+
+## 📂 Evidências Encontradas
+
+- [evidences/raw_files/abc123.pdf](evidences/raw_files/abc123.pdf)
+
+## ⚠️ Security Findings
+
+### Data Breaches
+Email found in the following breaches:
+- LinkedIn (2021)
+- Dropbox (2012)
+
+**Risk Level:** MEDIUM
+```
+
+---
+
+## 📈 Estatísticas e Métricas
+
+### O Que o Módulo Coleta
+
+| Fonte | Dados Coletados | Requer API |
+|-------|-----------------|------------|
+| **GitHub** | Nome, email, username, bio, company, location, repos, followers | ✅ Token |
+| **Hunter.io** | Nome, email, cargo, departamento, telefone, LinkedIn, confidence score | ✅ API Key |
+| **HIBP** | Emails em breaches, lista de breaches, risk level | ✅ API Key |
+| **Google** | URLs de documentos públicos | ✅ API Key |
+| **Bing** | URLs de documentos públicos | ✅ API Key |
+| **Wayback** | Arquivos históricos, documentos antigos | ❌ Grátis |
+| **Documents** | Metadados (autor, creator, company), emails internos, IPs, paths | ❌ Via exiftool |
+
+### Dados Sensíveis Detectados
+
+- ✅ **Emails** - Todos os emails encontrados (sem masking)
+- ✅ **IPs Internos** - 10.x, 172.16-31.x, 192.168.x
+- ✅ **Hostnames** - Servidores internos
+- ✅ **Usernames** - Usuários de sistema
+- ✅ **Paths** - Caminhos de arquivos internos
+- ✅ **UUIDs** - Identificadores únicos
+- ✅ **Breaches** - Vazamentos de dados
+
+---
+
+## ⚡ Rate Limits e Performance
+
+### Limites por API
+
+| API | Rate Limit | Custo |
+|-----|------------|-------|
+| GitHub (sem token) | 60 req/hora | Grátis |
+| GitHub (com token) | 5000 req/hora | Grátis |
+| Hunter.io | 50 searches/mês | Grátis |
+| HIBP | 1 req/1.5s | US$ 3.50/mês |
+| Google CSE | 100 queries/dia | Grátis |
+| Bing | 1000 trans/mês | Grátis |
+| Wayback | ~100 req/min | Grátis |
+
+### Tempo Estimado de Execução
+
+| Organização | Membros | Documentos | Tempo Total |
+|-------------|---------|------------|-------------|
+| Pequena | <10 | <50 | 2-5 min |
+| Média | 10-50 | 50-200 | 5-15 min |
+| Grande | 50-200 | 200-500 | 15-45 min |
+| Enterprise | >200 | >500 | 45-120 min |
+
+---
+
+## 🔒 Considerações de Segurança e Legalidade
+
+### ⚠️ AVISOS IMPORTANTES
+
+1. **Autorização Obrigatória**
+   - ✅ Use apenas em alvos autorizados
+   - ✅ Mantenha arquivo de autorização atualizado
+   - ❌ NUNCA use contra indivíduos sem permissão
+
+2. **Dados Não Mascarados**
+   - ⚠️ Todos os emails são visíveis
+   - ⚠️ Dados sensíveis expostos para análise
+   - ⚠️ Proteja os outputs adequadamente
+
+3. **Armazenamento Seguro**
+   ```bash
+   # Criptografar resultados
+   gpg --encrypt --recipient security@company.com \
+       ObsidianVault/Pentest/Alvos/example/OSINT/People/raw_people.json
+   
+   # Remover originais após criptografar
+   shred -uvz raw_people.json
+   ```
+
+4. **Rate Limiting Ético**
+   - ✅ Implementado em todos os collectors
+   - ✅ Respeita robots.txt
+   - ✅ User-Agent identificável
+
+5. **GDPR / LGPD Compliance**
+   - ⚠️ Dados pessoais são coletados
+   - ⚠️ Use apenas para fins legítimos de segurança
+   - ⚠️ Delete dados após análise
+
+---
+
+## 🐛 Troubleshooting
+
+### Erro: "Rate limit exceeded"
+
+```bash
+# Solução: Aguardar ou usar token
+export GITHUB_TOKEN="seu_token_aqui"
+```
+
+### Erro: "Hunter.io API key not configured"
+
+```bash
+# Solução: Configurar API key
+export HUNTER_API_KEY="sua_key_aqui"
+```
+
+### Erro: "exiftool not found"
+
+```bash
+# Solução: Instalar exiftool
+sudo apt install exiftool
+```
+
+### Coleta retorna poucos resultados
+
+**Possíveis causas:**
+1. Organização não tem membros públicos no GitHub
+2. Domínio não está indexado no Hunter.io
+3. Poucos documentos públicos disponíveis
+
+**Soluções:**
+```bash
+# 1. Verificar se org existe no GitHub
+curl https://api.github.com/orgs/example
+
+# 2. Testar Hunter.io manualmente
+curl "https://api.hunter.io/v2/domain-search?domain=example.com&api_key=$HUNTER_API_KEY"
+
+# 3. Buscar documentos manualmente
+site:example.com filetype:pdf
+```
+
+---
+
+## 📚 Exemplos Avançados
+
+### 1. Coleta com Múltiplos Domínios
+
+```bash
+#!/bin/bash
+domains=("example.com" "subsidiary.com" "partner.org")
+
+for domain in "${domains[@]}"; do
+    echo "[+] Processing $domain"
+    osint-runner-people.sh "$domain"
+done
+```
+
+### 2. Filtrar Apenas Emails com Alto Confidence
+
+```bash
+jq '.people[] | select(.confidence > 80) | {name, email, confidence}' \
+    raw_people.json
+```
+
+### 3. Exportar para CSV
+
+```bash
+jq -r '.people[] | [.name, .email, .role, .source, .confidence] | @csv' \
+    raw_people.json > people.csv
+```
+
+### 4. Buscar Pessoas em Breaches
+
+```bash
+jq '.people[] | select(.metadata.breaches != null) | {name, email, breaches: .metadata.breaches.breach_count}' \
+    raw_people.json
+```
+
+### 5. Integrar com Relatório
+
+```python
+import json
+
+with open('raw_people.json') as f:
+    data = json.load(f)
+
+print(f"## Executive Summary")
+print(f"- Total people identified: {data['total_unique']}")
+print(f"- Sources used: {', '.join(data['sources'])}")
+print(f"- Emails found in breaches: {sum(1 for p in data['people'] if p.get('metadata', {}).get('breaches'))}")
+```
+
+---
+
+## 🎓 Boas Práticas
+
+### 1. Sempre Use Autorização
+```bash
+# Criar arquivo de autorização antes de cada uso
+cat > ~/.openpipes/osint_people_auth.txt << EOF
+AUTHORIZED_DOMAINS=example.com
+AUTHORIZED_BY=john.doe@company.com
+AUTHORIZATION_DATE=$(date +%Y-%m-%d)
+PURPOSE=security-assessment
+CLIENT_APPROVAL_REF=TICKET-12345
+EOF
+```
+
+### 2. Documente os Achados
+```markdown
+# Adicione contexto aos perfis encontrados
+## Notes
+
+### 2025-11-12 - Initial Discovery
+- Found via GitHub org members
+- Email verified via Hunter.io (95% confidence)
+- Found in 2 data breaches (LinkedIn 2021, Dropbox 2012)
+- **Action Required:** Notify about breach exposure
+```
+
+### 3. Mantenha Logs
+```bash
+# Redirecionar output para log
+osint-runner-people.sh example.com 2>&1 | tee osint-$(date +%Y%m%d-%H%M%S).log
+```
+
+### 4. Backup Regular
+```bash
+# Backup automático
+tar -czf "osint-backup-$(date +%Y%m%d).tar.gz" \
+    ~/ObsidianVault/Pentest/Alvos/*/OSINT/People/
+```
+
+---
+
+## 📞 Suporte e Contribuição
+
+### Reportar Bugs
+- GitHub Issues: https://github.com/rlSniff3r/openPipes/issues
+
+### Contribuir
+- Fork o projeto
+- Crie branch de feature
+- Submeta Pull Request
+
+### Contato
+- Email: security@openpipes.dev
+- Discord: OpenPipeS Community
+
+---
+
+**Versão do Documento:** 2.0  
+**Última Atualização:** 2025-11-12  
+**Próxima Revisão:** 2025-12-12
