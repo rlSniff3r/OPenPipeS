@@ -3,12 +3,10 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # OPenPipeS - Instalador Automático
 # Autor: Rafael Luís da Silva
-# Versão: 2.1 - Com suporte ao módulo OSINT People
+# Versão: 2.2 - Estratégia VENV correta (PEP 668 compliant)
 # ═══════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
-
-cp colorCodes.sh ~
 
 # Cores
 source ~/colorCodes.sh
@@ -20,6 +18,7 @@ OPENPIPES_SCRIPTS="${OPENPIPES_HOME}/scripts"
 OPENPIPES_TEMPLATES="${OPENPIPES_HOME}/.templates"
 OPENPIPES_CACHE="${OPENPIPES_HOME}_cache"
 OPENPIPES_CONFIG="${OPENPIPES_HOME}/config.sh"
+OPENPIPES_VENV="${OPENPIPES_HOME}/.venv"
 
 log() {
     local level=$1
@@ -44,7 +43,7 @@ banner() {
                                 |_|               
 EOF
     echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}           INSTALADOR AUTOMÁTICO v2.1${NC}"
+    echo -e "${GREEN}           INSTALADOR AUTOMÁTICO v2.2${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
     echo ""
 }
@@ -80,6 +79,7 @@ create_directories() {
 install_apt_packages() {
     log STEP "Instalando pacotes via APT..."
     
+    # ESTRATÉGIA: Instalar via APT sempre que possível
     local packages=(
         nmap
         curl
@@ -89,6 +89,11 @@ install_apt_packages() {
         python3
         python3-pip
         python3-venv
+        python3-requests
+        python3-yaml
+        python3-pil
+        python3-bs4
+        python3-lxml
         golang-go
         build-essential
         whois
@@ -179,40 +184,89 @@ install_rust_tools() {
     log INFO "Ferramentas Rust instaladas!"
 }
 
+create_openpipes_venv() {
+    log STEP "Criando ambiente virtual global do OpenPipeS..."
+    
+    if [[ ! -d "$OPENPIPES_VENV" ]]; then
+        python3 -m venv "$OPENPIPES_VENV"
+        log INFO "VENV criado: $OPENPIPES_VENV"
+    else
+        log INFO "VENV já existe: $OPENPIPES_VENV"
+    fi
+    
+    # Ativar e atualizar pip
+    source "$OPENPIPES_VENV/bin/activate"
+    pip install --upgrade pip setuptools wheel
+    deactivate
+    
+    log INFO "VENV do OpenPipeS configurado!"
+}
+
 install_python_tools() {
     log STEP "Instalando ferramentas Python..."
     
     # ========================================================================
-    # Criar venv para LinkFinder (versão específica)
+    # ESTRATÉGIA:
+    # 1. Pacotes comuns → VENV global do OpenPipeS
+    # 2. Ferramentas com conflitos → VENVs isolados
     # ========================================================================
-    if [[ ! -d "$HOME/.venv-jsfinder" ]]; then
-        log INFO "Criando ambiente virtual para LinkFinder..."
-        python3 -m venv "$HOME/.venv-jsfinder"
+    
+    # ========================================================================
+    # VENV Global do OpenPipeS
+    # ========================================================================
+    log INFO "Instalando dependências Python no VENV global..."
+    source "$OPENPIPES_VENV/bin/activate"
+    
+    # Dependências do OSINT People e outras ferramentas
+    pip install \
+        requests \
+        rapidfuzz \
+        python-docx \
+        openpyxl \
+        Pillow \
+        pdfminer.six \
+        pikepdf \
+        ExifRead \
+        PyYAML \
+        beautifulsoup4 \
+        lxml \
+        tqdm \
+        papaparse \
+        cvss-calculator
+    
+    deactivate
+    log INFO "Dependências instaladas no VENV global!"
+    
+    # ========================================================================
+    # VENV Isolado para LinkFinder (conflitos de versão)
+    # ========================================================================
+    if [[ ! -d "$HOME/.venv-linkfinder" ]]; then
+        log INFO "Criando VENV isolado para LinkFinder..."
+        python3 -m venv "$HOME/.venv-linkfinder"
     fi
     
-    log INFO "Instalando LinkFinder..."
-    source "$HOME/.venv-jsfinder/bin/activate"
+    log INFO "Instalando LinkFinder em VENV isolado..."
+    source "$HOME/.venv-linkfinder/bin/activate"
     
-    # Clone e instalação
-    if [[ ! -d "$HOME/.venv-jsfinder/LinkFinder" ]]; then
-        git clone https://github.com/GerbenJavado/LinkFinder.git "$HOME/.venv-jsfinder/LinkFinder"
+    if [[ ! -d "$HOME/.venv-linkfinder/LinkFinder" ]]; then
+        git clone https://github.com/GerbenJavado/LinkFinder.git "$HOME/.venv-linkfinder/LinkFinder"
     fi
     
-    cd "$HOME/.venv-jsfinder/LinkFinder"
+    cd "$HOME/.venv-linkfinder/LinkFinder"
     pip install -r requirements.txt
     pip install .
     
     deactivate
-
-    # Criar wrapper executável para linkfinder.py
+    
+    # Criar wrapper que ativa o VENV correto
     cat > "$OPENPIPES_BIN/linkfinder.py" << 'LINKFINDER_WRAPPER'
 #!/bin/bash
-source "$HOME/.venv-jsfinder/bin/activate"
+source "$HOME/.venv-linkfinder/bin/activate"
 python -m linkfinder "$@"
 deactivate
 LINKFINDER_WRAPPER
     chmod +x "$OPENPIPES_BIN/linkfinder.py"
-
+    
     # ========================================================================
     # Download e instalação do dnsrecon versão 1.1.3
     # ========================================================================
@@ -225,36 +279,49 @@ LINKFINDER_WRAPPER
         rm -f 1.1.3.tar.gz
     fi
     
-    # Atualizar symlink
-    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" /usr/local/bin/dnsrecon || \
-        sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" "$(which dnsrecon 2>/dev/null || echo /usr/bin/dnsrecon)"
-
-    # ========================================================================
-    # Instalar dependências do módulo OSINT People
-    # ========================================================================
-    log INFO "Instalando dependências do módulo OSINT People..."
+    # Criar wrapper que usa VENV global
+    cat > "$OPENPIPES_BIN/dnsrecon" << 'DNSRECON_WRAPPER'
+#!/bin/bash
+source "$HOME/.openpipes/.venv/bin/activate"
+python "$HOME/.openpipes/bin/dnsrecon-1.1.3/dnsrecon.py" "$@"
+deactivate
+DNSRECON_WRAPPER
+    chmod +x "$OPENPIPES_BIN/dnsrecon"
     
-    pip3 install --user --upgrade \
-        requests \
-        rapidfuzz \
-        python-docx \
-        openpyxl \
-        Pillow \
-        pdfminer.six \
-        pikepdf \
-        ExifRead \
-        PyYAML \
-        beautifulsoup4 \
-        lxml \
-        tqdm
-
-    # ========================================================================
-    # Instalar outras ferramentas Python
-    # ========================================================================
-    log INFO "Instalando ferramentas Python adicionais..."
-    pip3 install --user papaparse cvss-calculator
+    # Criar symlink para sistema
+    sudo ln -sf "$OPENPIPES_BIN/dnsrecon" /usr/local/bin/dnsrecon
     
     log INFO "Ferramentas Python instaladas!"
+}
+
+install_python_scripts() {
+    log STEP "Instalando scripts Python do OSINT People..."
+    
+    # Criar wrappers para scripts Python que usam VENV global
+    local python_scripts=(
+        "osint_people_collector.py"
+        "osint_doc_finder.py"
+        "osint_people_enricher_v1.0.py"
+        "osint_people_parser.py"
+    )
+    
+    for script in "${python_scripts[@]}"; do
+        if [[ -f "./.openpipes/scripts/$script" ]]; then
+            # Copiar script para OPENPIPES_HOME
+            cp "./.openpipes/scripts/$script" "$OPENPIPES_HOME/$script"
+            
+            # Criar wrapper que ativa VENV antes de executar
+            cat > "/usr/local/bin/$script" << SCRIPT_WRAPPER
+#!/bin/bash
+source "$OPENPIPES_VENV/bin/activate"
+python "$OPENPIPES_HOME/$script" "\$@"
+deactivate
+SCRIPT_WRAPPER
+            
+            sudo chmod +x "/usr/local/bin/$script"
+            log INFO "  → $script instalado com wrapper VENV"
+        fi
+    done
 }
 
 install_additional_tools() {
@@ -322,23 +389,13 @@ copy_scripts() {
         exit 1
     fi
     
-    # Copiar todos os scripts
+    # Copiar todos os scripts bash
     cp -r ./scripts/* "$OPENPIPES_SCRIPTS/"
     
-    # Copiar scripts Python do módulo OSINT People para /usr/local/bin
+    # Copiar scripts bash do módulo OSINT People
     if [[ -d "./.openpipes/scripts" ]]; then
-        log INFO "Instalando scripts do módulo OSINT People..."
+        log INFO "Instalando scripts bash do módulo OSINT People..."
         
-        for py_script in ./.openpipes/scripts/*.py; do
-            if [[ -f "$py_script" ]]; then
-                script_name=$(basename "$py_script")
-                sudo cp "$py_script" /usr/local/bin/
-                sudo chmod +x "/usr/local/bin/$script_name"
-                log INFO "  → $script_name instalado em /usr/local/bin/"
-            fi
-        done
-        
-        # Copiar scripts bash do módulo OSINT People
         for sh_script in ./.openpipes/scripts/*.sh; do
             if [[ -f "$sh_script" ]]; then
                 script_name=$(basename "$sh_script")
@@ -410,16 +467,23 @@ base_dir="$proj_path/Varreduras/"
 securitytrailskey=""
 OPENAI_API_KEY=""
 GITHUB_TOKEN=""
+HUNTER_API_KEY=""
+HIBP_API_KEY=""
+GOOGLE_API_KEY=""
+GOOGLE_CX=""
+BING_API_KEY=""
 
 # OSINT People - Configurações
 OSINT_PEOPLE_AUTH_FILE="$HOME/.openpipes/osint_people_auth.txt"
+
+# Python VENV
+OPENPIPES_VENV="$HOME/.openpipes/.venv"
 EOF
     
     # Criar arquivo de autorização para OSINT People
     if [[ ! -f "$HOME/.openpipes/osint_people_auth.txt" ]]; then
         cat > "$HOME/.openpipes/osint_people_auth.txt" << 'AUTH_EOF'
 # Arquivo de autorização OSINT People
-# Para desmascarar emails, adicione a linha: ALLOW_UNMASK
 # Use apenas para investigações autorizadas e legais
 
 AUTHORIZED_DOMAINS=example.com,target.com
@@ -442,6 +506,7 @@ setup_path() {
         echo "" >> ~/.bashrc
         echo "# OPenPipeS" >> ~/.bashrc
         echo "export OPENPIPES_HOME=\"$OPENPIPES_HOME\"" >> ~/.bashrc
+        echo "export OPENPIPES_VENV=\"$OPENPIPES_VENV\"" >> ~/.bashrc
         echo "export PATH=\"\$PATH:\$OPENPIPES_HOME/bin\"" >> ~/.bashrc
         log INFO "PATH configurado no ~/.bashrc"
     fi
@@ -503,14 +568,12 @@ final_setup() {
     echo ""
     echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "${CYAN}Módulo OSINT People instalado com sucesso!${NC}"
-    echo -e "${YELLOW}Scripts disponíveis:${NC}"
-    echo -e "  - ${BLUE}osint-runner-people.sh${NC}"
-    echo -e "  - ${BLUE}osint-summary-people.sh${NC}"
-    echo -e "  - ${BLUE}osint_people_collector.py${NC}"
-    echo -e "  - ${BLUE}osint_people_parser.py${NC}"
-    echo -e "  - ${BLUE}osint_doc_finder.py${NC}"
-    echo -e "  - ${BLUE}osint_people_enricher_v1.0.py${NC}"
+    echo -e "${CYAN}Estratégia Python implementada:${NC}"
+    echo -e "  - ${GREEN}VENV Global:${NC} $OPENPIPES_VENV"
+    echo -e "  - ${GREEN}VENV LinkFinder:${NC} ~/.venv-linkfinder"
+    echo -e "  - ${GREEN}Scripts wrapper:${NC} /usr/local/bin/*.py"
+    echo ""
+    echo -e "${YELLOW}Compatível com PEP 668 (sem --break-system-packages)${NC}"
     echo ""
 }
 
@@ -530,9 +593,11 @@ main() {
     
     create_directories
     install_apt_packages
+    create_openpipes_venv
     install_go_tools
     install_rust_tools
     install_python_tools
+    install_python_scripts
     install_additional_tools
     install_wordlists
     copy_scripts
