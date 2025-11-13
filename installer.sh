@@ -230,7 +230,7 @@ install_python_tools() {
         PyYAML \
         beautifulsoup4 \
         lxml \
-        tqdm \
+        tqdm
     
     deactivate
     log INFO "Dependências instaladas no VENV global!"
@@ -381,14 +381,14 @@ copy_scripts() {
     log STEP "Copiando scripts para $OPENPIPES_SCRIPTS..."
     
     # Verificar se estamos no diretório do projeto
-    if [[ ! -d "./scripts" ]]; then
+    if [[ ! -d ".openpipes/scripts" ]]; then
         log ERROR "Diretório scripts/ não encontrado!"
         log INFO "Execute este instalador a partir do diretório raiz do OPenPipeS"
         exit 1
     fi
     
     # Copiar todos os scripts bash
-    cp -r ./scripts/* "$OPENPIPES_SCRIPTS/"
+    cp -r .openpipes/scripts/* "$OPENPIPES_SCRIPTS/"
     
     # Copiar scripts bash do módulo OSINT People
     if [[ -d "./.openpipes/scripts" ]]; then
