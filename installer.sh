@@ -234,7 +234,7 @@ LINKFINDER_WRAPPER
     # ========================================================================
     log INFO "Instalando dependências do módulo OSINT People..."
     
-    pip3 install --user --upgrade \
+    pipx install --upgrade \
         requests \
         rapidfuzz \
         python-docx \
