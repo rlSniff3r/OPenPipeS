@@ -2,14 +2,7 @@
 
 <div align="center">
 
-```
-   ___  ____            ____  _            ____  
-  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___/ ___| 
- | | | | |_) / _ \ '_ \| |_) | | '_ \ / _ \___ \ 
- | |_| |  __/  __/ | | |  __/| | |_) |  __/___) |
-  \___/|_|   \___|_| |_|_|   |_| .__/ \___|____/ 
-                                |_|               
-```
+<img src=https://raw.githubusercontent.com/rlSniff3r/openPipes/refs/heads/master/Extras%20-%20Images/Gemini_Generated_Image_86pcm786pcm786pc.png>
 
 **Pipeline Automatizado de Reconhecimento e Pentesting**
 
