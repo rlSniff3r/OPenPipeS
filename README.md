@@ -511,9 +511,9 @@ Distribuído sob a licença MIT. Veja `LICENSE` para mais informações.
 
 **Rafael Luís da Silva**
 
-📧 Email: seu-email@exemplo.com  
-🐦 Twitter: [@seu_usuario](https://twitter.com/seu_usuario)  
-💼 LinkedIn: [seu-perfil](https://linkedin.com/in/seu-perfil)
+📧 Email: rafael@sintetic.com.br  
+🐦 Twitter: [@rlSniff3r](https://x.com/rlSniff3r)  
+💼 LinkedIn: [Rafael Luís da Silva](https://www.linkedin.com/in/rafael-luis-da-silva/)
 
 ---
 
