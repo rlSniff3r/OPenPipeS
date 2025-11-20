@@ -5,7 +5,7 @@ source $HOME/.openpipes/config.sh
 
 CACHE_DIR="$HOME/.openpipes_cache/"
 obsdir="$HOME/.obsidianFixedMount/"
-tpdir="$HOME/.templates/"
+tpdir="$HOME/.openpipes/.templates/"
 
 # Seleciona alvo
 echo "[*] Selecione o alvo:"
