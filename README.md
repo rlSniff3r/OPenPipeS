@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src=[https://raw.githubusercontent.com/rlSniff3r/openPipes/refs/heads/master/Extras%20-%20Images/1.Gemini_Generated_Image_86pcm786pcm786pc.png](https://raw.githubusercontent.com/rlSniff3r/openPipes/refs/heads/master/Extras%20-%20Images/OPenPipeS_01.png)>
+<img src=https://raw.githubusercontent.com/rlSniff3r/openPipes/refs/heads/master/Extras%20-%20Images/1.Gemini_Generated_Image_86pcm786pcm786pc.png>
 
 **Pipeline Automatizado de Reconhecimento e Pentesting**
 
