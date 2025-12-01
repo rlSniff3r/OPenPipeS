@@ -8,9 +8,9 @@ Automated Reconnaissance and Pentesting Pipeline
 
 Integrated with Obsidian MD for Smart Documentation
 
-![GitHub](https://github.com)  
-![License](LICENSE)  
-![Kali](https://kali.org)
+[![GitHub](https://img.shields.io/badge/GitHub-OPenPipeS-blue)](https://github.com)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Kali](https://img.shields.io/badge/Kali-Linux-purple)](https://kali.org)
 
 </div>
 
