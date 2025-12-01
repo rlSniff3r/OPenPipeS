@@ -66,7 +66,7 @@ OPenPipeS automates the entire recon pipeline and organizes the results into a s
 
 🏗 Architecture
 
-`
+```
 OPenPipeS/
 │
 ├── .openpipes/
@@ -91,10 +91,9 @@ OPenPipeS/
         │
         ├── Dashboard_Global.md
         └── Tasks.md
-`
+```
 
 ---
-
 🚀 Installation
 
 Prerequisites
@@ -142,7 +141,7 @@ What the installer does:
 
 Edit ~/.openpipes/config.sh:
 
-`bash
+```bash
 Directory where your pentest projects are stored
 proj_dir="/home/kali/pentests"
 
@@ -155,20 +154,20 @@ obsdir="$HOME/.obsidianFixedMount/"
 API Keys (optional but recommended)
 securitytrailskey="your-key-here"
 OPENAI_API_KEY="sk-..."
-`
+```
 
 Project Directory Structure
 
 OPenPipeS expects the following structure:
 
-`
+```
 /home/kali/pentests/client-xyz/
 ├── domains.txt              # Domain list (one per line)
 ├── Recon/                   # Recon results
 └── Scans/                   # Scanning results
     ├── targets.txt          # Auto-generated
     └── nmap-*/              # Host-specific folders
-`
+```
 
 ---
 
@@ -176,13 +175,13 @@ OPenPipeS expects the following structure:
 
 Main Command
 
-`bash
+```bash
 openpipes
-`
+```
 
 This opens the interactive menu:
 
-`
+```
 ╔════════════════════════════════════════════════════════════╗
 ║              MAIN MENU - OPenPipeS                        ║
 ╚════════════════════════════════════════════════════════════╝
@@ -205,11 +204,11 @@ This opens the interactive menu:
 [H] 📖 Help/Documentation
 
 [0] 🚪 Exit
-`
+```
 
 Direct Script Usage
 
-`bash
+```bash
 Recon
 recon.sh -d domains.txt
 
@@ -221,7 +220,7 @@ httpx-runner.sh
 
 Full pipeline
 openpipes  # choose option [P]
-`
+```
 
 ---
 
@@ -335,7 +334,7 @@ What it does:
 
 🔄 Recommended Workflow
 
-`mermaid
+```mermaid
 graph TD
     A[domains.txt] --> B[1. Recon]
     B --> C[Recon/<domain>/]
@@ -353,48 +352,48 @@ graph TD
     N --> O[Create Vulns]
     O --> P[AI Enrichment]
     P --> Q[Final Report]
-`
+```
 
 Step-by-step:
 
 1. Prepare the environment:
-   `bash
+   ```bash
    cd /home/kali/pentests/cliente-xyz
    echo "exemplo.com" > domains.txt
-   `
+   ```
 
 2. Execute the reconnaissance:
-   `bash
+   ```bash
    openpipes  # [1] Reconhecimento
-   `
+   ```
 
 3. Perform the scan:
-   `bash
+   ```bash
    openpipes  # [2] Scan de Portas
-   `
+   ```
 
 4. Create the structure:
-   `bash
+   ```bash
    openpipes  # [3] Criar Alvos Obsidian
-   `
+   ```
 
 5. Execute the web modules:
-   `bash
+   ```bash
    openpipes  # [4] HTTPX
    openpipes  # [5] Katana/Ferox
    openpipes  # [6] Nuclei
-   `
+   ```
 
 6. JavaScript analysis:
-   `bash
+   ```bash
    openpipes  # [7] JSFinder
    openpipes  # [8] GF Summary
-   `
+   ```
 
 7. Enrich metadata:
-   `bash
+   ```bash
    openpipes  # [9] WHOIS Enricher
-   `
+   ```
 
 8. Open Obsidian:
    - Open the vault in ~/.obsidianFixedMount/
@@ -402,9 +401,9 @@ Step-by-step:
    - Add notes and tasks
 
 9. Document vulnerabilities:
-   `bash
+   ```bash
    openpipes  # [V] Gerenciar Vulnerabilidades
-   `
+   ```
 
 ---
 
@@ -413,26 +412,26 @@ Step-by-step:
 Problem: "Script not found"
 
 Solution:
-`bash
+```bash
 source ~/.bashrc
 echo $PATH | grep openpipes
-`
+```
 
 Problem: "Incomplete configuration"
 
 Solution:
-`bash
+```bash
 nano ~/.openpipes/config.sh
 Fill in proj_dir and proj_name
-`
+```
 
 Problem: Tool not installed
 
 Solution:
-`bash
+```bash
 openpipes  # [S] System Status
 See what's missing and install manually
-`
+```
 
 Problem: Obsidian does not open files
 
@@ -443,14 +442,14 @@ Solution:
 Problem: OpenAI API not working
 
 Solution:
-`bash
+```bash
 Check your key
 grep OPENAI ~/.openpipes/config.sh
 
 Test manually
 curl https://api.openai.com/v1/models \
   -H "Authorization: Bearer sk-..."
-`
+```
 
 ---
 
