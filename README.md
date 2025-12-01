@@ -1,518 +1,499 @@
-# 🔥 OPenPipeS - Obsidian Pentest Pipeline Stack
+🔥 OPenPipeS - Obsidian Pentest Pipeline Stack
 
 <div align="center">
 
 <img src=https://raw.githubusercontent.com/rlSniff3r/openPipes/refs/heads/master/Extras%20-%20Images/OPenPipeS_01.png>
 
-**Pipeline Automatizado de Reconhecimento e Pentesting**
+Automated Reconnaissance and Pentesting Pipeline
 
-*Integrado com Obsidian MD para Documentação Inteligente*
+Integrated with Obsidian MD for Smart Documentation
 
-[![GitHub](https://img.shields.io/badge/GitHub-OPenPipeS-blue)](https://github.com)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Kali](https://img.shields.io/badge/Kali-Linux-purple)](https://kali.org)
+![GitHub](https://github.com)  
+![License](LICENSE)  
+![Kali](https://kali.org)
 
 </div>
 
 ---
 
-## 📋 Índice
+📋 Index
 
-- [Sobre](#-sobre)
-- [Características](#-características)
-- [Arquitetura](#-arquitetura)
-- [Instalação](#-instalação)
-- [Configuração](#️-configuração)
-- [Uso](#-uso)
-- [Módulos](#-módulos)
-- [Workflow](#-workflow-recomendado)
-- [Troubleshooting](#-troubleshooting)
-- [Contribuindo](#-contribuindo)
-
----
-
-## 🎯 Sobre
-
-**OPenPipeS** (Obsidian Pentest Pipeline Stack) é uma solução completa de automação para reconhecimento e pentesting de aplicações web, com integração nativa ao Obsidian MD para documentação estruturada e inteligente dos resultados.
-
-### Problema que resolve:
-
-Durante um pentest, coletamos **toneladas de dados** de diversas ferramentas (nmap, httpx, nuclei, etc.). Organizar, correlacionar e documentar essas informações de forma eficiente é um desafio.
-
-O OPenPipeS automatiza todo o pipeline de recon e organiza os resultados em um Obsidian Vault estruturado, com:
-- ✅ Dashboards interativos
-- ✅ Tabelas dinâmicas com DataviewJS
-- ✅ Navegação por links entre alvos
-- ✅ Templates de vulnerabilidades prontos
-- ✅ Enriquecimento automático com IA
+- About
+- Features
+- Architecture
+- Installation
+- Configuration
+- Usage
+- Modules
+- Workflow
+- Troubleshooting
+- Contributing
 
 ---
 
-## ✨ Características
+🎯 About
 
-- 🔍 **Reconhecimento Completo**: DNS, subdomínios, WHOIS, RDAP
-- 🎯 **Scanning Automatizado**: Nmap com perfis otimizados
-- 🌐 **Descoberta de Endpoints**: HTTPx, Katana, Feroxbuster
-- 🧪 **Vulnerability Assessment**: Nuclei com templates atualizados
-- 📜 **JavaScript Analysis**: LinkFinder para endpoints ocultos
-- 🧬 **Pattern Matching**: GF (GrepFuzzable) para organização
-- 📊 **Obsidian Integration**: Documentação estruturada e dinâmica
-- 🤖 **AI-Powered**: Enriquecimento de vulnerabilidades com OpenAI
-- 🎨 **Customizável**: Templates Markdown editáveis
-- 🔄 **Pipeline Orquestrado**: Execute tudo com um comando
+OPenPipeS (Obsidian Pentest Pipeline Stack) is a complete automation solution for reconnaissance and web application pentesting, with native integration into Obsidian MD for structured and intelligent documentation of results.
+
+Problem it solves:
+
+During a pentest, we collect tons of data from various tools (nmap, httpx, nuclei, etc.). Organizing, correlating, and documenting this information efficiently is challenging.
+
+OPenPipeS automates the entire recon pipeline and organizes the results into a structured Obsidian Vault, with:
+
+- ✅ Interactive dashboards  
+- ✅ Dynamic tables with DataviewJS  
+- ✅ Navigation through links between targets  
+- ✅ Ready‑to‑use vulnerability templates  
+- ✅ Automatic enrichment with AI  
 
 ---
 
-## 🏗 Arquitetura
+✨ Features
 
-```
+- 🔍 Full Reconnaissance: DNS, subdomains, WHOIS, RDAP  
+- 🎯 Automated Scanning: Nmap with optimized profiles  
+- 🌐 Endpoint Discovery: HTTPx, Katana, Feroxbuster  
+- 🧪 Vulnerability Assessment: Nuclei with updated templates  
+- 📜 JavaScript Analysis: LinkFinder for hidden endpoints  
+- 🧬 Pattern Matching: GF (GrepFuzzable) for organization  
+- 📊 Obsidian Integration: Structured and dynamic documentation  
+- 🤖 AI‑Powered: Vulnerability enrichment with OpenAI  
+- 🎨 Customizable: Editable Markdown templates  
+- 🔄 Orchestrated Pipeline: Run everything with one command  
+
+---
+
+🏗 Architecture
+
+`
 OPenPipeS/
 │
 ├── .openpipes/
-│   ├── bin/                    # Scripts executáveis (no PATH)
-│   ├── scripts/                # Scripts fonte
-│   ├── .templates/             # Templates Obsidian/Markdown
-│   └── config.sh               # Configuração global
+│   ├── bin/                    # Executable scripts (in PATH)
+│   ├── scripts/                # Source scripts
+│   ├── .templates/             # Obsidian/Markdown templates
+│   └── config.sh               # Global configuration
 │
-├── .openpipes_cache/           # Cache de vulnerabilidades (JSON)
+├── .openpipes_cache/           # Vulnerability cache (JSON)
 │
-└── ~/.obsidianFixedMount/      # Vault do Obsidian
+└── ~/.obsidianFixedMount/      # Obsidian Vault
     └── Pentest/
-        ├── Alvos/
+        ├── Targets/
         │   └── example.com/
         │       ├── example.com.md
         │       ├── Dashboard_example.com.md
-        │       ├── Vulnerabilidades/
+        │       ├── Vulnerabilities/
         │       ├── nmap.md
         │       ├── httpx.md
         │       ├── nuclei.md
         │       └── endpoints.md
         │
         ├── Dashboard_Global.md
-        └── Tarefas.md
-```
+        └── Tasks.md
+`
 
 ---
 
-## 🚀 Instalação
+🚀 Installation
 
-### Pré-requisitos
+Prerequisites
 
-- **OS**: Kali Linux / Debian / Ubuntu
-- **Privilégios**: sudo (para instalar pacotes)
-- **Espaço**: ~5GB (ferramentas + wordlists)
+- OS: Kali Linux / Debian / Ubuntu  
+- Privileges: sudo (to install packages)  
+- Space: ~5GB (tools + wordlists)  
 
-### Instalação Rápida
+Quick Installation
 
-```bash
-# 1. Clone o repositório
-git clone https://github.com/seu-usuario/OPenPipeS.git
+`bash
+1. Clone the repository
+git clone https://github.com/your-user/OPenPipeS.git
 cd OPenPipeS
 
-# 2. Execute o instalador
+2. Run the installer
 chmod +x install.sh
 ./install.sh
 
-# 3. Recarregue o shell
+3. Reload shell
 source ~/.bashrc
 
-# 4. Configure o projeto
+4. Configure the project
 nano ~/.openpipes/config.sh
 
-# 5. Execute!
+5. Run!
 openpipes
-```
+`
 
-### O que o instalador faz:
+What the installer does:
 
-1. ✅ Instala dependências APT (nmap, jq, curl, etc.)
-2. ✅ Instala ferramentas Go (httpx, nuclei, katana, gf)
-3. ✅ Instala ferramentas Rust (feroxbuster)
-4. ✅ Instala ferramentas Python (LinkFinder, dnsrecon)
-5. ✅ Clona SecLists e prepara wordlists
-6. ✅ Copia scripts para `~/.openpipes/`
-7. ✅ Adiciona `~/.openpipes/bin` ao PATH
-8. ✅ Cria estrutura inicial do Obsidian
-9. ✅ Copia cache de vulnerabilidades (145 templates!)
+1. ✅ Installs APT dependencies (nmap, jq, curl, etc.)  
+2. ✅ Installs Go tools (httpx, nuclei, katana, gf)  
+3. ✅ Installs Rust tools (feroxbuster)  
+4. ✅ Installs Python tools (LinkFinder, dnsrecon)  
+5. ✅ Clones SecLists and prepares wordlists  
+6. ✅ Copies scripts to ~/.openpipes/  
+7. ✅ Adds ~/.openpipes/bin to PATH  
+8. ✅ Creates initial Obsidian structure  
+9. ✅ Copies vulnerability cache (145 templates!)  
 
 ---
 
-## ⚙️ Configuração
+⚙️ Configuration
 
-Edite `~/.openpipes/config.sh`:
+Edit ~/.openpipes/config.sh:
 
-```bash
-# Diretório onde ficam seus projetos de pentest
+`bash
+Directory where your pentest projects are stored
 proj_dir="/home/kali/pentests"
 
-# Nome do projeto atual
-proj_name="cliente-xyz"
+Name of the current project
+proj_name="client-xyz"
 
-# Diretório do Obsidian (geralmente fixo)
+Obsidian directory (usually fixed)
 obsdir="$HOME/.obsidianFixedMount/"
 
-# API Keys (opcional mas recomendado)
-securitytrailskey="sua-chave-aqui"
+API Keys (optional but recommended)
+securitytrailskey="your-key-here"
 OPENAI_API_KEY="sk-..."
-```
+`
 
-### Estrutura de Diretórios do Projeto
+Project Directory Structure
 
-O OPenPipeS espera a seguinte estrutura:
+OPenPipeS expects the following structure:
 
-```
-/home/kali/pentests/cliente-xyz/
-├── domains.txt              # Lista de domínios (um por linha)
-├── Recon/                   # Resultados do reconhecimento
-└── Varreduras/              # Resultados do scanning
-    ├── targets.txt          # Gerado automaticamente
-    └── nmap-*/              # Diretórios por alvo
-```
+`
+/home/kali/pentests/client-xyz/
+├── domains.txt              # Domain list (one per line)
+├── Recon/                   # Recon results
+└── Scans/                   # Scanning results
+    ├── targets.txt          # Auto-generated
+    └── nmap-*/              # Host-specific folders
+`
 
 ---
 
-## 🎮 Uso
+🎮 Usage
 
-### Comando Principal
+Main Command
 
-```bash
+`bash
 openpipes
-```
+`
 
-Isso abre o menu interativo:
+This opens the interactive menu:
 
-```
+`
 ╔════════════════════════════════════════════════════════════╗
-║              MENU PRINCIPAL - OPenPipeS                    ║
+║              MAIN MENU - OPenPipeS                        ║
 ╚════════════════════════════════════════════════════════════╝
 
-[1] 🔍 Reconhecimento Completo
-[2] 🎯 Scan de Portas/Serviços
-[3] 📦 Criar Estrutura no Obsidian
+[1] 🔍 Full Reconnaissance
+[2] 🎯 Port/Service Scan
+[3] 📦 Create Structure in Obsidian
 [4] 🌐 HTTPX Runner
 [5] 🔗 Katana + Feroxbuster
 [6] 🧪 Nuclei Scanner
 [7] 📜 JSFinder
 [8] 🧬 GF Summary
-[9] 🏷️  WHOIS Enricher
+[9] 🏷️ WHOIS Enricher
 
-[V] 💥 Gerenciar Vulnerabilidades
-[P] 🔄 Pipeline Completo (Todos os módulos)
+[V] 💥 Manage Vulnerabilities
+[P] 🔄 Full Pipeline (All modules)
 
-[C] ⚙️  Configuração
-[S] 📊 Status do Sistema
-[H] 📖 Help/Documentação
+[C] ⚙️ Configuration
+[S] 📊 System Status
+[H] 📖 Help/Documentation
 
-[0] 🚪 Sair
-```
+[0] 🚪 Exit
+`
 
-### Uso Direto dos Scripts
+Direct Script Usage
 
-Você também pode chamar os scripts diretamente:
-
-```bash
-# Reconhecimento
+`bash
+Recon
 recon.sh -d domains.txt
 
-# Scan de portas
+Port scan
 nwrapper.sh -t 192.168.1.1,scanme.nmap.org
 
-# HTTPx
+HTTPx
 httpx-runner.sh
 
-# Pipeline completo
-openpipes  # e escolha opção [P]
-```
+Full pipeline
+openpipes  # choose option [P]
+`
 
 ---
 
-## 📦 Módulos
+📦 Modules
 
-### 1️⃣ Reconhecimento (`recon.sh`)
+1️⃣ Reconnaissance (recon.sh)
 
-**O que faz:**
-- DNS enumeration (A, TXT, CNAME, DMARC)
-- Subdomain discovery (dnsrecon, amass, SecurityTrails)
-- RDAP/WHOIS lookup
-- HTTPx probe inicial
+What it does:
+- DNS enumeration (A, TXT, CNAME, DMARC)  
+- Subdomain discovery (dnsrecon, amass, SecurityTrails)  
+- RDAP/WHOIS lookup  
+- Initial HTTPx probe  
 
-**Saída:**
-- `Recon/<dominio>/allsubs` - Lista de subdomínios
-- `Recon/<dominio>/hosts-allsubs` - Resolução DNS
-- `Recon/<dominio>/allsubs.httpx.json` - Probe HTTP
-- `Varreduras/targets.txt` - Lista de IPs/hostnames para scan
+Output:
+- Recon/<domain>/allsubs  
+- Recon/<domain>/hosts-allsubs  
+- Recon/<domain>/allsubs.httpx.json  
+- Scans/targets.txt  
 
-### 2️⃣ Scan de Portas (`nwrapper.sh`)
+2️⃣ Port Scan (nwrapper.sh)
 
-**O que faz:**
-- nmap SYN scan (-sS)
-- Detecção de portas abertas
-- Service/version detection (-sV)
-- OS detection (-O)
+What it does:
+- nmap SYN scan (-sS)  
+- Open port detection  
+- Service/version detection (-sV)  
+- OS detection (-O)  
 
-**Saída:**
-- `Varreduras/nmap-<host>/initial` - Scan inicial
-- `Varreduras/nmap-<host>/nmap.nmap` - Scan detalhado
-- `Varreduras/nmap-<host>/nmap.gnmap` - Formato grepable
+Output:
+- Scans/nmap-<host>/initial  
+- Scans/nmap-<host>/nmap.nmap  
+- Scans/nmap-<host>/nmap.gnmap  
 
-### 3️⃣ Criação de Alvos (`cria_Alvos_Obsidian.sh`)
+3️⃣ Target Creation (cria_Alvos_Obsidian.sh)
 
-**O que faz:**
-- Lê resultados do nmap
-- Cria estrutura de pastas no Obsidian
-- Gera dashboards personalizados por alvo
-- Cria frontmatter YAML com metadados
+What it does:
+- Reads nmap results  
+- Creates folder structure in Obsidian  
+- Generates per-target dashboards  
+- Creates YAML frontmatter  
 
-**Saída:**
-- `Obsidian/Pentest/Alvos/<host>/<host>.md`
-- `Obsidian/Pentest/Alvos/<host>/Dashboard_<host>.md`
-- `Obsidian/Pentest/Alvos/<host>/Vulnerabilidades/`
+Output:
+- Obsidian/Pentest/Targets/<host>/<host>.md  
+- Obsidian/Pentest/Targets/<host>/Dashboard_<host>.md  
+- Obsidian/Pentest/Targets/<host>/Vulnerabilities/  
 
-### 4️⃣ HTTPX Runner (`httpx-runner.sh`)
+4️⃣ HTTPX Runner (httpx-runner.sh)
 
-**O que faz:**
-- Probe HTTP/HTTPS em portas web
-- Detecta tecnologias (-tech-detect)
-- Captura títulos de páginas
-- Deduplicação automática
+What it does:
+- HTTP/HTTPS probing  
+- Technology detection  
+- Page title capture  
+- Automatic deduplication  
 
-**Saída:**
-- `Obsidian/Pentest/Alvos/<host>/httpx.md` - Tabela markdown
-- `Obsidian/Pentest/Alvos/<host>/endpoints.md` - Lista de URLs
+Output:
+- Obsidian/Pentest/Targets/<host>/httpx.md  
+- Obsidian/Pentest/Targets/<host>/endpoints.md  
 
-### 5️⃣ Katana + Feroxbuster (`katana-buster.sh`)
+5️⃣ Katana + Feroxbuster (katana-buster.sh)
 
-**O que faz:**
-- Katana: web crawler
-- Feroxbuster: directory brute-force
-- Combinação para máxima cobertura
+What it does:
+- Katana: web crawler  
+- Feroxbuster: directory brute-force  
+- Combined for maximum coverage  
 
-**Flags:**
-- `--dns-only` - Testa apenas DNS
-- `--ip-only` - Testa apenas IPs
+Flags:
+- --dns-only  
+- --ip-only  
 
-**Saída:**
-- `Obsidian/Pentest/Alvos/<host>/ferox-katana.md`
-- `Obsidian/Pentest/Alvos/<host>/endpoints.md` (atualizado)
+Output:
+- Obsidian/Pentest/Targets/<host>/ferox-katana.md  
+- endpoints.md updated  
 
-### 6️⃣ Nuclei (`nuclei-runner.sh`)
+6️⃣ Nuclei (nuclei-runner.sh)
 
-**O que faz:**
-- Executa templates do nuclei
-- Filtra por severidade (low, medium, high, critical)
-- Gera relatório estruturado
+What it does:
+- Runs nuclei templates  
+- Severity filtering  
+- Structured reporting  
 
-**Saída:**
-- `nuclei-output/<host>-nuclei.json`
-- `Obsidian/Pentest/Alvos/<host>/nuclei.md`
+Output:
+- nuclei-output/<host>-nuclei.json  
+- nuclei.md  
 
-### 7️⃣ JSFinder (`jsfinder-runner.sh`)
+7️⃣ JSFinder (jsfinder-runner.sh)
 
-**O que faz:**
-- Identifica arquivos .js nos endpoints
-- Baixa e analisa com LinkFinder
-- Extrai endpoints ocultos
+What it does:
+- Identifies .js files  
+- Downloads and analyzes with LinkFinder  
+- Extracts hidden endpoints  
 
-**Flags:**
-- `--force` - Reanalisa arquivos já processados
+Output:
+- js-endpoints.md
 
-**Saída:**
-- `Obsidian/Pentest/Alvos/<host>/js-endpoints.md`
+8️⃣ GF Summary (gf-summary.sh)
 
-### 8️⃣ GF Summary (`gf-summary.sh`)
+What it does:
+- Groups endpoints by patterns (XSS, SQLi, LFI, etc.)  
+- Identifies sensitive extensions  
+- Supports manual analysis  
 
-**O que faz:**
-- Agrupa endpoints por padrões (XSS, SQLi, LFI, etc.)
-- Identifica extensões sensíveis (.bak, .env, etc.)
-- Facilita análise manual
+Output:
+- gf-summary.md
 
-**Saída:**
-- `Obsidian/Pentest/Alvos/<host>/gf-summary.md`
+9️⃣ WHOIS Enricher
 
-### 9️⃣ WHOIS Enricher (`whois-enricher.sh`)
-
-**O que faz:**
-- Extrai informações de ownership
-- Atualiza dashboards com tabelas WHOIS
-
-**Saída:**
-- Atualiza `Dashboard_<host>.md` com bloco WHOIS
-
-### 🔟 Gerenciamento de Vulnerabilidades
-
-**Criar Vulnerabilidade (`cria_Vulnerabilidades.sh`):**
-- Seleção interativa de alvo
-- Escolha de template do cache (145 tipos!)
-- Preenchimento automático de metadados
-
-**Enriquecer (`vuln-enricher.sh`):**
-- Usa OpenAI GPT-4 para gerar descrições técnicas
-- Adiciona CWE, WSTG, links OWASP
-- Cache para evitar redundância
+What it does:
+- Extracts ownership information  
+- Updates dashboards  
 
 ---
 
-## 🔄 Workflow Recomendado
+🔄 Recommended Workflow
 
-```mermaid
+`mermaid
 graph TD
-    A[domains.txt] --> B[1. Reconhecimento]
-    B --> C[Recon/<dominio>/]
-    C --> D[2. Scan de Portas]
-    D --> E[Varreduras/nmap-*/]
-    E --> F[3. Criar Alvos Obsidian]
-    F --> G[Obsidian estruturado]
+    A[domains.txt] --> B[1. Recon]
+    B --> C[Recon/<domain>/]
+    C --> D[2. Port Scan]
+    D --> E[Scans/nmap-*/]
+    E --> F[3. Create Targets]
+    F --> G[Structured Obsidian]
     G --> H[4. HTTPX]
     H --> I[5. Katana/Ferox]
     I --> J[6. Nuclei]
     J --> K[7. JSFinder]
     K --> L[8. GF Summary]
-    L --> M[9. WHOIS Enricher]
-    M --> N[Análise Manual]
-    N --> O[Criar Vulnerabilidades]
-    O --> P[Enriquecer com IA]
-    P --> Q[Relatório Final]
-```
+    L --> M[9. WHOIS]
+    M --> N[Manual Analysis]
+    N --> O[Create Vulns]
+    O --> P[AI Enrichment]
+    P --> Q[Final Report]
+`
 
-### Passo a Passo:
+Step-by-step:
 
-1. **Prepare o ambiente:**
-   ```bash
+1. Prepare the environment:
+   `bash
    cd /home/kali/pentests/cliente-xyz
    echo "exemplo.com" > domains.txt
-   ```
+   `
 
-2. **Execute o reconhecimento:**
-   ```bash
+2. Execute the reconnaissance:
+   `bash
    openpipes  # [1] Reconhecimento
-   ```
+   `
 
-3. **Faça o scan:**
-   ```bash
+3. Perform the scan:
+   `bash
    openpipes  # [2] Scan de Portas
-   ```
+   `
 
-4. **Crie a estrutura:**
-   ```bash
+4. Create the structure:
+   `bash
    openpipes  # [3] Criar Alvos Obsidian
-   ```
+   `
 
-5. **Execute os módulos web:**
-   ```bash
+5. Execute the web modules:
+   `bash
    openpipes  # [4] HTTPX
    openpipes  # [5] Katana/Ferox
    openpipes  # [6] Nuclei
-   ```
+   `
 
-6. **Análise de JavaScript:**
-   ```bash
+6. JavaScript analysis:
+   `bash
    openpipes  # [7] JSFinder
    openpipes  # [8] GF Summary
-   ```
+   `
 
-7. **Enriqueça metadados:**
-   ```bash
+7. Enrich metadata:
+   `bash
    openpipes  # [9] WHOIS Enricher
-   ```
+   `
 
-8. **Abra o Obsidian:**
-   - Abra a vault em `~/.obsidianFixedMount/`
-   - Navegue pelos dashboards
-   - Adicione notas e tarefas
+8. Open Obsidian:
+   - Open the vault in ~/.obsidianFixedMount/
+   - Navigate through the dashboards
+   - Add notes and tasks
 
-9. **Documente vulnerabilidades:**
-   ```bash
+9. Document vulnerabilities:
+   `bash
    openpipes  # [V] Gerenciar Vulnerabilidades
-   ```
+   `
 
 ---
 
-## 🛠 Troubleshooting
+🛠 Troubleshooting
 
-### Problema: "Script não encontrado"
+Problem: "Script not found"
 
-**Solução:**
-```bash
+Solution:
+`bash
 source ~/.bashrc
 echo $PATH | grep openpipes
-```
+`
 
-### Problema: "Configuração incompleta"
+Problem: "Incomplete configuration"
 
-**Solução:**
-```bash
+Solution:
+`bash
 nano ~/.openpipes/config.sh
-# Preencha proj_dir e proj_name
-```
+Fill in proj_dir and proj_name
+`
 
-### Problema: Ferramenta não instalada
+Problem: Tool not installed
 
-**Solução:**
-```bash
-openpipes  # [S] Status do Sistema
-# Veja o que está faltando e instale manualmente
-```
+Solution:
+`bash
+openpipes  # [S] System Status
+See what's missing and install manually
+`
 
-### Problema: Obsidian não abre os arquivos
+Problem: Obsidian does not open files
 
-**Solução:**
-- Certifique-se de que o Obsidian está apontando para `~/.obsidianFixedMount/`
-- Verifique permissões: `chmod -R 755 ~/.obsidianFixedMount/`
+Solution:
+- Make sure Obsidian is pointing to ~/.obsidianFixedMount/
+- Check permissions: chmod -R 755 ~/.obsidianFixedMount/
 
-### Problema: OpenAI API não funciona
+Problem: OpenAI API not working
 
-**Solução:**
-```bash
-# Verifique sua chave
+Solution:
+`bash
+Check your key
 grep OPENAI ~/.openpipes/config.sh
 
-# Teste manualmente
+Test manually
 curl https://api.openai.com/v1/models \
   -H "Authorization: Bearer sk-..."
-```
+`
 
 ---
 
-## 🤝 Contribuindo
+🤝 Contributing
 
-Contribuições são bem-vindas! Siga estes passos:
+Contributions are welcome! Follow these steps:
 
-1. Fork o projeto
-2. Crie uma branch (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
----
-
-## 📜 Licença
-
-Distribuído sob a licença MIT. Veja `LICENSE` para mais informações.
+1. Fork the project
+2. Create a branch (git checkout -b feature/AmazingFeature)
+3. Commit your changes (git commit -m 'Add AmazingFeature')
+4. Push to the branch (git push origin feature/AmazingFeature)
+5. Open a Pull Request
 
 ---
 
-## 🙏 Agradecimentos
+📜 License
 
-- [ProjectDiscovery](https://projectdiscovery.io/) - httpx, nuclei, katana
-- [OWASP](https://owasp.org/) - amass, testing guides
-- [Obsidian](https://obsidian.md/) - melhor app de notas ever!
-- [Kali Linux](https://kali.org/) - ambiente de pentesting
+Distributed under the MIT License. See LICENSE for more information.
 
 ---
 
-## 📞 Contato
+🙏 Acknowledgments
 
-**Rafael Luís da Silva**
+- ProjectDiscovery - httpx, nuclei, katana
+- OWASP - amass, testing guides
+- Obsidian - best notes app ever!
+- Kali Linux - pentesting environment
+
+---
+
+📞 Contact
+
+Rafael Luís da Silva
 
 📧 Email: rafael@sintetic.com.br  
-🐦 Twitter: [@rlSniff3r](https://x.com/rlSniff3r)  
-💼 LinkedIn: [Rafael Luís da Silva](https://www.linkedin.com/in/rafael-luis-da-silva/)
+🐦 Twitter: @rlSniff3r  
+💼 LinkedIn: Rafael Luís da Silva
 
 ---
 
 <div align="center">
 
-**⭐ Se este projeto te ajudou, deixe uma estrela! ⭐**
+⭐ If this project helped you, leave a star! ⭐
 
 Made with ❤️ and ☕ by Rafael Luís da Silva
 
