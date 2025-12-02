@@ -420,6 +420,7 @@ EOF
     read -p "Pressione Enter para continuar..."
 }
 
+
 # Main
 main() {
     check_root
@@ -458,3 +459,34 @@ main() {
 }
 
 main "$@"
+
+
+# ============================================================
+# 🔨 VISUALIZATION GENERATION (após todos os módulos)
+# ============================================================
+
+if [ "$choice" = "P" ] || [ "$choice" = "p" ]; then
+    echo ""
+    echo "[*] Generating attack surface visualizations..."
+    
+    python3 "${SCRIPTS_DIR}/visualization/graph_builder.py" \
+        --target "${TARGET}" \
+        --output-dir "${OUTPUTS_DIR}/${TARGET}" \
+        --vault-dir "${OBSIDIAN_VAULT}" \
+        --config "${SCRIPTS_DIR}/visualization/config.yaml"
+    
+    if [ $? -eq 0 ]; then
+        echo "✓ Visualizations generated successfully"
+        log "Visualizations: OK"
+    else
+        echo "✗ Error generating visualizations"
+        log "Visualizations: FAILED"
+    fi
+    
+    # Auto-sync com vault (se configurado)
+    if [ "$AUTO_SYNC" = "true" ]; then
+        echo "[*] Syncing with Obsidian vault..."
+        rsync -avz "${OUTPUTS_DIR}/${TARGET}/" "${OBSIDIAN_VAULT}/Targets/${TARGET}/" 2>/dev/null
+        echo "✓ Sync completed"
+    fi
+fi

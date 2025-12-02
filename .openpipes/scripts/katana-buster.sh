@@ -72,9 +72,16 @@ source $HOME/.openpipes/config.sh
 
 cd $base_dir
 
+# Carregar configuração centralizada
+if [ -f "$OPENPIPES_CONFIG" ]; then
+    source "$OPENPIPES_CONFIG"
+fi
+
+# Paralelismo (usa PARALLEL_KATANA do config, fallback 3)
+threads=${PARALLEL_KATANA:-3}
+
 wordlist="/usr/share/wordlists/dirb/big-parsed.txt"
-threads=3
-web_ports_whitelist=(80 81 82 83 84 85 88 89 90 98 99 443 591 593 8000 8001 8008 8010 8080 8081 8082 8088 8180 8181 8222 8280 8281 8443 8500 8501 8530 8531 8800 8880 8888 9000 9080 9443 9800 9981 10000 11371 12443 16080 18080 20000 2443 3000 3001) # [MODIFICADO]
+web_ports_whitelist=(80 81 82 83 84 85 88 89 90 98 99 443 591 593 8000 8001 8008 8010 8080 8081 8082 8088 8180 8181 8222 8280 8281 8443 8500 8501 8530 8531 8800 8880 8888 9000 9080 9443 9800 9981 10000 11371 12443 16080 18080 20000 2443 3000 3001)
 
 # === FUNÇÕES AUXILIARES ===
 is_web_port() {
@@ -165,7 +172,7 @@ process_target() {
   cat urls.tmp > urls.txt
   cat urls.txt
 
-  echo -e "${blue}[*] Processando $targetName ($ip)${nc}"
+  echo -e "${BLUE}[*] Processando $targetName ($ip)${NC}"
 
   # === Diretório destino no Obsidian ===
   outdir=$obsdir/Pentest/Alvos/$targetName
@@ -179,16 +186,23 @@ process_target() {
 #  tmp_katana=$(mktemp)
   endpoints_file=$outdir/endpoints.md
 
+# Validar GNU Parallel
+  if ! command -v parallel &> /dev/null; then
+      echo -e "${RED}[!] GNU Parallel não encontrado${NC}"
+      echo -e "${YELLOW}[*] Instale com: sudo apt install parallel${NC}"
+      exit 1
+  fi
+
   echo "" > tmp_ferox
   echo "" > tmp_katana
 
-  echo -e "${green}[+] Iniciando Feroxbuster ($targetName)${nc}"
-  printf "%s\n" "$(cat urls_unique.txt)" | \
-    xargs -P "$threads" -n 1 -I % feroxbuster -u "%" -w "$wordlist" -q -n >> tmp_ferox 2>/dev/null
+  echo -e "${GREEN}[+] Iniciando Feroxbuster ($targetName)${NC}"
+  cat urls_unique.txt | \
+    parallel -j "$threads" --line-buffer 'feroxbuster -u {} -w "'"$wordlist"'" -q -n' >> tmp_ferox 2>/dev/null
 
   echo -e "${green}[+] Iniciando Katana ($targetName)${nc}"
-  printf "%s\n" "$(cat urls_unique.txt)" | \
-    xargs -P "$threads" -n 1 -I % katana -u "%" -silent >> tmp_katana 2>/dev/null
+  cat urls_unique.txt | \
+    parallel -j "$threads" --line-buffer 'katana -u {} -silent' >> tmp_katana 2>/dev/null
 
   # === Salvar arquivos ===
   echo "Total de Endpoints encontrados:"
@@ -231,11 +245,11 @@ process_target() {
   cp $targetdir/ferox-katana.md $obsdir/Pentest/Alvos/$targetName/
 
 
-  echo -e "${green}[✓] Finalizado: $targetName${nc}"
+  echo -e "${GREEN}[✓] Finalizado: $targetName${nc}"
 }
 
 # === LOOP PRINCIPAL EM CADA ALVO (nmap-*) ===
-echo -e "${blue}==> Iniciando katana-buster.sh${nc}"
+echo -e "${BLUE}==> Iniciando katana-buster.sh${NC}"
 
 if [[ $# -eq 0 ]]; then
   # Sem argumentos: processa todos os nmap-*
@@ -249,9 +263,9 @@ else
     if [[ -d "$dir" ]]; then
       process_target "$dir"
     else
-      echo -e "${red}[!] Diretório não encontrado para alvo: $alvo (${dir})${nc}"
+      echo -e "${RED}[!] Diretório não encontrado para alvo: $alvo (${dir})${NC}"
     fi
   done
 fi
 
-echo -e "${green}[✔] Todos os alvos processados.${nc}"
+echo -e "${GREEN}[✔] Todos os alvos processados.${NC}"
