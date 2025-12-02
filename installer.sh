@@ -1,460 +1,715 @@
 #!/bin/bash
 
-# ═══════════════════════════════════════════════════════════════════════════
-# OPenPipeS - Instalador Automático
-# Autor: Rafael Luís da Silva & Claude A.I.
-# Versão: 2.2 - Estratégia VENV correta (PEP 668 compliant)
-# ═══════════════════════════════════════════════════════════════════════════
+# Cores para output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-set -euo pipefail
+# Variáveis globais
+OPENPIPES_DIR="$HOME/.openpipes"
+OPENPIPES_BIN="$OPENPIPES_DIR/bin"
+OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
+OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
+OPENPIPES_TOOLS="$OPENPIPES_DIR/tools"
+OPENPIPES_CACHE="$HOME/.openpipes_cache"
+OBSIDIAN_DIR="$HOME/.obsidianFixedMount"
+VENV_PATH="$OPENPIPES_DIR/.venv"
 
-# Cores
-source ~/colorCodes.sh
-
-# Diretórios
-OPENPIPES_INSTALL_DIR="$(pwd)"
-OPENPIPES_HOME="${HOME}/.openpipes"
-OPENPIPES_BIN="${OPENPIPES_HOME}/bin"
-OPENPIPES_SCRIPTS="${OPENPIPES_HOME}/scripts"
-OPENPIPES_TEMPLATES="${OPENPIPES_HOME}/.templates"
-OPENPIPES_CACHE="${OPENPIPES_HOME}_cache"
-OPENPIPES_CONFIG="${OPENPIPES_HOME}/config.sh"
-OPENPIPES_VENV="${OPENPIPES_HOME}/.venv"
-
-log() {
-    local level=$1
-    shift
-    case $level in
-        INFO)  echo -e "${GREEN}[+]${NC} $*" ;;
-        WARN)  echo -e "${YELLOW}[!]${NC} $*" ;;
-        ERROR) echo -e "${RED}[-]${NC} $*" ;;
-        STEP)  echo -e "${CYAN}[*]${NC} $*" ;;
-    esac
-}
-
-banner() {
-    clear
-    echo -e "${CYAN}"
+# Banner
+print_banner() {
+    echo -e "${BLUE}"
     cat << "EOF"
-   ___  ____            ____  _            ____  
-  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___/ ___| 
- | | | | |_) / _ \ '_ \| |_) | | '_ \ / _ \___ \ 
- | |_| |  __/  __/ | | |  __/| | |_) |  __/___) |
-  \___/|_|   \___|_| |_|_|   |_| .__/ \___|____/ 
-                                |_|               
+   ___  ____                 ____  _                ____  
+  / _ \|  _ \ ___ _ __  _ __|  _ \(_)_ __   ___  / ___| 
+ | | | | |_) / _ | '_ \| '__| |_) | | '_ \ / _ \ \___ \ 
+ | |_| |  __/  __| | | | |  |  __/| | |_) |  __/  ___) |
+  \___/|_|   \___|_| |_|_|  |_|   |_| .__/ \___| |____/ 
+                                     |_|                  
+                    Framework de Reconhecimento v2.0
 EOF
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}           INSTALADOR AUTOMÁTICO v2.2${NC}"
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-    echo ""
+    echo -e "${NC}"
+    echo -e "${CYAN}By: Rafael Luís da Silva${NC}"
+    echo -e "${CYAN}GitHub: github.com/rlSniff3r/openPipes${NC}\n"
 }
 
+# Verificar se está rodando como root
 check_root() {
-    if [[ $EUID -eq 0 ]]; then
-        log ERROR "Não execute como root!"
+    if [ "$EUID" -eq 0 ]; then
+        echo -e "${RED}[✗] Não execute este script como root!${NC}"
+        echo -e "${YELLOW}[!] O script pedirá sudo quando necessário.${NC}"
         exit 1
     fi
 }
 
-check_os() {
-    if [[ ! -f /etc/debian_version ]]; then
-        log WARN "Este instalador foi testado apenas no Kali/Debian/Ubuntu"
-        echo -ne "${YELLOW}Deseja continuar? [s/N]:${NC} "
-        read -r resp
-        [[ ! "$resp" =~ ^[sS]$ ]] && exit 1
+# Detectar sistema operacional
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+        VERSION=$VERSION_ID
+        echo -e "${BLUE}[*] Sistema detectado: $PRETTY_NAME${NC}"
+        
+        case $OS in
+            kali|debian|ubuntu)
+                return 0
+                ;;
+            *)
+                echo -e "${YELLOW}[!] Sistema não testado: $OS${NC}"
+                echo -e "${YELLOW}[!] Continuando instalação (pode haver problemas)${NC}"
+                return 0
+                ;;
+        esac
+    else
+        echo -e "${RED}[✗] Não foi possível detectar o sistema operacional${NC}"
+        return 1
     fi
 }
 
-create_directories() {
-    log STEP "Criando estrutura de diretórios..."
-    
-    mkdir -p "$OPENPIPES_HOME"
-    mkdir -p "$OPENPIPES_BIN"
-    mkdir -p "$OPENPIPES_SCRIPTS"
-    mkdir -p "$OPENPIPES_TEMPLATES"
-    mkdir -p "$OPENPIPES_CACHE"
-    
-    log INFO "Diretórios criados em: $OPENPIPES_HOME"
+# Atualizar sistema
+update_system() {
+    echo -e "\n${BLUE}[*] Atualizando sistema...${NC}"
+    sudo apt update -qq
+    echo -e "${GREEN}[✓] Sistema atualizado${NC}"
 }
 
-install_apt_packages() {
-    log STEP "Instalando pacotes via APT..."
+# Instalar dependências APT
+install_apt_deps() {
+    echo -e "\n${BLUE}[*] Instalando dependências APT...${NC}"
     
-    # ESTRATÉGIA: Instalar via APT sempre que possível
-    local packages=(
-        nmap
-        curl
-        wget
-        git
-        jq
-        python3
-        python3-pip
-        python3-venv
-        python3-requests
-        python3-yaml
-        python3-pil
-        python3-bs4
-        python3-lxml
-        golang-go
-        build-essential
-        whois
-        dnsutils
-        exiftool
-        yq
+    local DEPS=(
+        nmap curl wget git jq python3 python3-pip python3-venv
+        golang-go build-essential whois dnsutils libpcap-dev
+        libssl-dev pkg-config unzip
     )
     
-    log INFO "Atualizando repositórios..."
-    sudo apt update
+    for dep in "${DEPS[@]}"; do
+        if dpkg -l | grep -qw "^ii  $dep"; then
+            echo -e "${GREEN}[✓] $dep já instalado${NC}"
+        else
+            echo -e "${BLUE}[*] Instalando $dep...${NC}"
+            sudo apt install -y $dep -qq
+            
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}[✓] $dep instalado${NC}"
+            else
+                echo -e "${RED}[✗] Falha ao instalar $dep${NC}"
+                return 1
+            fi
+        fi
+    done
     
-    log INFO "Instalando pacotes base..."
-    sudo apt install -y "${packages[@]}"
-    
-    # Fix para hook quebrado do dnsrecon (se existir)
-    if dpkg -l | grep -q dnsrecon; then
-        log WARN "Detectado dnsrecon via APT (pode causar conflitos)..."
-        log INFO "Removendo dnsrecon do APT..."
-        sudo apt remove --purge dnsrecon -y 2>/dev/null || true
-        sudo rm -f /var/lib/dpkg/info/dnsrecon.* 2>/dev/null || true
-        sudo rm -f /usr/share/python3/runtime.d/dnsrecon.rtupdate 2>/dev/null || true
-        sudo dpkg --configure -a || true
-    fi
-    
-    log INFO "Pacotes APT instalados!"
+    echo -e "${GREEN}[✓] Dependências APT instaladas${NC}"
 }
 
-install_go_tools() {
-    log STEP "Instalando ferramentas Go..."
-    
-    # Configurar GOPATH se necessário
-    if [[ -z "${GOPATH:-}" ]]; then
-        export GOPATH="$HOME/go"
-        export PATH="$PATH:$GOPATH/bin"
-        echo 'export GOPATH="$HOME/go"' >> ~/.bashrc
-        echo 'export PATH="$PATH:$GOPATH/bin"' >> ~/.bashrc
-    fi
-    
-    # httpx
-    if ! command -v httpx &>/dev/null; then
-        log INFO "Instalando httpx..."
-        go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-    fi
-    
-    # nuclei
-    if ! command -v nuclei &>/dev/null; then
-        log INFO "Instalando nuclei..."
-        go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-        nuclei -update-templates
-    fi
-    
-    # katana
-    if ! command -v katana &>/dev/null; then
-        log INFO "Instalando katana..."
-        go install github.com/projectdiscovery/katana/cmd/katana@latest
-    fi
-    
-    # gf (GrepFuzzable)
-    if ! command -v gf &>/dev/null; then
-        log INFO "Instalando gf..."
-        go install github.com/tomnomnom/gf@latest
+# Verificar instalação do Go
+check_go_installation() {
+    if command -v go &>/dev/null; then
+        local GO_VERSION=$(go version | awk '{print $3}')
+        echo -e "${GREEN}[✓] Go já instalado: $GO_VERSION${NC}"
         
-        # Instalar padrões
-        mkdir -p ~/.gf
-        git clone https://github.com/1ndianl33t/Gf-Patterns ~/.gf-patterns 2>/dev/null || true
-        cp -r ~/.gf-patterns/*.json ~/.gf/ 2>/dev/null || true
+        # Verificar GOPATH
+        if [ -z "$GOPATH" ]; then
+            export GOPATH="$HOME/go"
+            export PATH="$PATH:$GOPATH/bin"
+        fi
+        
+        return 0
     fi
-    
-    log INFO "Ferramentas Go instaladas!"
+    return 1
 }
 
-install_rust_tools() {
-    log STEP "Instalando ferramentas Rust..."
-    
-    # Instalar Rust se necessário
-    if ! command -v cargo &>/dev/null; then
-        log INFO "Instalando Rust..."
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source "$HOME/.cargo/env"
+# Instalar Go (se necessário)
+install_golang() {
+    if check_go_installation; then
+        return 0
     fi
     
-    # feroxbuster
-    if ! command -v feroxbuster &>/dev/null; then
-        log INFO "Instalando feroxbuster..."
-        cargo install feroxbuster
-    fi
+    echo -e "\n${BLUE}[*] Instalando Go...${NC}"
     
-    log INFO "Ferramentas Rust instaladas!"
+    local GO_VERSION="1.21.5"
+    local GO_TARBALL="go${GO_VERSION}.linux-amd64.tar.gz"
+    local GO_URL="https://go.dev/dl/${GO_TARBALL}"
+    
+    cd /tmp
+    wget -q "$GO_URL"
+    
+    sudo rm -rf /usr/local/go
+    sudo tar -C /usr/local -xzf "$GO_TARBALL"
+    rm "$GO_TARBALL"
+    
+    export PATH="$PATH:/usr/local/go/bin"
+    export GOPATH="$HOME/go"
+    export PATH="$PATH:$GOPATH/bin"
+    
+    echo -e "${GREEN}[✓] Go instalado: $(go version)${NC}"
 }
 
-create_openpipes_venv() {
-    log STEP "Criando ambiente virtual global do OpenPipeS..."
+# Instalar ferramenta Go com retry
+install_go_tool() {
+    local pkg=$1
+    local name=$(basename "$pkg" | cut -d'@' -f1)
+    local retries=3
     
-    if [[ ! -d "$OPENPIPES_VENV" ]]; then
-        python3 -m venv "$OPENPIPES_VENV"
-        log INFO "VENV criado: $OPENPIPES_VENV"
+    echo -e "${BLUE}[*] Instalando $name...${NC}"
+    
+    # Verificar se já está instalado
+    if command -v "$name" &>/dev/null; then
+        echo -e "${GREEN}[✓] $name já instalado${NC}"
+        return 0
+    fi
+    
+    for i in $(seq 1 $retries); do
+        if go install -v "$pkg" 2>/dev/null; then
+            echo -e "${GREEN}[✓] $name instalado com sucesso${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}[!] Tentativa $i/$retries falhou para $name${NC}"
+            [ $i -lt $retries ] && sleep 2
+        fi
+    done
+    
+    echo -e "${RED}[✗] Falha ao instalar $name após $retries tentativas${NC}"
+    return 1
+}
+
+# Instalar Go tools
+install_go_tools() {
+    echo -e "\n${BLUE}[*] Instalando ferramentas Go...${NC}"
+    
+    check_go_installation || install_golang
+    
+    local GO_TOOLS=(
+        "github.com/projectdiscovery/httpx/cmd/httpx@latest"
+        "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+        "github.com/projectdiscovery/katana/cmd/katana@latest"
+        "github.com/tomnomnom/gf@latest"
+        "github.com/owasp-amass/amass/v4/...@master"
+        "github.com/openrdap/rdap/cmd/rdap@latest"
+    )
+    
+    local FAILED=0
+    
+    for tool in "${GO_TOOLS[@]}"; do
+        install_go_tool "$tool" || ((FAILED++))
+    done
+    
+    if [ $FAILED -eq 0 ]; then
+        echo -e "${GREEN}[✓] Todas as ferramentas Go instaladas${NC}"
     else
-        log INFO "VENV já existe: $OPENPIPES_VENV"
+        echo -e "${YELLOW}[!] $FAILED ferramenta(s) falharam na instalação${NC}"
     fi
     
-    # Ativar e atualizar pip
-    source "$OPENPIPES_VENV/bin/activate"
-    pip install --upgrade pip setuptools wheel
-    deactivate
-    
-    log INFO "VENV do OpenPipeS configurado!"
+    # Atualizar templates do Nuclei
+    if command -v nuclei &>/dev/null; then
+        echo -e "${BLUE}[*] Atualizando templates do Nuclei...${NC}"
+        nuclei -update-templates -silent
+        echo -e "${GREEN}[✓] Templates do Nuclei atualizados${NC}"
+    fi
 }
 
-install_python_tools() {
-    log STEP "Instalando ferramentas Python..."
-    
-    # ========================================================================
-    # ESTRATÉGIA:
-    # 1. Pacotes comuns → VENV global do OpenPipeS
-    # 2. Ferramentas com conflitos → VENVs isolados
-    # ========================================================================
-    
-    # ========================================================================
-    # VENV Global do OpenPipeS
-    # ========================================================================
-    log INFO "Instalando dependências Python no VENV global..."
-    source "$OPENPIPES_VENV/bin/activate"
-    
-    # Dependências do OSINT People e outras ferramentas
-    pip install \
-        requests \
-        rapidfuzz \
-        python-docx \
-        openpyxl \
-        Pillow \
-        pdfminer.six \
-        pikepdf \
-        ExifRead \
-        PyYAML \
-        beautifulsoup4 \
-        lxml \
-        tqdm
-    
-    deactivate
-    log INFO "Dependências instaladas no VENV global!"
-    
-    # ========================================================================
-    # VENV Isolado para LinkFinder (conflitos de versão)
-    # ========================================================================
-    if [[ ! -d "$HOME/.venv-jsfinder" ]]; then
-        log INFO "Criando VENV isolado para LinkFinder..."
-        python3 -m venv "$HOME/.venv-jsfinder"
+# Verificar instalação do Rust
+check_rust_installation() {
+    if command -v cargo &>/dev/null; then
+        local RUST_VERSION=$(cargo --version | awk '{print $2}')
+        echo -e "${GREEN}[✓] Rust já instalado: $RUST_VERSION${NC}"
+        return 0
+    fi
+    return 1
+}
+
+# Instalar Rust
+install_rust() {
+    if check_rust_installation; then
+        return 0
     fi
     
-    log INFO "Instalando LinkFinder em VENV isolado..."
-    source "$HOME/.venv-jsfinder/bin/activate"
+    echo -e "\n${BLUE}[*] Instalando Rust...${NC}"
     
-    if [[ ! -d "$HOME/.venv-jsfinder/LinkFinder" ]]; then
-        git clone https://github.com/GerbenJavado/LinkFinder.git "$HOME/.venv-jsfinder/LinkFinder"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q
+    
+    source "$HOME/.cargo/env"
+    
+    echo -e "${GREEN}[✓] Rust instalado: $(cargo --version)${NC}"
+}
+
+# Instalar Rust tools
+install_rust_tools() {
+    echo -e "\n${BLUE}[*] Instalando ferramentas Rust...${NC}"
+    
+    check_rust_installation || install_rust
+    
+    source "$HOME/.cargo/env"
+    
+    if command -v feroxbuster &>/dev/null; then
+        echo -e "${GREEN}[✓] feroxbuster já instalado${NC}"
+    else
+        echo -e "${BLUE}[*] Instalando feroxbuster...${NC}"
+        cargo install feroxbuster
+        echo -e "${GREEN}[✓] feroxbuster instalado${NC}"
+    fi
+}
+
+# Instalar dnsrecon 1.1.3 customizado
+install_dnsrecon_custom() {
+    echo -e "\n${BLUE}[*] Instalando dnsrecon 1.1.3 (versão customizada)...${NC}"
+    
+    local DNSRECON_VERSION="1.1.3"
+    local DNSRECON_DIR="$OPENPIPES_TOOLS/dnsrecon-${DNSRECON_VERSION}"
+    local DNSRECON_URL="https://github.com/darkoperator/dnsrecon/archive/refs/tags/v${DNSRECON_VERSION}.tar.gz"
+    
+    # Remover versão APT se existir
+    if dpkg -l | grep -qw "^ii  python3-dnsrecon"; then
+        echo -e "${YELLOW}[!] Removendo dnsrecon do APT...${NC}"
+        sudo apt remove -y python3-dnsrecon 2>/dev/null
     fi
     
-    cd "$HOME/.venv-jsfinder/LinkFinder"
-    pip install -r requirements.txt
-    pip install .
+    # Criar diretório tools
+    mkdir -p "$OPENPIPES_TOOLS"
     
-    deactivate
+    # Baixar e descompactar
+    echo -e "${BLUE}[*] Baixando dnsrecon v${DNSRECON_VERSION}...${NC}"
+    cd /tmp
+    wget -q -O dnsrecon.tar.gz "$DNSRECON_URL"
     
-    # Criar wrapper que ativa o VENV correto
-    cat > "$OPENPIPES_BIN/linkfinder.py" << 'LINKFINDER_WRAPPER'
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}[✗] Falha ao baixar dnsrecon${NC}"
+        return 1
+    fi
+    
+    tar -xzf dnsrecon.tar.gz
+    mv "dnsrecon-${DNSRECON_VERSION}" "$DNSRECON_DIR"
+    rm dnsrecon.tar.gz
+    
+    # Instalar dependências do dnsrecon no VENV
+    if [ -f "$DNSRECON_DIR/requirements.txt" ]; then
+        echo -e "${BLUE}[*] Instalando dependências do dnsrecon...${NC}"
+        source "$VENV_PATH/bin/activate"
+        pip install -q -r "$DNSRECON_DIR/requirements.txt"
+        deactivate
+    fi
+    
+    # Criar wrapper executável
+    cat > "$OPENPIPES_BIN/dnsrecon" << 'WRAPPER_EOF'
 #!/bin/bash
-source "$HOME/.venv-jsfinder/bin/activate"
-python -m linkfinder "$@"
+# Wrapper dnsrecon - OpenPipeS v1.1.3
+
+OPENPIPES_DIR="$HOME/.openpipes"
+VENV_PATH="$OPENPIPES_DIR/.venv"
+DNSRECON_SCRIPT="$OPENPIPES_DIR/tools/dnsrecon-1.1.3/dnsrecon.py"
+
+# Ativar VENV
+source "$VENV_PATH/bin/activate"
+
+# Executar dnsrecon
+python3 "$DNSRECON_SCRIPT" "$@"
+
+# Desativar VENV
 deactivate
-LINKFINDER_WRAPPER
-    chmod +x "$OPENPIPES_BIN/linkfinder.py"
+WRAPPER_EOF
     
-    # ========================================================================
-    # Download e instalação do dnsrecon versão 1.1.3
-    # ========================================================================
-    log INFO "Instalando dnsrecon-1.1.3..."
-    
-    if [[ ! -d "$OPENPIPES_BIN/dnsrecon-1.1.3" ]]; then
-        cd "$OPENPIPES_BIN"
-        wget -q https://github.com/darkoperator/dnsrecon/archive/refs/tags/1.1.3.tar.gz
-        tar -xzf 1.1.3.tar.gz
-        rm -f 1.1.3.tar.gz
-    fi
-    
-    # Criar wrapper que usa VENV global
-    cat > "$OPENPIPES_BIN/dnsrecon" << 'DNSRECON_WRAPPER'
-#!/bin/bash
-source "$HOME/.openpipes/.venv/bin/activate"
-python "$HOME/.openpipes/bin/dnsrecon-1.1.3/dnsrecon.py" "$@"
-deactivate
-DNSRECON_WRAPPER
     chmod +x "$OPENPIPES_BIN/dnsrecon"
     
-    # Criar symlink para sistema
-    sudo ln -sf "$OPENPIPES_BIN/dnsrecon" /usr/local/bin/dnsrecon
-    
-    log INFO "Ferramentas Python instaladas!"
+    echo -e "${GREEN}[✓] dnsrecon 1.1.3 instalado em: $DNSRECON_DIR${NC}"
+    echo -e "${GREEN}[✓] Wrapper criado em: $OPENPIPES_BIN/dnsrecon${NC}"
 }
 
-install_python_scripts() {
-    log STEP "Instalando scripts Python do OSINT People..."
+# Criar wrapper APT
+create_apt_wrapper() {
+    echo -e "\n${BLUE}[*] Criando wrapper APT para proteção do dnsrecon...${NC}"
     
-    # Criar wrappers para scripts Python que usam VENV global
-    local python_scripts=(
-        "osint_people_collector.py"
-        "osint_doc_finder.py"
-        "osint_people_enricher_v1.0.py"
-        "osint_people_parser.py"
+    local APT_WRAPPER="$OPENPIPES_BIN/apt-openpipes"
+    
+    cat > "$APT_WRAPPER" << 'APT_WRAPPER_EOF'
+#!/bin/bash
+# Wrapper APT - OpenPipeS
+# Protege o symlink do dnsrecon durante operações APT
+
+OPENPIPES_BIN="$HOME/.openpipes/bin"
+DNSRECON_CUSTOM="$OPENPIPES_BIN/dnsrecon"
+DNSRECON_BACKUP="$OPENPIPES_BIN/.dnsrecon.backup"
+DNSRECON_SYSTEM="/usr/bin/dnsrecon"
+
+# Backup do dnsrecon customizado
+if [ -f "$DNSRECON_CUSTOM" ] && [ ! -L "$DNSRECON_CUSTOM" ]; then
+    mv "$DNSRECON_CUSTOM" "$DNSRECON_BACKUP"
+    
+    # Criar symlink temporário para o sistema (se existir)
+    if [ -f "$DNSRECON_SYSTEM" ]; then
+        ln -sf "$DNSRECON_SYSTEM" "$DNSRECON_CUSTOM"
+    fi
+fi
+
+# Executar comando APT original
+sudo apt "$@"
+APT_EXIT_CODE=$?
+
+# Restaurar dnsrecon customizado
+if [ -f "$DNSRECON_BACKUP" ]; then
+    rm -f "$DNSRECON_CUSTOM"
+    mv "$DNSRECON_BACKUP" "$DNSRECON_CUSTOM"
+fi
+
+exit $APT_EXIT_CODE
+APT_WRAPPER_EOF
+    
+    chmod +x "$APT_WRAPPER"
+    
+    echo -e "${GREEN}[✓] Wrapper APT criado: $APT_WRAPPER${NC}"
+    echo -e "${CYAN}[i] Use 'apt-openpipes' em vez de 'apt' para proteger dnsrecon${NC}"
+}
+
+# Instalar Python tools (LinkFinder apenas)
+install_python_tools() {
+    echo -e "\n${BLUE}[*] Instalando ferramentas Python...${NC}"
+    
+    # LinkFinder (instalação global)
+    if command -v linkfinder &>/dev/null; then
+        echo -e "${GREEN}[✓] linkfinder já instalado${NC}"
+    else
+        echo -e "${BLUE}[*] Instalando linkfinder...${NC}"
+        pip3 install --user linkfinder 2>/dev/null
+        echo -e "${GREEN}[✓] linkfinder instalado${NC}"
+    fi
+}
+
+# Instalar SecLists
+install_seclists() {
+    echo -e "\n${BLUE}[*] Instalando SecLists (wordlists)...${NC}"
+    
+    local SECLISTS_DIR="/usr/share/wordlists/seclists"
+    
+    if [ -d "$SECLISTS_DIR" ]; then
+        echo -e "${GREEN}[✓] SecLists já instalado em: $SECLISTS_DIR${NC}"
+        return 0
+    fi
+    
+    sudo mkdir -p /usr/share/wordlists
+    
+    echo -e "${BLUE}[*] Clonando SecLists (pode demorar alguns minutos)...${NC}"
+    sudo git clone --depth 1 https://github.com/danielmiessler/SecLists.git "$SECLISTS_DIR" 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}[✓] SecLists instalado em: $SECLISTS_DIR${NC}"
+        
+        # Processar big.txt (remover comentários e linhas vazias)
+        local BIG_TXT="$SECLISTS_DIR/Discovery/Web-Content/dirb/big.txt"
+        if [ -f "$BIG_TXT" ]; then
+            echo -e "${BLUE}[*] Processando big.txt...${NC}"
+            sudo sed -i '/^#/d; /^$/d' "$BIG_TXT"
+            echo -e "${GREEN}[✓] big.txt processado ($(wc -l < "$BIG_TXT") linhas)${NC}"
+        fi
+        
+        return 0
+    else
+        echo -e "${RED}[✗] Falha ao clonar SecLists${NC}"
+        echo -e "${YELLOW}[!] Instale manualmente: sudo git clone https://github.com/danielmiessler/SecLists.git $SECLISTS_DIR${NC}"
+        return 1
+    fi
+}
+
+# Criar estrutura de diretórios
+create_directories() {
+    echo -e "\n${BLUE}[*] Criando estrutura de diretórios...${NC}"
+    
+    local DIRS=(
+        "$OPENPIPES_DIR"
+        "$OPENPIPES_BIN"
+        "$OPENPIPES_SCRIPTS"
+        "$OPENPIPES_TEMPLATES"
+        "$OPENPIPES_TOOLS"
+        "$OPENPIPES_CACHE"
+        "$OBSIDIAN_DIR"
     )
     
-    for script in "${python_scripts[@]}"; do
-        if [[ -f "./.openpipes/scripts/$script" ]]; then
-            # Copiar script para OPENPIPES_HOME
-            cp "./.openpipes/scripts/$script" "$OPENPIPES_HOME/$script"
-            
-            # Criar wrapper que ativa VENV antes de executar
-            cat > "/usr/local/bin/$script" << SCRIPT_WRAPPER
-#!/bin/bash
-source "$OPENPIPES_VENV/bin/activate"
-python "$OPENPIPES_HOME/$script" "\$@"
-deactivate
-SCRIPT_WRAPPER
-            
-            sudo chmod +x "/usr/local/bin/$script"
-            log INFO "  → $script instalado com wrapper VENV"
+    for dir in "${DIRS[@]}"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            echo -e "${GREEN}[✓] Criado: $dir${NC}"
+        else
+            echo -e "${YELLOW}[!] Já existe: $dir${NC}"
         fi
     done
 }
 
-install_additional_tools() {
-    log STEP "Instalando ferramentas adicionais..."
-    
-    # ========================================================================
-    # Download e instalação do amass versão 3.20.0
-    # ========================================================================
-    log INFO "Instalando amass 3.20.0..."
-    
-    if ! command -v amass &>/dev/null; then
-        amass_atual="$OPENPIPES_BIN/amass"
+# Detectar shell
+detect_shell() {
+    if [ -n "$BASH_VERSION" ]; then
+        echo "bash"
+    elif [ -n "$ZSH_VERSION" ]; then
+        echo "zsh"
     else
-        amass_atual=$(which amass)
-        if [[ ! -L "$amass_atual" ]]; then
-            sudo mv "$amass_atual" "${amass_atual}.bkp"
-        fi
+        basename "$SHELL"
     fi
-    
-    if [[ ! -d "$OPENPIPES_BIN/amass-3.20.0" ]]; then
-        cd "$OPENPIPES_BIN"
-        wget -q https://github.com/owasp-amass/amass/releases/download/v3.20.0/amass_linux_amd64.zip
-        unzip -q amass_linux_amd64.zip
-        mv amass_linux_amd64 amass-3.20.0
-        rm -f amass_linux_amd64.zip
-    fi
-    
-    sudo ln -sf "$OPENPIPES_BIN/amass-3.20.0/amass" "$amass_atual"
-    
-    # rdap
-    if ! command -v rdap &>/dev/null; then
-        log INFO "Instalando rdap..."
-        go install github.com/openrdap/rdap/cmd/rdap@latest
-    fi
-    
-    log INFO "Ferramentas adicionais instaladas!"
 }
 
-install_wordlists() {
-    log STEP "Instalando wordlists..."
+# Configurar PATH
+configure_path() {
+    echo -e "\n${BLUE}[*] Configurando PATH...${NC}"
     
-    # SecLists
-    if [[ ! -d /usr/share/wordlists/seclists ]]; then
-        log INFO "Clonando SecLists..."
-        sudo git clone --depth 1 https://github.com/danielmiessler/SecLists.git /usr/share/wordlists/seclists
+    local SHELL_TYPE=$(detect_shell)
+    local RC_FILE=""
+    
+    case $SHELL_TYPE in
+        bash)
+            RC_FILE="$HOME/.bashrc"
+            ;;
+        zsh)
+            RC_FILE="$HOME/.zshrc"
+            ;;
+        *)
+            echo -e "${YELLOW}[!] Shell não suportado: $SHELL_TYPE${NC}"
+            echo -e "${YELLOW}[!] Adicione manualmente ao seu RC file:${NC}"
+            echo -e "${CYAN}export PATH=\"\$HOME/.openpipes/bin:\$PATH\"${NC}"
+            return 1
+            ;;
+    esac
+    
+    # Verificar se já está configurado
+    if grep -q "OPENPIPES_DIR" "$RC_FILE" 2>/dev/null; then
+        echo -e "${YELLOW}[!] PATH já configurado em $RC_FILE${NC}"
+        return 0
     fi
     
-    # Parse dirb/big.txt
-    if [[ -f /usr/share/wordlists/dirb/big.txt ]]; then
-        log INFO "Preparando wordlist customizada..."
-        grep -v "%" /usr/share/wordlists/dirb/big.txt > /tmp/big-parsed.txt
-        sudo mv /tmp/big-parsed.txt /usr/share/wordlists/dirb/big-parsed.txt
-    fi
+    # Adicionar configuração
+    cat >> "$RC_FILE" << 'PATH_EOF'
+
+# ========== OpenPipeS Configuration ==========
+export OPENPIPES_DIR="$HOME/.openpipes"
+export OPENPIPES_BIN="$OPENPIPES_DIR/bin"
+export OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
+export OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
+export OPENPIPES_TOOLS="$OPENPIPES_DIR/tools"
+export OPENPIPES_CACHE="$HOME/.openpipes_cache"
+export PATH="$OPENPIPES_BIN:$PATH"
+
+# Go configuration
+export GOPATH="$HOME/go"
+export PATH="$PATH:$GOPATH/bin"
+
+# Rust configuration
+export PATH="$HOME/.cargo/bin:$PATH"
+# ============================================
+PATH_EOF
     
-    log INFO "Wordlists instaladas!"
+    echo -e "${GREEN}[✓] PATH configurado em: $RC_FILE${NC}"
+    echo -e "${CYAN}[i] Execute: source $RC_FILE${NC}"
+    
+    # Carregar configuração na sessão atual
+    source "$RC_FILE"
 }
 
-copy_scripts() {
-    log STEP "Copiando scripts para $OPENPIPES_SCRIPTS..."
+# Criar symlinks
+create_symlinks() {
+    echo -e "\n${BLUE}[*] Criando symlinks...${NC}"
     
-    # Verificar se estamos no diretório do projeto
-    if [[ ! -d "$OPENPIPES_INSTALL_DIR/.openpipes/scripts" ]]; then
-        log ERROR "Diretório scripts/ não encontrado!"
-        log INFO "Execute este instalador a partir do diretório raiz do OPenPipeS"
-        exit 1
-    fi
+    # Scripts shell
+    local SHELL_SCRIPTS=(
+        "openpipes_orchestrator.sh:openpipes"
+        "recon.sh:recon"
+        "nwrapper.sh:nwrapper"
+        "cria_Alvos_Obsidian.sh:cria-alvos"
+        "httpx-runner.sh:httpx-runner"
+        "katana-buster.sh:katana-buster"
+        "jsfinder-runner.sh:jsfinder-runner"
+        "nuclei-runner.sh:nuclei-runner"
+        "gf-summary.sh:gf-summary"
+        "whois-enricher.sh:whois-enricher"
+        "cria_Vulnerabilidades.sh:cria-vulns"
+        "vuln-enricher.sh:vuln-enricher"
+        "osint-runner-people.sh:osint-people"
+    )
     
-    # Copiar todos os scripts bash
-    cp -r $OPENPIPES_INSTALL_DIR/.openpipes/scripts/* "$OPENPIPES_SCRIPTS/"
-    
-    # Copiar scripts bash do diretório ./.openpipes/scripts/
-    if [[ -d "$OPENPIPES_INSTALL_DIR/.openpipes/scripts" ]]; then
-        log INFO "Instalando scripts bash..."
+    for script_pair in "${SHELL_SCRIPTS[@]}"; do
+        local source_name="${script_pair%%:*}"
+        local link_name="${script_pair##*:}"
+        local source_path="$OPENPIPES_SCRIPTS/$source_name"
+        local link_path="$OPENPIPES_BIN/$link_name"
         
-        for sh_script in $OPENPIPES_INSTALL_DIR/.openpipes/scripts/*.sh; do
-            if [[ -f "$sh_script" ]]; then
-                script_name=$(basename "$sh_script")
-                cp "$sh_script" "$OPENPIPES_SCRIPTS/"
-                ln -sf "$OPENPIPES_SCRIPTS/$script_name" "$OPENPIPES_BIN/$script_name"
-                chmod +x "$OPENPIPES_BIN/$script_name"
-                log INFO "  → $script_name instalado"
-            fi
-        done
-    fi
-    
-    # Criar symlinks no bin para scripts principais
-    for script in "$OPENPIPES_SCRIPTS"/*.sh; do
-        script_name=$(basename "$script")
-        ln -sf "$script" "$OPENPIPES_BIN/${script_name}"
-        chmod +x "$OPENPIPES_BIN/${script_name}"
+        if [ -f "$source_path" ]; then
+            ln -sf "$source_path" "$link_path"
+            chmod +x "$source_path"
+            echo -e "${GREEN}[✓] Symlink: $link_name -> $source_name${NC}"
+        else
+            echo -e "${YELLOW}[!] Script não encontrado: $source_name${NC}"
+        fi
     done
     
-    log INFO "Scripts copiados e linkados!"
+    # Scripts Python
+    local PYTHON_SCRIPTS=(
+        "osint_people_collector.py:osint-collector"
+        "osint_doc_finder.py:osint-doc-finder"
+        "osint_people_parser.py:osint-parser"
+        "osint_people_enricher_v1.0.py:osint-enricher"
+    )
+    
+    for script_pair in "${PYTHON_SCRIPTS[@]}"; do
+        local source_name="${script_pair%%:*}"
+        local link_name="${script_pair##*:}"
+        local source_path="$OPENPIPES_SCRIPTS/$source_name"
+        local link_path="$OPENPIPES_BIN/$link_name"
+        
+        if [ -f "$source_path" ]; then
+            ln -sf "$source_path" "$link_path"
+            chmod +x "$source_path"
+            echo -e "${GREEN}[✓] Symlink: $link_name -> $source_name${NC}"
+        else
+            echo -e "${YELLOW}[!] Script Python não encontrado: $source_name${NC}"
+        fi
+    done
 }
 
+# Criar Python VENV
+create_python_venv() {
+    echo -e "\n${BLUE}[*] Criando Python virtual environment...${NC}"
+    
+    if [ -d "$VENV_PATH" ]; then
+        echo -e "${YELLOW}[!] VENV já existe em: $VENV_PATH${NC}"
+        return 0
+    fi
+    
+    python3 -m venv "$VENV_PATH"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}[✓] VENV criado em: $VENV_PATH${NC}"
+    else
+        echo -e "${RED}[✗] Falha ao criar VENV${NC}"
+        return 1
+    fi
+}
+
+# Instalar requirements Python
+install_python_requirements() {
+    echo -e "\n${BLUE}[*] Instalando dependências Python (VENV)...${NC}"
+    
+    local REQUIREMENTS_FILE="$OPENPIPES_DIR/requirements.txt"
+    
+    if [ ! -f "$REQUIREMENTS_FILE" ]; then
+        echo -e "${YELLOW}[!] requirements.txt não encontrado${NC}"
+        echo -e "${YELLOW}[!] Criando requirements.txt básico...${NC}"
+        
+        cat > "$REQUIREMENTS_FILE" << 'REQUIREMENTS_EOF'
+# Web scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+tqdm>=4.66.0
+
+# Document parsing
+pandas>=2.0.0
+python-docx>=0.8.11
+python-pptx>=0.6.21
+openpyxl>=3.1.0
+PyPDF2>=3.0.0
+
+# Metadata extraction
+exifread>=3.0.0
+hachoir>=3.2.0
+
+# OSINT automation
+duckduckgo-search>=3.9.0
+google-search-results>=2.4.2
+linkedin-api>=2.1.0
+github3.py>=3.2.0
+
+# Utilities
+orjson>=3.9.0
+validators>=0.22.0
+rich>=13.7.0
+
+# DNS recon (versão específica)
+dnsrecon==1.1.3
+REQUIREMENTS_EOF
+    fi
+    
+    source "$VENV_PATH/bin/activate"
+    
+    pip install --upgrade pip -q
+    pip install -r "$REQUIREMENTS_FILE" -q
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}[✓] Dependências Python instaladas${NC}"
+        echo -e "${CYAN}[i] Pacotes instalados: $(pip list --format=freeze | wc -l)${NC}"
+    else
+        echo -e "${RED}[✗] Falha ao instalar dependências Python${NC}"
+        deactivate
+        return 1
+    fi
+    
+    deactivate
+}
+
+# Download cache de vulnerabilidades
+download_vuln_cache() {
+    echo -e "\n${BLUE}[*] Baixando cache de vulnerabilidades...${NC}"
+    
+    local CACHE_URL="https://raw.githubusercontent.com/rlSniff3r/openPipes/master/.openpipes_cache/OWASP_WSTG_PwnDoc_pt-br.json"
+    local CACHE_FILE="$OPENPIPES_CACHE/OWASP_WSTG_PwnDoc_pt-br.json"
+    
+    if [ -f "$CACHE_FILE" ]; then
+        echo -e "${YELLOW}[!] Cache já existe: $CACHE_FILE${NC}"
+        read -p "Sobrescrever? (s/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+            echo -e "${YELLOW}[!] Download cancelado${NC}"
+            return 0
+        fi
+    fi
+    
+    wget -q -O "$CACHE_FILE" "$CACHE_URL"
+    
+    if [ $? -eq 0 ]; then
+        local VULN_COUNT=$(jq '. | length' "$CACHE_FILE" 2>/dev/null || echo "?")
+        echo -e "${GREEN}[✓] Cache baixado: $VULN_COUNT templates${NC}"
+    else
+        echo -e "${YELLOW}[!] Falha no download. Cache será criado no primeiro uso.${NC}"
+    fi
+}
+
+# Copiar templates
 copy_templates() {
-    log STEP "Copiando templates..."
+    echo -e "\n${BLUE}[*] Copiando templates...${NC}"
     
-    if [[ -d "$OPENPIPES_INSTALL_DIR/.openpipes/.templates" ]]; then
-        cp -r $OPENPIPES_INSTALL_DIR/.openpipes/.templates/* "$OPENPIPES_TEMPLATES/"
-        log INFO "Templates copiados!"
-    else
-        log WARN "Templates não encontrados em $OPENPIPES_INSTALL_DIR/.openpipes/.templates"
+    local REPO_TEMPLATES="$OPENPIPES_DIR/.templates"
+    
+    if [ ! -d "$REPO_TEMPLATES" ]; then
+        echo -e "${YELLOW}[!] Diretório de templates não encontrado${NC}"
+        return 1
     fi
+    
+    # Copiar todos os templates
+    cp -r "$REPO_TEMPLATES"/* "$OPENPIPES_TEMPLATES/" 2>/dev/null
+    
+    echo -e "${GREEN}[✓] Templates copiados para: $OPENPIPES_TEMPLATES${NC}"
 }
 
-copy_cache() {
-    log STEP "Copiando cache de vulnerabilidades..."
+# Criar config.sh padrão
+create_default_config() {
+    echo -e "\n${BLUE}[*] Criando configuração padrão...${NC}"
     
-    if [[ -d "$OPENPIPES_INSTALL_DIR/.openpipes_cache" ]]; then
-        cp -r $OPENPIPES_INSTALL_DIR/.openpipes_cache/* "$OPENPIPES_CACHE/"
-        log INFO "Cache de vulnerabilidades copiado! (${OPENPIPES_CACHE})"
-    else
-        log WARN "Cache não encontrado em $OPENPIPES_INSTALL_DIR/.openpipes_cache"
+    local CONFIG_FILE="$OPENPIPES_DIR/config.sh"
+    
+    if [ -f "$CONFIG_FILE" ]; then
+        echo -e "${YELLOW}[!] config.sh já existe${NC}"
+        return 0
     fi
-}
-
-create_config() {
-    log STEP "Criando arquivo de configuração..."
     
-    cat > "$OPENPIPES_CONFIG" << 'EOF'
+    cat > "$CONFIG_FILE" << 'CONFIG_EOF'
 #!/bin/bash
 
 # Diretório base dos projetos
-proj_dir=""
+proj_dir="$HOME/Desktop/BugBounty"
 
 # Nome do projeto atual
-proj_name=""
+proj_name="default-project"
 
 # Caminho completo (será construído automaticamente)
 proj_path="$proj_dir/$proj_name"
 
 # Diretório do Obsidian (vault)
-obsdir="$HOME/.obsidianFixedMount/"
+obsdir="$HOME/.obsidianFixedMount"
 
 # Diretório de templates
 tpdir="$OPENPIPES_TEMPLATES"
@@ -465,8 +720,6 @@ base_dir="$proj_path/Varreduras/"
 # API Keys
 securitytrailskey=""
 OPENAI_API_KEY=""
-GITHUB_TOKEN=""
-HUNTER_API_KEY=""
 HIBP_API_KEY=""
 GOOGLE_API_KEY=""
 GOOGLE_CX=""
@@ -477,138 +730,184 @@ OSINT_PEOPLE_AUTH_FILE="$HOME/.openpipes/osint_people_auth.txt"
 
 # Python VENV
 OPENPIPES_VENV="$HOME/.openpipes/.venv"
-EOF
+CONFIG_EOF
     
-    # Criar arquivo de autorização para OSINT People
-    if [[ ! -f "$HOME/.openpipes/osint_people_auth.txt" ]]; then
-        cat > "$HOME/.openpipes/osint_people_auth.txt" << 'AUTH_EOF'
-# Arquivo de autorização OSINT People
-# Use apenas para investigações autorizadas e legais
+    echo -e "${GREEN}[✓] Configuração criada: $CONFIG_FILE${NC}"
+    echo -e "${CYAN}[i] Edite suas API keys em: $CONFIG_FILE${NC}"
+}
 
-AUTHORIZED_DOMAINS=example.com,target.com
-AUTHORIZED_BY=security-team
-AUTHORIZATION_DATE=$(date +%Y-%m-%d)
-PURPOSE=defensive-security-assessment
-AUTH_EOF
-        log INFO "Arquivo de autorização OSINT People criado"
+# Verificar instalação
+verify_installation() {
+    echo -e "\n${BLUE}[*] Verificando instalação...${NC}"
+    
+    local ERRORS=0
+    
+    # Verificar diretórios
+    echo -e "\n${CYAN}=== Diretórios ===${NC}"
+    for dir in "$OPENPIPES_DIR" "$OPENPIPES_BIN" "$OPENPIPES_SCRIPTS" "$OPENPIPES_TOOLS" "$OPENPIPES_CACHE"; do
+        if [ -d "$dir" ]; then
+            echo -e "${GREEN}[✓] $dir${NC}"
+        else
+            echo -e "${RED}[✗] $dir${NC}"
+            ((ERRORS++))
+        fi
+    done
+    
+    # Verificar comandos essenciais
+    echo -e "\n${CYAN}=== Comandos Principais ===${NC}"
+    for cmd in openpipes recon nwrapper cria-alvos httpx-runner nuclei-runner; do
+        if command -v "$cmd" &>/dev/null; then
+            echo -e "${GREEN}[✓] $cmd${NC}"
+        else
+            echo -e "${RED}[✗] $cmd não encontrado no PATH${NC}"
+            ((ERRORS++))
+        fi
+    done
+    
+    # Verificar ferramentas Go
+    echo -e "\n${CYAN}=== Ferramentas Go ===${NC}"
+    for tool in httpx nuclei katana gf amass rdap; do
+        if command -v "$tool" &>/dev/null; then
+            echo -e "${GREEN}[✓] $tool${NC}"
+        else
+            echo -e "${YELLOW}[!] $tool não encontrado${NC}"
+        fi
+    done
+    
+    # Verificar ferramentas Rust
+    echo -e "\n${CYAN}=== Ferramentas Rust ===${NC}"
+    if command -v feroxbuster &>/dev/null; then
+        echo -e "${GREEN}[✓] feroxbuster${NC}"
+    else
+        echo -e "${YELLOW}[!] feroxbuster não encontrado${NC}"
     fi
     
-    log INFO "Arquivo de configuração criado: $OPENPIPES_CONFIG"
-    log WARN "IMPORTANTE: Edite este arquivo antes de usar o OPenPipeS!"
-}
-
-setup_path() {
-    log STEP "Configurando PATH..."
-    
-    # Adicionar ao .bashrc se ainda não estiver lá
-    if ! grep -q "OPENPIPES_BIN" ~/.bashrc; then
-        echo "" >> ~/.bashrc
-        echo "# OPenPipeS" >> ~/.bashrc
-        echo "export OPENPIPES_HOME=\"$OPENPIPES_HOME\"" >> ~/.bashrc
-        echo "export OPENPIPES_VENV=\"$OPENPIPES_VENV\"" >> ~/.bashrc
-        echo "export PATH=\"\$PATH:\$OPENPIPES_HOME/bin\"" >> ~/.bashrc
-        log INFO "PATH configurado no ~/.bashrc"
+    # Verificar dnsrecon customizado
+    echo -e "\n${CYAN}=== DNS Recon ===${NC}"
+    if [ -f "$OPENPIPES_BIN/dnsrecon" ]; then
+        echo -e "${GREEN}[✓] dnsrecon wrapper criado${NC}"
+        if [ -d "$OPENPIPES_TOOLS/dnsrecon-1.1.3" ]; then
+            echo -e "${GREEN}[✓] dnsrecon 1.1.3 instalado${NC}"
+        else
+            echo -e "${YELLOW}[!] dnsrecon 1.1.3 não encontrado${NC}"
+        fi
+    else
+        echo -e "${RED}[✗] dnsrecon wrapper não criado${NC}"
+        ((ERRORS++))
     fi
     
-    # Criar comando principal
-    cat > "$OPENPIPES_BIN/openpipes" << 'OPENPIPES_CMD'
-#!/bin/bash
-bash "$HOME/.openpipes/bin/openpipes-orchestrator.sh" "$@"
-OPENPIPES_CMD
-    chmod +x "$OPENPIPES_BIN/openpipes"
+    # Verificar SecLists
+    echo -e "\n${CYAN}=== Wordlists ===${NC}"
+    if [ -d "/usr/share/wordlists/seclists" ]; then
+        echo -e "${GREEN}[✓] SecLists instalado${NC}"
+    else
+        echo -e "${YELLOW}[!] SecLists não encontrado${NC}"
+    fi
     
-    # Copiar orquestrador
-    cat > "$OPENPIPES_BIN/openpipes-orchestrator.sh" << 'ORCH_PLACEHOLDER'
-# Este arquivo será substituído pelo orquestrador real
-echo "Orquestrador não instalado corretamente!"
-ORCH_PLACEHOLDER
+    # Verificar Python VENV
+    echo -e "\n${CYAN}=== Python Environment ===${NC}"
+    if [ -f "$VENV_PATH/bin/activate" ]; then
+        echo -e "${GREEN}[✓] Virtual environment criado${NC}"
+        
+        source "$VENV_PATH/bin/activate"
+        local PKG_COUNT=$(pip list --format=freeze 2>/dev/null | wc -l)
+        echo -e "${GREEN}[✓] Pacotes Python instalados: $PKG_COUNT${NC}"
+        deactivate
+    else
+        echo -e "${RED}[✗] Virtual environment não criado${NC}"
+        ((ERRORS++))
+    fi
     
-    log INFO "Comando 'openpipes' criado!"
-}
-
-create_obsidian_mount() {
-    log STEP "Configurando ponto de montagem do Obsidian..."
+    # Verificar cache
+    echo -e "\n${CYAN}=== Cache ===${NC}"
+    if [ -f "$OPENPIPES_CACHE/OWASP_WSTG_PwnDoc_pt-br.json" ]; then
+        local VULN_COUNT=$(jq '. | length' "$OPENPIPES_CACHE/OWASP_WSTG_PwnDoc_pt-br.json" 2>/dev/null || echo "?")
+        echo -e "${GREEN}[✓] Cache de vulnerabilidades: $VULN_COUNT templates${NC}"
+    else
+        echo -e "${YELLOW}[!] Cache de vulnerabilidades não encontrado${NC}"
+    fi
     
-    mkdir -p "$HOME/.obsidianFixedMount"
-    
-    echo -ne "${CYAN}Deseja criar uma estrutura inicial no Obsidian? [S/n]:${NC} "
-    read -r resp
-    
-    if [[ ! "$resp" =~ ^[nN]$ ]]; then
-        mkdir -p "$HOME/.obsidianFixedMount/Pentest/Alvos"
-        cp "$OPENPIPES_TEMPLATES/Dashboard_Global.md" "$HOME/.obsidianFixedMount/Pentest/" 2>/dev/null || true
-        cp "$OPENPIPES_TEMPLATES/Tarefas.md" "$HOME/.obsidianFixedMount/Pentest/" 2>/dev/null || true
-        log INFO "Estrutura inicial criada!"
+    # Resultado final
+    echo -e "\n${CYAN}=== Resultado Final ===${NC}"
+    if [ $ERRORS -eq 0 ]; then
+        echo -e "${GREEN}[✓] Instalação verificada com sucesso!${NC}"
+        return 0
+    else
+        echo -e "${RED}[✗] Instalação incompleta ($ERRORS erros críticos)${NC}"
+        return 1
     fi
 }
 
-final_setup() {
-    log STEP "Finalizando instalação..."
+# Mensagem final
+print_final_message() {
+    echo -e "\n${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║                 INSTALAÇÃO CONCLUÍDA!                      ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
     
-    # Recarregar PATH temporariamente
-    export PATH="$PATH:$OPENPIPES_BIN"
-    
-    log INFO "Instalação concluída!"
-    echo ""
-    echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}Próximos passos:${NC}"
-    echo ""
-    echo -e "1. ${YELLOW}Recarregue seu shell:${NC}"
-    echo -e "   ${BLUE}source ~/.bashrc${NC}"
-    echo ""
-    echo -e "2. ${YELLOW}Configure o arquivo:${NC}"
-    echo -e "   ${BLUE}nano $OPENPIPES_CONFIG${NC}"
-    echo ""
-    echo -e "3. ${YELLOW}Configure autorização OSINT People:${NC}"
-    echo -e "   ${BLUE}nano $HOME/.openpipes/osint_people_auth.txt${NC}"
-    echo ""
-    echo -e "4. ${YELLOW}Execute o orquestrador:${NC}"
-    echo -e "   ${BLUE}openpipes${NC}"
-    echo ""
-    echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
-    echo ""
-    echo -e "${CYAN}Estratégia Python implementada:${NC}"
-    echo -e "  - ${GREEN}VENV Global:${NC} $OPENPIPES_VENV"
-    echo -e "  - ${GREEN}VENV LinkFinder:${NC} ~/.venv-jsfinder"
-    echo -e "  - ${GREEN}Scripts wrapper:${NC} /usr/local/bin/*.py"
-    echo ""
-    echo -e "${YELLOW}Compatível com PEP 668 (sem --break-system-packages)${NC}"
-    echo ""
+    echo -e "\n${CYAN}Próximos passos:${NC}"
+    echo -e "  1. ${YELLOW}Recarregue seu shell:${NC}"
+    echo -e "     ${BLUE}source ~/.bashrc${NC}  (ou ~/.zshrc)"
+    echo -e ""
+    echo -e "  2. ${YELLOW}Configure suas API keys:${NC}"
+    echo -e "     ${BLUE}nano ~/.openpipes/config.sh${NC}"
+    echo -e ""
+    echo -e "  3. ${YELLOW}Execute o framework:${NC}"
+    echo -e "     ${BLUE}openpipes${NC}"
+    echo -e ""
+    echo -e "  4. ${YELLOW}Use o wrapper APT (quando necessário):${NC}"
+    echo -e "     ${BLUE}apt-openpipes install <pacote>${NC}"
+    echo -e ""
+    echo -e "${CYAN}Documentação:${NC}"
+    echo -e "  ${BLUE}https://github.com/rlSniff3r/openPipes${NC}"
+    echo -e ""
+    echo -e "${CYAN}Comandos disponíveis:${NC}"
+    echo -e "  ${BLUE}openpipes${NC}          - Menu principal"
+    echo -e "  ${BLUE}recon${NC}              - Reconhecimento DNS"
+    echo -e "  ${BLUE}nwrapper${NC}           - Wrapper Nmap"
+    echo -e "  ${BLUE}cria-alvos${NC}         - Criar estrutura Obsidian"
+    echo -e "  ${BLUE}httpx-runner${NC}       - HTTP probing"
+    echo -e "  ${BLUE}katana-buster${NC}      - Web discovery"
+    echo -e "  ${BLUE}nuclei-runner${NC}      - Vulnerability scanning"
+    echo -e "  ${BLUE}osint-people${NC}       - OSINT People module"
+    echo -e "  ${BLUE}apt-openpipes${NC}      - Wrapper APT seguro"
+    echo -e ""
 }
 
-# Main
+# ========== MAIN ==========
+
 main() {
-    banner
+    print_banner
+    
     check_root
-    check_os
+    detect_os || exit 1
     
-    log INFO "Bem-vindo ao instalador do OPenPipeS!"
-    echo ""
-    echo -ne "${YELLOW}Deseja prosseguir com a instalação? [S/n]:${NC} "
-    read -r resp
-    [[ "$resp" =~ ^[nN]$ ]] && exit 0
-    
-    echo ""
+    update_system
+    install_apt_deps || exit 1
     
     create_directories
-    install_apt_packages
-    create_openpipes_venv
+    
     install_go_tools
     install_rust_tools
     install_python_tools
-    install_python_scripts
-    install_additional_tools
-    install_wordlists
-    copy_scripts
-    copy_templates
-    copy_cache
-    create_config
-    setup_path
-    create_obsidian_mount
-    final_setup
+    install_seclists
     
-    echo ""
-    log INFO "Instalação completa! 🎉"
+    configure_path
+    
+    create_python_venv || exit 1
+    install_python_requirements || exit 1
+    
+    install_dnsrecon_custom || exit 1
+    create_apt_wrapper
+    
+    create_symlinks
+    download_vuln_cache
+    copy_templates
+    create_default_config
+    
+    verify_installation
+    
+    print_final_message
 }
 
+# Executar instalação
 main "$@"
