@@ -3,7 +3,7 @@
 # Configs
 source $HOME/.openpipes/config.sh
 
-base_dir=$(pwd)
+base_dir=$NMAP_DIR
 recon_dir="$base_dir/../Recon"
 domains_file="$base_dir/../domains.txt"
 common_http_ports=(80 443 8000 8080 8443 10443 4443)
@@ -58,8 +58,8 @@ for dir in "$base_dir"/nmap-*; do
   done
   ports=$(IFS=','; echo "${http_ports[*]}")
 
-  target_list="$dir/httpx_targets.txt"
-  > "$target_list"
+  target_list="httpx_targets.txt"
+  > "$HTTPX_DIR/$target_list"
   seen=()
   for domain in ${ip_to_domains[$ip]}; do
     [[ " ${seen[*]} " =~ " $domain " ]] && continue
@@ -98,7 +98,7 @@ for dir in "$base_dir"/nmap-*; do
   jq 'unique_by(.url, .method, .final_url)' "$combined_httpx" > "$dedup_json"
 
   # Markdown: httpx.md
-  md_file="$obsdir/Pentest/Alvos/$targetName/httpx.md"
+  md_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/httpx.md"
   mkdir -p "$(dirname "$md_file")"
   echo "# 🌐 HTTPX - $targetName" > "$md_file"
   echo "" >> "$md_file"
@@ -136,7 +136,7 @@ for dir in "$base_dir"/nmap-*; do
   fi
 
   # endpoints.md
-  endpoints_file="$obsdir/Pentest/Alvos/$targetName/endpoints.md"
+  endpoints_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/endpoints.md"
   jq -r '.[] | select(.status_code >= 200 and .status_code < 300) | .url' "$dedup_json" | sort -u >> "$endpoints_file"
 
   echo "[✔] $targetName finalizado."

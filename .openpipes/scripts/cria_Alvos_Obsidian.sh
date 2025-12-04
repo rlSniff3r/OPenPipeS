@@ -1,26 +1,29 @@
 #!/bin/bash
 
 # Diretórios
+source "$OPENPIPES_CONFIG"
 tpdir="$HOME/.openpipes/.templates/"
 obsdir="$HOME/.obsidianFixedMount/"
 
-for host in $(ls -d nmap-* 2>/dev/null); do
+for host in $(ls $NMAP_DIR/ | grep nmap- 2>/dev/null); do
     # Verifica se há portas abertas
-    open_ports=$(grep "/tcp" "$host"/*.nmap | grep "open")
+    open_ports=$(grep "/tcp" "$NMAP_DIR/$host"/*.nmap | grep "open")
     if [ -z "$open_ports" ]; then
         continue
     fi
 
     targetName="$(echo $host | sed 's/nmap-//')"
     tgtFileName="$(echo $targetName | cut -d ' ' -f2)"
-    tgtDir="$obsdir/Pentest/Alvos/$targetName"
+    tgtDir="$obsdir/$proj_name/Pentest/Alvos/$targetName"
     vulnDir="$tgtDir/Vulnerabilidades"
 
     # Cria diretórios
     mkdir -p "$vulnDir"
 
     # Resolve IP via DNS
-    t_IP=$(echo -n "t_IP:" $(host -t a $targetName 2>/dev/null | awk '/has address/ {print $4}' | sort -u))
+    t_IP=$(echo -n "t_IP:" $(cat $RECON_DIR/$proj_name/hosts-allsubs | grep "has address" | grep "$targetName" | awk '/has address/ {print $4}' | sort -u))
+#    t_IP=$(echo -n "t_IP:" $(cat $RECON_DIR/$proj_name/hosts-allsubs | grep "has address" | grep $targeName | awk '/has address/ {print $4}' | sort -u))
+#    t_IP=$(echo -n "t_IP:" $(host -t a $targetName 2>/dev/null | awk '/has address/ {print $4}' | sort -u))
 
     # Frontmatter YAML
     tipo="Tipo: target"
@@ -81,7 +84,12 @@ for host in $(ls -d nmap-* 2>/dev/null); do
         -e "s/^t_IP:.*/t_IP: $resolved_ip/" \
         "$tpdir/vuln.stub.md" > "$vulnDir/VULN_$targetName.stub.md"
 
-    # Copia o nmap.nmap para a pasta do Alvo
-    cp $host/nmap.nmap $tgtDir/nmap.md
+    # Copia o nmap.nmap para a pasta do Alvo e transforma em sintaxe MD
+    cp $NMAP_DIR/$host/nmap.nmap $tgtDir/nmap.md
+    sed -i "1 i\```" $tgtDir/nmap.md
+    sed -i "$a\```" $tgtDir/nmap.md
+
+    # Remove as vulnerabilidades STUB de todos os alvos
+    rm -rf "$obsdir/$proj_name/Pentest/Alvos/*/Vulnerabilidades/*"
 
 done 2>/dev/null
