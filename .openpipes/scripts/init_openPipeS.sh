@@ -1,48 +1,126 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Configs
-source $HOME/.openpipes/config.sh
+source ~/.openpipes/config.sh
 
-# Função para log com timestamp
-log() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
-}
+: "${proj_name:?ERRO: proj_name não definido}"
+: "${obsdir:?ERRO: obsdir não definido}"
+: "${OBSIDIAN_PROJ_PATH:?ERRO: OBSIDIAN_PROJ_PATH não definido}"
 
-# Verifica se diretórios existem
-if [ ! -d "$tpdir" ]; then
-    log "Diretório de.openpipes/.templates não encontrado: $tpdir"
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+YELLOW="\033[1;33m"
+BLUE="\033[0;34m"
+CYAN="\033[0;36m"
+BOLD="\033[1m"
+NC="\033[0m"
+
+clear
+echo -e "${CYAN}${BOLD}"
+cat << 'BANNER'
+╔═══════════════════════════════════════════════════════╗
+║   OPenPipeS v2.0 - Project Initializer               ║
+║   Estrutura Hierárquica com $proj_name               ║
+╚═══════════════════════════════════════════════════════╝
+BANNER
+echo -e "${NC}"
+
+echo -e "${YELLOW}${BOLD}[*] Inicializando projeto...${NC}"
+echo -e "${BLUE}    Projeto:${NC} ${GREEN}${proj_name}${NC}"
+echo -e "${BLUE}    Obsidian Vault:${NC} ${obsdir}"
+echo -e "${BLUE}    Path Completo:${NC} ${OBSIDIAN_PROJ_PATH}"
+echo ""
+
+if [[ -d "$OBSIDIAN_PROJ_PATH" ]]; then
+    echo -e "${YELLOW}[!] Projeto '$proj_name' já existe!${NC}"
+    read -p "Deseja recriar a estrutura? (s/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+        echo -e "${RED}[x] Operação cancelada${NC}"
+        exit 0
+    fi
+fi
+
+echo -e "${GREEN}[+] Criando estrutura de diretórios...${NC}"
+
+PENTEST_ROOT="$OBSIDIAN_PROJ_PATH"
+ALVOS_DIR="$PENTEST_ROOT/Alvos"
+OSINT_DIR="$PENTEST_ROOT/OSINT"
+
+mkdir -p "$PENTEST_ROOT"
+mkdir -p "$ALVOS_DIR"
+mkdir -p "$OSINT_DIR"
+mkdir -p "$proj_path"
+mkdir -p "$NMAP_DIR"
+mkdir -p "$RECON_DIR"
+mkdir -p "$LOG_DIR"
+
+echo -e "${GREEN}    ✓ Diretórios criados${NC}"
+echo ""
+
+echo -e "${GREEN}[+] Copiando templates...${NC}"
+
+TEMPLATES_DIR="$HOME/.openpipes/.templates"
+
+if [[ ! -f "$TEMPLATES_DIR/Dashboard_Global.md" ]]; then
+    echo -e "${RED}[ERRO] Template Dashboard_Global.md não encontrado!${NC}"
     exit 1
 fi
 
-if [ ! -d "$obsdir" ]; then
-    log "Diretório do Obsidian não montado: $obsdir"
+if [[ ! -f "$TEMPLATES_DIR/Tarefas.md" ]]; then
+    echo -e "${RED}[ERRO] Template Tarefas.md não encontrado!${NC}"
     exit 1
 fi
 
-# Copia.openpipes/.templates base para dentro do diretório do Obsidian
-log "Copiando.openpipes/.templates principais para a Vault..."
-cp -n "$tpdir/Dashboard_Global.md" "$obsdir/Pentest/"
-cp -n "$tpdir/Tarefas.md" "$obsdir/Pentest/"
+cp "$TEMPLATES_DIR/Dashboard_Global.md" "$PENTEST_ROOT/Dashboard_Global.md"
+sed -i "s/{{proj_name}}/$proj_name/g" "$PENTEST_ROOT/Dashboard_Global.md"
 
-# Criação da estrutura básica de Alvo
-targetName="sistema.exemplo.com"
-ip="10.10.10.10"
+echo -e "${GREEN}    ✓ Dashboard_Global.md${NC}"
 
-# Verifica se alvo já existe
-if [ -d "$obsdir/Pentest/Alvos/$targetName" ]; then
-    log "Alvo '$targetName' já existe. Abortando."
-    exit 1
+cp "$TEMPLATES_DIR/Tarefas.md" "$PENTEST_ROOT/Tarefas.md"
+sed -i "s/{{proj_name}}/$proj_name/g" "$PENTEST_ROOT/Tarefas.md"
+
+echo -e "${GREEN}    ✓ Tarefas.md${NC}"
+
+if [[ -f "$TEMPLATES_DIR/README.md" ]]; then
+    cp "$TEMPLATES_DIR/README.md" "$OBSIDIAN_PROJ_ROOT/README.md"
+    sed -i "s/{{proj_name}}/$proj_name/g" "$OBSIDIAN_PROJ_ROOT/README.md"
+    echo -e "${GREEN}    ✓ README.md${NC}"
 fi
 
-# Criação das pastas
-log "Criando estrutura para o alvo $targetName..."
-mkdir -p "$obsdir/Pentest/Alvos/$targetName/Vulnerabilidades"
+if [[ -f "$TEMPLATES_DIR/.gitignore" ]]; then
+    cp "$TEMPLATES_DIR/.gitignore" "$OBSIDIAN_PROJ_ROOT/.gitignore"
+    echo -e "${GREEN}    ✓ .gitignore${NC}"
+fi
 
-# Cria uma vulnerabilidade stub
-cp -n "$tpdir/vuln.stub.md" "$obsdir/Pentest/Alvos/$targetName/Vulnerabilidades/Vuln.stub.md""
+if [[ ! -f "$proj_path/domains.txt" ]]; then
+    cat > "$proj_path/domains.txt" << 'DOM_EOF'
+# Domínios para reconhecimento
+# Adicione um por linha (SLD apenas, sem www)
 
-# Substituição de variáveis nos.openpipes/.templates
-sed "s/{{targetName}}/$targetName/g;s/{{ip}}/$ip/g" "$tpdir/target.stub.md" > "$obsdir/Pentest/Alvos/$targetName/$targetName.md"
-sed "s/{{targetName}}/$targetName/g" "$tpdir/dashboard.stub.md" > "$obsdir/Pentest/Alvos/$targetName/Dashboard_${targetName}.md"
+DOM_EOF
+    echo -e "${GREEN}    ✓ domains.txt${NC}"
+fi
 
-log "Estrutura criada com sucesso para o alvo $targetName."
+echo ""
+echo -e "${GREEN}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}${BOLD}║  ✓ Projeto inicializado com sucesso!             ║${NC}"
+echo -e "${GREEN}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${CYAN}📁 Estrutura criada em:${NC}"
+echo -e "   ${BLUE}Obsidian:${NC} $OBSIDIAN_PROJ_PATH"
+echo -e "   ${BLUE}Trabalho:${NC} $proj_path"
+echo ""
+echo -e "${CYAN}📊 Arquivos copiados:${NC}"
+echo -e "   ${GREEN}✓${NC} Dashboard_Global.md (com DataviewJS)"
+echo -e "   ${GREEN}✓${NC} Tarefas.md (original)"
+echo -e "   ${GREEN}✓${NC} README.md"
+echo -e "   ${GREEN}✓${NC} .gitignore"
+echo -e "   ${GREEN}✓{{NC}} domains.txt"
+echo ""
+echo -e "${YELLOW}${BOLD}🚀 Próximos passos:{{NC}}"
+echo -e "   ${CYAN}1.{{NC}} Adicione domínios em: ${BLUE}$proj_path/domains.txt{{NC}}"
+echo -e "   ${CYAN}2.{{NC}} Execute reconhecimento: ${GREEN}recon.sh <domain>{{NC}}"
+echo -e "   ${CYAN}3.{{NC}} Execute port scan: ${GREEN}nwrapper.sh <domain>{{NC}}"
+echo -e "   ${CYAN}4.{{NC}} Crie estrutura Obsidian: ${GREEN}cria-alvos{{NC}}"
+echo ""
