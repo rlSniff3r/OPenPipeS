@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Grava diretório de instalação
-INSTALL_DIR="$(pwd)"
-
 # Cores para output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -332,7 +329,7 @@ LINKFINDER_WRAPPER
 #    chmod +x "$OPENPIPES_BIN/dnsrecon"
     
     # Criar symlink para sistema
-    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" /usr/local/bin/dnsrecon
+    sudo ln -sf $OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py $OPENPIPES_BIN/dnsrecon
     
     log SUCCESS "Ferramentas Python instaladas!"
 }
@@ -497,15 +494,6 @@ PATH_EOF
     # Carregar configuração na sessão atual
     source "$RC_FILE"
 }
-
-#source ~/.bashrc
-
-echo "- Copiando scripts do repositorio $INSTALL_DIR/.openpipes/scripts para $OPENPIPES_SCRIPTS"
-# Copia scripts
-cp -r $INSTALL_DIR/.openpipes/scripts/* $OPENPIPES_SCRIPTS/
-chmod +x $OPENPIPES_SCRIPTS/*.sh
-chmod +x $OPENPIPES_SCRIPTS/*.py
-cp $INSTALL_DIR/.openpipes/config.sh $OPENPIPES_CONFIG
 
 # Criar symlinks
 create_symlinks() {

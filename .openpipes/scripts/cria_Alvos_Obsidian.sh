@@ -22,8 +22,6 @@ for host in $(ls $NMAP_DIR/ | grep nmap- 2>/dev/null); do
 
     # Resolve IP via DNS
     t_IP=$(echo -n "t_IP:" $(cat $RECON_DIR/$proj_name/hosts-allsubs | grep "has address" | grep "$targetName" | awk '/has address/ {print $4}' | sort -u))
-#    t_IP=$(echo -n "t_IP:" $(cat $RECON_DIR/$proj_name/hosts-allsubs | grep "has address" | grep $targeName | awk '/has address/ {print $4}' | sort -u))
-#    t_IP=$(echo -n "t_IP:" $(host -t a $targetName 2>/dev/null | awk '/has address/ {print $4}' | sort -u))
 
     # Frontmatter YAML
     tipo="Tipo: target"
