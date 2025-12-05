@@ -505,13 +505,15 @@ PATH_EOF
 
 #source ~/.bashrc
 
-echo "- Copiando scripts do repositorio $INSTALL_DIR/.openpipes/scripts para $OPENPIPES_SCRIPTS"
+log INFO "Copying scripts from repo $INSTALL_DIR/.openpipes/scripts to $OPENPIPES_SCRIPTS"
+
 # Copia scripts
 mkdir -p $OPENPIPES_SCRIPTS
 cp -r $INSTALL_DIR/.openpipes/scripts/* $OPENPIPES_SCRIPTS/
 chmod +x $OPENPIPES_SCRIPTS/*.sh
 chmod +x $OPENPIPES_SCRIPTS/*.py
-cp $INSTALL_DIR/.openpipes/config.sh $OPENPIPES_DIR/config.sh
+
+log SUCCESS "Scripts copied to $OPENPIPES_SCRIPTS"
 
 # Criar symlinks
 create_symlinks() {
@@ -726,7 +728,7 @@ download_vuln_cache() {
 copy_templates() {
     log INFO "Copiando templates..."
     
-    local REPO_TEMPLATES="$OPENPIPES_DIR/.templates"
+    local REPO_TEMPLATES="$INSTALL_DIR/.openpipes/.templates"
     
     if [ ! -d "$REPO_TEMPLATES" ]; then
         log WARNING "Diretório de templates não encontrado"
@@ -742,51 +744,15 @@ copy_templates() {
 # Criar config.sh padrão
 create_default_config() {
     log INFO "Criando configuração padrão..."
-    
     local CONFIG_FILE="$OPENPIPES_DIR/config.sh"
-    
-    if [ -f "$CONFIG_FILE" ]; then
-        log WARNING "config.sh já existe"
-        return 0
-    fi
-    
-    cat > "$CONFIG_FILE" << 'CONFIG_EOF'
-#!/bin/bash
+  
+    datetime_suffix=$(date +%Y%m%d_%H%M%S)
+    backup_dir=$(backup_openpipes_${datetime_suffix})
+    mkdir -p ~/${backup_dir}
 
-# Diretório base dos projetos
-proj_dir="$HOME/Desktop/BugBounty"
+    cp $CONFIG_FILE ~/${backup_dir}
 
-# Nome do projeto atual
-proj_name="default-project"
-
-# Caminho completo (será construído automaticamente)
-proj_path="$proj_dir/$proj_name"
-
-# Diretório do Obsidian (vault)
-obsdir="$HOME/.obsidianFixedMount"
-
-# Diretório de templates
-tpdir="$OPENPIPES_TEMPLATES"
-
-# Diretório base de varreduras
-base_dir="$proj_path/Varreduras/"
-
-# API Keys
-securitytrailskey=""
-OPENAI_API_KEY=""
-HIBP_API_KEY=""
-GOOGLE_API_KEY=""
-GOOGLE_CX=""
-BING_API_KEY=""
-
-# OSINT People - Configurações
-OSINT_PEOPLE_AUTH_FILE="$HOME/.openpipes/osint_people_auth.txt"
-
-# Python VENV
-OPENPIPES_VENV="$HOME/.openpipes/.venv"
-CONFIG_EOF
-    
-    log SUCCESS "Configuração criada: $CONFIG_FILE"
+    cp $INSTALL_DIR/.openpipes/config.sh $CONFIG_FILE
     echo -e "${CYAN}[i] Edite suas API keys em: $CONFIG_FILE${NC}"
 }
 
