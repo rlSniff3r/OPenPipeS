@@ -79,7 +79,7 @@ echo -e "${GREEN}[+] Usando lista de domínios:${NC} $DOMAIN_FILE"
 echo -e "${YELLOW}⚠️  Avoid listing subdomains as it will significantly reduce the attack surface.${NC}"
 
 mkdir -p Recon
-for domain in $(cat $DOMAIN_FILE); do
+for domain in $(grep -v '^#' "$DOMAIN_FILE" | grep -v '^$'); do
   cd Recon
   mkdir $domain
   rdap $domain > $domain/$domain-rdap.txt
