@@ -521,6 +521,7 @@ create_symlinks() {
     
     # Scripts shell
     local SHELL_SCRIPTS=(
+        "init-openpipes.sh:init-openpipes"
         "openpipes_orchestrator.sh:openpipes"
         "recon.sh:recon"
         "nwrapper.sh:nwrapper"
