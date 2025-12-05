@@ -332,7 +332,7 @@ LINKFINDER_WRAPPER
 #    chmod +x "$OPENPIPES_BIN/dnsrecon"
     
     # Criar symlink para sistema
-    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" /usr/local/bin/dnsrecon
+    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" $OPENPIPES_BIN/dnsrecon
     
     log SUCCESS "Ferramentas Python instaladas!"
 }
@@ -502,10 +502,11 @@ PATH_EOF
 
 echo "- Copiando scripts do repositorio $INSTALL_DIR/.openpipes/scripts para $OPENPIPES_SCRIPTS"
 # Copia scripts
+mkdir -p $OPENPIPES_SCRIPTS
 cp -r $INSTALL_DIR/.openpipes/scripts/* $OPENPIPES_SCRIPTS/
 chmod +x $OPENPIPES_SCRIPTS/*.sh
 chmod +x $OPENPIPES_SCRIPTS/*.py
-cp $INSTALL_DIR/.openpipes/config.sh $OPENPIPES_CONFIG
+cp $INSTALL_DIR/.openpipes/config.sh $OPENPIPES_DIR/config.sh
 
 # Criar symlinks
 create_symlinks() {
