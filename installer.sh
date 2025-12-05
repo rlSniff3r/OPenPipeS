@@ -13,6 +13,7 @@ NC='\033[0m'
 
 # Variáveis globais
 OPENPIPES_DIR="$HOME/.openpipes"
+OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
 OPENPIPES_BIN="$OPENPIPES_DIR/bin"
 OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
 OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
@@ -332,7 +333,7 @@ LINKFINDER_WRAPPER
 #    chmod +x "$OPENPIPES_BIN/dnsrecon"
     
     # Criar symlink para sistema
-    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" $OPENPIPES_BIN/dnsrecon
+    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" /usr/local/bin/dnsrecon
     
     log SUCCESS "Ferramentas Python instaladas!"
 }
@@ -475,6 +476,7 @@ configure_path() {
 
 # ========== OpenPipeS Configuration ==========
 export OPENPIPES_DIR="$HOME/.openpipes"
+export OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
 export OPENPIPES_BIN="$OPENPIPES_DIR/bin"
 export OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
 export OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
@@ -489,6 +491,9 @@ export PATH="$PATH:$GOPATH/bin"
 # Rust configuration
 export PATH="$HOME/.cargo/bin:$PATH"
 # ============================================
+
+# Loads Config.sh
+source ~/.openpipes/config.sh
 PATH_EOF
     
     log SUCCESS "PATH configurado em: $RC_FILE"
