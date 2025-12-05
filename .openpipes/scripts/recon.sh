@@ -48,7 +48,12 @@ else
     case "$1" in
       -d|--domain-file)
         shift
-        DOMAIN_FILE="$(pwd)/$1"
+        # Detecta se é caminho absoluto ou relativo
+        if [[ "$1" == /* ]]; then
+          DOMAIN_FILE="$1"
+        else
+          DOMAIN_FILE="$(pwd)/$1"
+        fi
         ;;
       -h|--help)
         show_help
