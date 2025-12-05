@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Grava diretório de instalação
-INSTALL_DIR='$pwd'
+INSTALL_DIR="$pwd"
 
 # Cores para output
 GREEN='\033[0;32m'
@@ -323,16 +323,16 @@ LINKFINDER_WRAPPER
     fi
     
     # Criar wrapper que usa VENV global
-    cat > "$OPENPIPES_BIN/dnsrecon" << 'DNSRECON_WRAPPER'
-#!/bin/bash
-source "$HOME/.openpipes/.venv/bin/activate"
-python "$HOME/.openpipes/bin/dnsrecon-1.1.3/dnsrecon.py" "$@"
-deactivate
-DNSRECON_WRAPPER
-    chmod +x "$OPENPIPES_BIN/dnsrecon"
+#    cat > "$OPENPIPES_BIN/dnsrecon" << 'DNSRECON_WRAPPER'
+##!/bin/bash
+#source "$HOME/.openpipes/.venv/bin/activate"
+#python "$HOME/.openpipes/bin/dnsrecon-1.1.3/dnsrecon.py" "$@"
+#deactivate
+#DNSRECON_WRAPPER
+#    chmod +x "$OPENPIPES_BIN/dnsrecon"
     
     # Criar symlink para sistema
-    sudo ln -sf "$OPENPIPES_BIN/dnsrecon" /usr/local/bin/dnsrecon
+    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" /usr/local/bin/dnsrecon
     
     log SUCCESS "Ferramentas Python instaladas!"
 }
