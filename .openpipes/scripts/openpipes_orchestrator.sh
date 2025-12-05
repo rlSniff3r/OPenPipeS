@@ -154,18 +154,18 @@ validate_project() {
     fi
     
     # 2. Verificar se domains.txt existe
-    if [[ ! -f "$proj_path/domains.txt" ]]; then
-        log ERROR "Arquivo domains.txt não encontrado: $proj_path/domains.txt"
+    if [[ ! -f "$proj_path/Recon/domains.txt" ]]; then
+        log ERROR "Arquivo domains.txt não encontrado: $proj_path/Recon/domains.txt"
         ((errors++))
     else
         log SUCCESS "Arquivo domains.txt existe"
         
         # 3. Verificar se domains.txt tem conteúdo
-        if [[ ! -s "$proj_path/domains.txt" ]]; then
+        if [[ ! -s "$proj_path/Recon/domains.txt" ]]; then
             log WARNING "domains.txt está vazio!"
             ((warnings++))
         else
-            local domain_count=$(grep -v '^#' "$proj_path/domains.txt" | grep -v '^$' | wc -l)
+            local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
             if [[ $domain_count -eq 0 ]]; then
                 log WARNING "domains.txt não possui domínios válidos (apenas comentários/linhas vazias)"
                 ((warnings++))
@@ -257,10 +257,10 @@ setup_project_structure() {
     done
     
     # 3. Criar domains.txt (se não existir)
-    if [[ ! -f "$proj_path/domains.txt" ]]; then
+    if [[ ! -f "$proj_path/Recon/domains.txt" ]]; then
         log INFO "Criando domains.txt..."
         
-        cat > "$proj_path/domains.txt" << 'DOMAINS_EOF'
+        cat > "$proj_path/Recon/domains.txt" << 'DOMAINS_EOF'
 # ============================================================================
 # domains.txt - Lista de Domínios para Reconhecimento
 # ============================================================================
@@ -289,10 +289,10 @@ DOMAINS_EOF
         echo
         
         if [[ $REPLY =~ ^[Ss]$ ]]; then
-            ${EDITOR:-nano} "$proj_path/domains.txt"
+            ${EDITOR:-nano} "$proj_path/Recon/domains.txt"
             
             # Validar se foram adicionados domínios
-            local domain_count=$(grep -v '^#' "$proj_path/domains.txt" | grep -v '^$' | wc -l)
+            local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
             if [[ $domain_count -gt 0 ]]; then
                 log SUCCESS "$domain_count domínio(s) adicionado(s)"
             else
@@ -303,7 +303,7 @@ DOMAINS_EOF
         log SUCCESS "domains.txt já existe"
         
         # Mostrar quantos domínios existem
-        local domain_count=$(grep -v '^#' "$proj_path/domains.txt" | grep -v '^$' | wc -l)
+        local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
         if [[ $domain_count -gt 0 ]]; then
             log INFO "Domínios configurados: $domain_count"
         else
@@ -329,8 +329,8 @@ GITIGNORE_EOF
     # 5. Criar Obsidian vault (se não existir)
     if [[ ! -d "$obsdir" ]]; then
         log INFO "Criando Obsidian vault: $obsdir"
-        mkdir -p "$obsdir/Pentest"
-        mkdir -p "$obsdir/Pentest/Alvos"
+        mkdir -p "$obsdir/$proj_name/Pentest"
+        mkdir -p "$obsdir/$proj_name/Pentest/Alvos"
         log SUCCESS "Obsidian vault criado"
     else
         log SUCCESS "Obsidian vault já existe"
@@ -352,18 +352,12 @@ GITIGNORE_EOF
 
 \`\`\`
 $proj_name/
-├── domains.txt          # Lista de domínios alvo
-├── Recon/               # Reconhecimento DNS
 ├── Varreduras/          # Scans Nmap
-├── Nuclei/              # Vulnerability scanning
-├── HTTPx/               # HTTP probing
-├── Katana/              # Web crawling
-├── JSFinder/            # JavaScript analysis
-├── GF-Summary/          # Pattern matching
-├── WHOIS/               # WHOIS enrichment
 ├── OSINT/               # OSINT People
-├── Screenshots/         # Web screenshots
-└── Logs/                # Execution logs
+├── Logs/                # Execution logs
+├── README.md            # Informações do Projeto
+└── Recon/               # Reconhecimento DNS
+     └── domains.txt          # Lista de domínios alvo
 \`\`\`
 
 ---
@@ -385,7 +379,7 @@ nuclei-runner          # Vulnerability scan
 
 ## 📊 Obsidian Vault
 
-**Localização:** \`$obsdir\`
+**Localização:** \`$obsdir/$proj_name\`
 
 Acesse os dashboards gerados em:
 - Dashboard Global: \`Pentest/Dashboard_Global.md\`
@@ -410,7 +404,7 @@ EOF
     echo -e "${GREEN}✓${NC} domains.txt configurado"
     echo -e "${GREEN}✓${NC} README.md gerado"
     
-    local domain_count=$(grep -v '^#' "$proj_path/domains.txt" | grep -v '^$' | wc -l)
+    local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
     if [[ $domain_count -gt 0 ]]; then
         echo -e "${GREEN}✓${NC} $domain_count domínio(s) configurado(s)"
     else
@@ -432,8 +426,8 @@ show_menu() {
     echo -e "${CYAN}Diretório:${NC} $proj_path"
     
     # Verificar se domains.txt existe e mostrar status
-    if [[ -f "$proj_path/domains.txt" ]]; then
-        local domain_count=$(grep -v '^#' "$proj_path/domains.txt" | grep -v '^$' | wc -l)
+    if [[ -f "$proj_path/Recon/domains.txt" ]]; then
+        local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
         if [[ $domain_count -gt 0 ]]; then
             echo -e "${CYAN}Domínios:${NC} ${GREEN}$domain_count configurado(s)${NC}"
         else
@@ -795,7 +789,7 @@ show_config() {
         echo
         
         if [[ $REPLY =~ ^[Ss]$ ]] || [[ -z $REPLY ]]; then
-            if [[ -d "$proj_path" ]] && [[ -f "$proj_path/domains.txt" ]]; then
+            if [[ -d "$proj_path" ]] && [[ -f "$proj_path/Recon/domains.txt" ]]; then
                 validate_project
             else
                 setup_project_structure
