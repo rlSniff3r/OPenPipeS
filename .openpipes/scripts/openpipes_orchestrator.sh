@@ -128,7 +128,6 @@ check_config() {
             echo "  - $var"
         done
         log INFO "Configure usando a opção [C] do menu"
-        exit 1
     fi
     
     # Construir caminho completo do projeto
