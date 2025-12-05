@@ -818,20 +818,6 @@ verify_installation() {
         log WARNING "LinkFinder não encontrado"
     fi
     
-    # Verificar dnsrecon customizado
-    echo -e "\n${CYAN}=== DNS Recon ===${NC}"
-    if [ -f "$OPENPIPES_BIN/dnsrecon" ]; then
-        log SUCCESS "dnsrecon wrapper criado"
-        if [ -d "$OPENPIPES_BIN/dnsrecon-1.1.3" ]; then
-            log SUCCESS "dnsrecon 1.1.3 instalado"
-        else
-            log WARNING "dnsrecon 1.1.3 não encontrado"
-        fi
-    else
-        log ERROR "dnsrecon wrapper não criado"
-        ((ERRORS++))
-    fi
-    
     # Verificar SecLists
     echo -e "\n${CYAN}=== Wordlists ===${NC}"
     if [ -d "/usr/share/wordlists/seclists" ]; then
