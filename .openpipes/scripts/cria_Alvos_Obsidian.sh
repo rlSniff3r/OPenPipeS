@@ -1,4 +1,4 @@
-#!/bin/bash
+n#!/bin/bash
 
 # Diretórios
 source "$OPENPIPES_CONFIG"
@@ -21,7 +21,7 @@ for host in $(ls $NMAP_DIR/ | grep nmap- 2>/dev/null); do
     mkdir -p "$vulnDir"
 
     # Resolve IP via DNS
-    t_IP=$(echo -n "t_IP:" $(cat $RECON_DIR/$proj_name/hosts-allsubs | grep "has address" | grep "$targetName" | awk '/has address/ {print $4}' | sort -u))
+    t_IP=$(echo -n "t_IP:" $(cat $RECON_DIR/*/hosts-allsubs | grep "has address" | grep "$targetName" | awk '/has address/ {print $4}' | sort -u))
 
     # Frontmatter YAML
     tipo="Tipo: target"

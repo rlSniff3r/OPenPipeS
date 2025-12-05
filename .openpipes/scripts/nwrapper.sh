@@ -32,47 +32,56 @@ EOF
     exit 0
 }
 
+# ==============================
+# Parsing dos argumentos
+# ==============================
+
 targets=()
 
-# Processa parâmetros extras
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -h|--help)
-            show_help
-            ;;
-        -f)
+        -f|--file)
             if [[ -f "$2" ]]; then
                 while IFS= read -r line; do
-                    [[ -n "$line" ]] && targets+=("$line")
+                    # Filtra comentários e linhas vazias
+                    [[ "$line" =~ ^#.*$ ]] && continue
+                    [[ -z "$line" ]] && continue
+                    targets+=("$line")
                 done < "$2"
+                shift 2
             else
                 echo "Arquivo não encontrado: $2"
                 exit 1
             fi
-            shift 2
             ;;
-        -t)
-            IFS=' ' read -ra tmp <<< "$2"
-            for t in "${tmp[@]}"; do
-                targets+=("$t")
-            done
-            shift 2
+        -t|--targets)
+            shift
+            targets+=("$@")
+            break
+            ;;
+        -h|--help)
+            show_help
             ;;
         -*)
             echo "Opção inválida: $1"
             show_help
             ;;
         *)
-            # argumento "padrão" (alvo único, já suportado no script)
+            # argumento "padrão" (alvo único)
             targets+=("$1")
             shift
             ;;
     esac
 done
 
-# Se nenhum alvo foi definido, mostra ajuda
+# ==============================
+# Valida se há alvos
+# ==============================
+
 if [[ ${#targets[@]} -eq 0 ]]; then
+    echo "Nenhum alvo especificado!"
     show_help
+    exit 1
 fi
 
 # Loop pelos alvos, mas preservando a lógica original do script
