@@ -242,14 +242,7 @@ setup_project_structure() {
     local project_dirs=(
         "Recon"
         "Varreduras"
-        "Nuclei"
-        "HTTPx"
-        "Katana"
-        "JSFinder"
-        "GF-Summary"
-        "WHOIS"
         "OSINT"
-        "Screenshots"
         "Logs"
     )
     
@@ -558,82 +551,114 @@ run_module() {
 # PIPELINE COMPLETO
 # ============================================================================
 
-run_full_pipeline() {
-    log STEP "Iniciando Pipeline Completo..."
-    
-    # Validar projeto antes de iniciar
-    if ! validate_project; then
-        log ERROR "Projeto não está configurado corretamente"
-        log INFO "Execute a opção [I] para inicializar o projeto"
+run_module() {
+    local module=$1
+    local script=""
+    local description=""
+
+    case $module in
+        recon)
+            script="$OPENPIPES_BIN/recon"
+            description="Reconhecimento DNS"
+            
+            # PRÉ-VALIDAÇÕES ESPECÍFICAS DO RECON
+            if [[ ! -f "$proj_path/Recon/domains.txt" ]]; then
+                log ERROR "domains.txt não encontrado em $proj_path/Recon/"
+                log INFO "Execute [I] Inicializar Projeto para criar a estrutura"
+                return 1
+            fi
+            
+            local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" 2>/dev/null | grep -v '^$' | wc -l)
+            if [[ $domain_count -eq 0 ]]; then
+                log ERROR "domains.txt está vazio ou contém apenas comentários"
+                log INFO "Adicione domínios em: $proj_path/Recon/domains.txt"
+                return 2
+            fi
+            
+            log INFO "Encontrados $domain_count domínio(s) para processar"
+            ;;
+            
+        nwrapper)
+            script="$OPENPIPES_BIN/nwrapper"
+            description="Scanning (Nmap)"
+            ;;
+            
+        cria-alvos)
+            script="$OPENPIPES_BIN/cria-alvos"
+            description="Setup Obsidian"
+            ;;
+            
+        httpx)
+            script="$OPENPIPES_BIN/httpx-runner"
+            description="HTTPx Runner"
+            ;;
+            
+        katana)
+            script="$OPENPIPES_BIN/katana-buster"
+            description="Katana + Feroxbuster"
+            ;;
+            
+        nuclei)
+            script="$OPENPIPES_BIN/nuclei-runner"
+            description="Nuclei Scan"
+            ;;
+            
+        jsfinder)
+            script="$OPENPIPES_BIN/jsfinder-runner"
+            description="JSFinder"
+            ;;
+            
+        gf)
+            script="$OPENPIPES_BIN/gf-summary"
+            description="GF Summary"
+            ;;
+            
+        whois)
+            script="$OPENPIPES_BIN/whois-enricher"
+            description="WHOIS Enricher"
+            ;;
+            
+        osint)
+            script="$OPENPIPES_BIN/osint-people"
+            description="OSINT People"
+            ;;
+            
+        *)
+            log ERROR "Módulo desconhecido: $module"
+            return 1
+            ;;
+    esac
+
+    if [[ ! -f "$script" ]]; then
+        log ERROR "Script não encontrado: $script"
         return 1
     fi
-    
-    # Verificar se domains.txt tem conteúdo
-    local domain_count=$(grep -v '^#' "$proj_path/domains.txt" | grep -v '^$' | wc -l)
-    if [[ $domain_count -eq 0 ]]; then
-        log ERROR "domains.txt está vazio!"
-        log INFO "Adicione domínios em: $proj_path/domains.txt"
-        return 1
-    fi
-    
-    log INFO "Domínios a processar: $domain_count"
-    echo ""
-    
-    local start_time=$(date +%s)
-    local failed_modules=()
-    
-    # Array de módulos do pipeline
-    local pipeline_modules=(
-        "recon"
-        "nwrapper"
-        "cria-alvos"
-        "httpx"
-        "katana"
-        "nuclei"
-        "jsfinder"
-        "gf"
-        "whois"
+
+    log STEP "Executando: $description"
+
+    # EXECUTA todos os módulos no contexto correto
+    (
+        cd "$proj_path" || {
+            log ERROR "Não foi possível acessar $proj_path"
+            return 1
+        }
+        
+        # Para recon, passa o arquivo de domínios
+        if [[ "$module" == "recon" ]]; then
+            bash "$script" -d "$proj_path/Recon/domains.txt"
+        else
+            bash "$script"
+        fi
     )
     
-    # Executar cada módulo
-    for module in "${pipeline_modules[@]}"; do
-        if ! run_module "$module"; then
-            failed_modules+=("$module")
-            log WARNING "Continuando pipeline apesar da falha..."
-        fi
-        echo ""
-    done
-    
-    # Calcular tempo total
-    local end_time=$(date +%s)
-    local duration=$((end_time - start_time))
-    local minutes=$((duration / 60))
-    local seconds=$((duration % 60))
-    
-    # Relatório final
-    echo ""
-    log STEP "Pipeline Completo Finalizado"
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}Tempo total:${NC} ${minutes}m ${seconds}s"
-    echo -e "${GREEN}Módulos executados:${NC} ${#pipeline_modules[@]}"
-    
-    if [[ ${#failed_modules[@]} -eq 0 ]]; then
-        echo -e "${GREEN}Status:${NC} ✓ Todos os módulos concluídos com sucesso"
+    local exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
+        log SUCCESS "$description concluído"
+        return 0
     else
-        echo -e "${YELLOW}Falhas:${NC} ${#failed_modules[@]} módulo(s)"
-        for module in "${failed_modules[@]}"; do
-            echo "  - $module"
-        done
-    fi
-    
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    
-    # Sync Obsidian (se configurado)
-    if [[ -n "${AUTO_SYNC:-}" ]] && [[ "${AUTO_SYNC}" == "true" ]]; then
-        log INFO "Sincronizando com Obsidian..."
-        rsync -av "$proj_path/" "$obsdir/Pentest/" --exclude=".git"
-        log SUCCESS "Sincronização concluída"
+        log ERROR "$description falhou (exit code: $exit_code)"
+        return 1
     fi
 }
 
