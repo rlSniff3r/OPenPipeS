@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Grava diretório de instalação
-INSTALL_DIR='$(pwd)'
+INSTALL_DIR='$pwd'
 
 # Cores para output
 GREEN='\033[0;32m'
