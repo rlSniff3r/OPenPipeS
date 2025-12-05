@@ -500,10 +500,31 @@ run_module() {
             log INFO "Encontrados $domain_count domínio(s) para processar"
             ;;
             
-        nwrapper)
-            script="$OPENPIPES_BIN/nwrapper"
-            description="Scanning (Nmap)"
-            ;;
+
+         nwrapper)
+             script="$OPENPIPES_BIN/nwrapper"
+             description="Scanning (Nmap)"
+        
+            # PRÉ-VALIDAÇÃO: targets.txt existe?
+             if [[ ! -f "$proj_path/Varreduras/targets.txt" ]]; then
+                 log ERROR "targets.txt não encontrado em $proj_path/Varreduras/"
+                 log INFO "Execute [R] Recon primeiro para gerar os targets"
+                 return 1
+             fi
+        
+             local target_count=$(grep -v '^#' "$proj_path/Varreduras/targets.txt" 2>/dev/null | grep -v '^$' | wc -l)
+             if [[ $target_count -eq 0 ]]; then
+                 log ERROR "targets.txt está vazio"
+                 return 2
+             fi
+        
+             log INFO "Encontrados $target_count alvo(s) para varredura"
+             ;;
+
+#        nwrapper)
+#            script="$OPENPIPES_BIN/nwrapper"
+#            description="Scanning (Nmap)"
+#            ;;
             
         cria-alvos)
             script="$OPENPIPES_BIN/cria-alvos"
@@ -565,14 +586,22 @@ run_module() {
             return 1
         }
         
-        # Para recon, passa o arquivo de domínios
+        # Para recon e nwraper passa arquivos de consumo.
         if [[ "$module" == "recon" ]]; then
             bash "$script" -d "$proj_path/Recon/domains.txt"
+        elif [[ "$module" == "nwrapper" ]]; then
+            (
+                cd "$proj_path/Varreduras" || {
+                    log ERROR "Não foi possível acessar $proj_path/Varreduras"
+                    return 1
+                }
+                bash "$script" -f "$proj_path/Varreduras/targets.txt"
+            )
         else
             bash "$script"
         fi
-    )
-    
+)
+ 
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
