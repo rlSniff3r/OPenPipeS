@@ -334,7 +334,7 @@ LINKFINDER_WRAPPER
 #    chmod +x "$OPENPIPES_BIN/dnsrecon"
     
     # Criar symlink para sistema
-    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" /usr/local/bin/dnsrecon
+    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" $OPENPIPES_BIN/dnsrecon
     
     log SUCCESS "Ferramentas Python instaladas!"
 }
