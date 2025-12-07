@@ -42,8 +42,8 @@ fi
 # 
 
 SCRIPT_NAME="screenshot-runner"
-INPUT_FILE="${proj_dir}/${proj_name}/results/httpx_live_probes.txt"
-OUTPUT_DIR="${proj_dir}/${proj_name}/results/screenshots"
+INPUT_FILE="${proj_dir}/$RECON_DIR/*/allsubs.httpx"
+OUTPUT_DIR="$SCREENSHOT_DIR"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 REPORT_FILE="${OUTPUT_DIR}/gowitness_${TIMESTAMP}.html"
 DB_FILE="${OUTPUT_DIR}/gowitness.sqlite3"
@@ -197,22 +197,22 @@ generate_obsidian_summary() {
     local summary_file="${OUTPUT_DIR}/summary.md"
     local screenshot_count=$(ls -1 "${OUTPUT_DIR}"/*.png 2>/dev/null | wc -l)
     
-    cat > "$summary_file" &lt;<EOF
+    cat > "$summary_file" <<EOF
 # Screenshot Reconnaissance - Summary
 
 **Data**: $(date +"%Y-%m-%d %H:%M:%S")
 **Projeto**: ${proj_name}
-**Input**: \`$(basename "$INPUT_FILE")\`
-**Output**: \`$(basename "$OUTPUT_DIR")\`
+**Input**: `$(basename "$INPUT_FILE")`
+**Output**: `$(basename "$OUTPUT_DIR")`
 
 ---
 
 ## Estatísticas
 
-- **URLs processadas**: $(wc -l &lt; "$INPUT_FILE" | tr -d ' ')
+- **URLs processadas**: $(wc -l < "$INPUT_FILE" | tr -d ' ')
 - **Screenshots capturados**: $screenshot_count
-- **Banco de dados**: \`$(basename "$DB_FILE")\`
-- **Log**: \`gowitness_${TIMESTAMP}.log\`
+- **Banco de dados**: `$(basename "$DB_FILE")`
+- **Log**: `gowitness_${TIMESTAMP}.log`
 
 ---
 
@@ -220,9 +220,9 @@ generate_obsidian_summary() {
 
 Para visualizar o relatório interativo:
 
-\`\`\`bash
+```bash
 gowitness report server --db-path "$DB_FILE" --addr 127.0.0.1:7171
-\`\`\`
+```
 
 Acesse: [http://127.0.0.1:7171](http://127.0.0.1:7171)
 
@@ -231,7 +231,7 @@ Acesse: [http://127.0.0.1:7171](http://127.0.0.1:7171)
 ## Screenshots Capturados
 
 $(ls -1 "${OUTPUT_DIR}"/*.png 2>/dev/null | head -20 | while read -r img; do
-    echo "- \`$(basename "$img")\`"
+    echo "- `$(basename "$img")`"
 done)
 
 $(if [[ $screenshot_count -gt 20 ]]; then
