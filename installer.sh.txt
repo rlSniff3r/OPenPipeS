@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Grava diretório de instalação
+INSTALL_DIR="$(pwd)"
+
 # Cores para output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -10,6 +13,7 @@ NC='\033[0m'
 
 # Variáveis globais
 OPENPIPES_DIR="$HOME/.openpipes"
+OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
 OPENPIPES_BIN="$OPENPIPES_DIR/bin"
 OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
 OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
@@ -329,7 +333,7 @@ LINKFINDER_WRAPPER
 #    chmod +x "$OPENPIPES_BIN/dnsrecon"
     
     # Criar symlink para sistema
-    sudo ln -sf $OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py $OPENPIPES_BIN/dnsrecon
+    sudo ln -sf "$OPENPIPES_BIN/dnsrecon-1.1.3/dnsrecon.py" /usr/local/bin/dnsrecon
     
     log SUCCESS "Ferramentas Python instaladas!"
 }
@@ -472,6 +476,7 @@ configure_path() {
 
 # ========== OpenPipeS Configuration ==========
 export OPENPIPES_DIR="$HOME/.openpipes"
+export OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
 export OPENPIPES_BIN="$OPENPIPES_DIR/bin"
 export OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
 export OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
@@ -486,6 +491,9 @@ export PATH="$PATH:$GOPATH/bin"
 # Rust configuration
 export PATH="$HOME/.cargo/bin:$PATH"
 # ============================================
+
+# Loads Config.sh
+source ~/.openpipes/config.sh
 PATH_EOF
     
     log SUCCESS "PATH configurado em: $RC_FILE"
@@ -495,12 +503,25 @@ PATH_EOF
     source "$RC_FILE"
 }
 
+#source ~/.bashrc
+
+log INFO "Copying scripts from repo $INSTALL_DIR/.openpipes/scripts to $OPENPIPES_SCRIPTS"
+
+# Copia scripts
+mkdir -p $OPENPIPES_SCRIPTS
+cp -r $INSTALL_DIR/.openpipes/scripts/* $OPENPIPES_SCRIPTS/
+chmod +x $OPENPIPES_SCRIPTS/*.sh
+chmod +x $OPENPIPES_SCRIPTS/*.py
+
+log SUCCESS "Scripts copied to $OPENPIPES_SCRIPTS"
+
 # Criar symlinks
 create_symlinks() {
     log INFO "Criando symlinks..."
     
     # Scripts shell
     local SHELL_SCRIPTS=(
+        "init-openpipes.sh:init-openpipes"
         "openpipes_orchestrator.sh:openpipes"
         "recon.sh:recon"
         "nwrapper.sh:nwrapper"
@@ -708,7 +729,7 @@ download_vuln_cache() {
 copy_templates() {
     log INFO "Copiando templates..."
     
-    local REPO_TEMPLATES="$OPENPIPES_DIR/.templates"
+    local REPO_TEMPLATES="$INSTALL_DIR/.openpipes/.templates"
     
     if [ ! -d "$REPO_TEMPLATES" ]; then
         log WARNING "Diretório de templates não encontrado"
@@ -724,51 +745,15 @@ copy_templates() {
 # Criar config.sh padrão
 create_default_config() {
     log INFO "Criando configuração padrão..."
-    
     local CONFIG_FILE="$OPENPIPES_DIR/config.sh"
-    
-    if [ -f "$CONFIG_FILE" ]; then
-        log WARNING "config.sh já existe"
-        return 0
-    fi
-    
-    cat > "$CONFIG_FILE" << 'CONFIG_EOF'
-#!/bin/bash
+  
+    datetime_suffix=$(date +%Y%m%d_%H%M%S)
+    backup_dir=$(backup_openpipes_${datetime_suffix})
+    mkdir -p ~/${backup_dir}
 
-# Diretório base dos projetos
-proj_dir="$HOME/Desktop/BugBounty"
+    cp $CONFIG_FILE ~/${backup_dir}
 
-# Nome do projeto atual
-proj_name="default-project"
-
-# Caminho completo (será construído automaticamente)
-proj_path="$proj_dir/$proj_name"
-
-# Diretório do Obsidian (vault)
-obsdir="$HOME/.obsidianFixedMount"
-
-# Diretório de templates
-tpdir="$OPENPIPES_TEMPLATES"
-
-# Diretório base de varreduras
-base_dir="$proj_path/Varreduras/"
-
-# API Keys
-securitytrailskey=""
-OPENAI_API_KEY=""
-HIBP_API_KEY=""
-GOOGLE_API_KEY=""
-GOOGLE_CX=""
-BING_API_KEY=""
-
-# OSINT People - Configurações
-OSINT_PEOPLE_AUTH_FILE="$HOME/.openpipes/osint_people_auth.txt"
-
-# Python VENV
-OPENPIPES_VENV="$HOME/.openpipes/.venv"
-CONFIG_EOF
-    
-    log SUCCESS "Configuração criada: $CONFIG_FILE"
+    cp $INSTALL_DIR/.openpipes/config.sh $CONFIG_FILE
     echo -e "${CYAN}[i] Edite suas API keys em: $CONFIG_FILE${NC}"
 }
 
@@ -832,20 +817,6 @@ verify_installation() {
         log SUCCESS "LinkFinder instalado (VENV isolado)"
     else
         log WARNING "LinkFinder não encontrado"
-    fi
-    
-    # Verificar dnsrecon customizado
-    echo -e "\n${CYAN}=== DNS Recon ===${NC}"
-    if [ -f "$OPENPIPES_BIN/dnsrecon" ]; then
-        log SUCCESS "dnsrecon wrapper criado"
-        if [ -d "$OPENPIPES_BIN/dnsrecon-1.1.3" ]; then
-            log SUCCESS "dnsrecon 1.1.3 instalado"
-        else
-            log WARNING "dnsrecon 1.1.3 não encontrado"
-        fi
-    else
-        log ERROR "dnsrecon wrapper não criado"
-        ((ERRORS++))
     fi
     
     # Verificar SecLists

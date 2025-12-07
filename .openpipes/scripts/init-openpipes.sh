@@ -1,126 +1,239 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source ~/.openpipes/config.sh
+# 
+# OPenPipeS v2.1 - Project Initialization
+# Responsabilidade: Setup completo (explorador + analista + API keys)
+# 
 
-: "${proj_name:?ERRO: proj_name não definido}"
-: "${obsdir:?ERRO: obsdir não definido}"
-: "${OBSIDIAN_PROJ_PATH:?ERRO: OBSIDIAN_PROJ_PATH não definido}"
+source ~/.bashrc
+source $OPENPIPES_CONFIG
 
-RED="\033[0;31m"
-GREEN="\033[0;32m"
-YELLOW="\033[1;33m"
-BLUE="\033[0;34m"
-CYAN="\033[0;36m"
-BOLD="\033[1m"
-NC="\033[0m"
+OPENPIPES_CONFIG="${HOME}/.openpipes/config.sh"
 
-clear
-echo -e "${CYAN}${BOLD}"
-cat << 'BANNER'
-╔═══════════════════════════════════════════════════════╗
-║   OPenPipeS v2.0 - Project Initializer               ║
-║   Estrutura Hierárquica com $proj_name               ║
-╚═══════════════════════════════════════════════════════╝
-BANNER
-echo -e "${NC}"
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-echo -e "${YELLOW}${BOLD}[*] Inicializando projeto...${NC}"
-echo -e "${BLUE}    Projeto:${NC} ${GREEN}${proj_name}${NC}"
-echo -e "${BLUE}    Obsidian Vault:${NC} ${obsdir}"
-echo -e "${BLUE}    Path Completo:${NC} ${OBSIDIAN_PROJ_PATH}"
-echo ""
+log() {
+    local level=$1
+    shift
+    case $level in
+        INFO)    echo -e "${BLUE}[INFO]${NC} $*" ;;
+        SUCCESS) echo -e "${GREEN}[✓]${NC} $*" ;;
+        WARN)    echo -e "${YELLOW}[!]${NC} $*" ;;
+        ERROR)   echo -e "${RED}[✗]${NC} $*" >&2 ;;
+    esac
+}
 
-if [[ -d "$OBSIDIAN_PROJ_PATH" ]]; then
-    echo -e "${YELLOW}[!] Projeto '$proj_name' já existe!${NC}"
-    read -p "Deseja recriar a estrutura? (s/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Ss]$ ]]; then
-        echo -e "${RED}[x] Operação cancelada${NC}"
-        exit 0
+# ─────────────────────────────────────────
+# PRÉ-FLIGHT CHECKS
+# ─────────────────────────────────────────
+preflight_checks() {
+    log INFO "Executando verificações pré-flight..."
+    
+    # 1. Config.sh existe?
+    if [[ ! -f "$OPENPIPES_CONFIG" ]]; then
+        log ERROR "config.sh não encontrado em $OPENPIPES_CONFIG"
+        log ERROR "Execute: make install"
+        exit 1
     fi
-fi
+    
+    # 2. Source config
+    source "$OPENPIPES_CONFIG"
+    
+    # 3. Variáveis essenciais definidas?
+    for var in proj_name proj_dir obsdir OBSIDIAN_PROJ_PATH; do
+        if [[ -z "${!var:-}" ]]; then
+            log ERROR "Variável \$$var não definida em config.sh"
+            exit 1
+        fi
+    done
+    
+    log SUCCESS "Pré-flight OK: config.sh carregado"
+}
 
-echo -e "${GREEN}[+] Criando estrutura de diretórios...${NC}"
+# ─────────────────────────────────────────
+# CRIAR ESTRUTURA EXPLORADOR
+# ─────────────────────────────────────────
+create_explorer_structure() {
+    log INFO "Criando estrutura explorador (Kali)..."
+    
+    # Diretório principal
+    mkdir -p "$proj_path"
+    
+    # Subdirs
+    mkdir -p "$NMAP_DIR" "$RECON_DIR" "$OSINT_DIR" "$LOG_DIR"
+    
+    # domains.txt inicial
+    if [[ ! -f "$proj_path/domains.txt" ]]; then
+        cat > "$proj_path/domains.txt" << 'EOF'
+# Lista de domínios alvo (um por linha)
+# Exemplo:
+# example.com
+# target.org
+EOF
+        log SUCCESS "domains.txt criado"
+    fi
+    
+    # .gitignore
+    cat > "$proj_path/.gitignore" << 'EOF'
+*.log
+*.tmp
+.DS_Store
+Logs/
+Varreduras/*.xml
+EOF
+    
+    log SUCCESS "Estrutura explorador criada em $proj_path"
+}
 
-PENTEST_ROOT="$OBSIDIAN_PROJ_PATH"
-ALVOS_DIR="$PENTEST_ROOT/Alvos"
-OSINT_DIR="$PENTEST_ROOT/OSINT"
+# ─────────────────────────────────────────
+# CRIAR ESTRUTURA OBSIDIAN
+# ─────────────────────────────────────────
+create_obsidian_structure() {
+    log INFO "Criando estrutura Obsidian (Analista)..."
+    
+    local pentest_root="$OBSIDIAN_PROJ_PATH"
+    mkdir -p "$pentest_root/Alvos" "$pentest_root/OSINT"
+    
+    # Copiar templates
+    local templates_dir="${HOME}/.openpipes/.templates"
+    
+    if [[ -f "$templates_dir/Dashboard_Global.md" ]]; then
+        sed "s/{{proj_name}}/$proj_name/g" \
+            "$templates_dir/Dashboard_Global.md" \
+            > "$pentest_root/Dashboard_Global.md"
+    fi
+    
+    if [[ -f "$templates_dir/Tarefas.md" ]]; then
+        cp "$templates_dir/Tarefas.md" "$pentest_root/"
+    fi
+    
+    log SUCCESS "Obsidian vault criado em $pentest_root"
+}
 
-mkdir -p "$PENTEST_ROOT"
-mkdir -p "$ALVOS_DIR"
-mkdir -p "$OSINT_DIR"
-mkdir -p "$proj_path"
-mkdir -p "$NMAP_DIR"
-mkdir -p "$RECON_DIR"
-mkdir -p "$LOG_DIR"
+# ─────────────────────────────────────────
+# VALIDAR API KEYS + TUTORIAL
+# ─────────────────────────────────────────
+validate_api_keys() {
+    log INFO "Verificando API keys..."
+    
+    local missing_keys=()
+    
+    [[ -z "${securitytrailskey:-}" ]] && missing_keys+=("SecurityTrails")
+    [[ -z "${OPENAI_API_KEY:-}" ]] && missing_keys+=("OpenAI")
+    [[ -z "${SERPAPI_KEY:-}" ]] && missing_keys+=("SerpAPI")
+    [[ -z "${GOOGLE_API_KEY:-}" ]] && missing_keys+=("Google")
+    
+    if [[ ${#missing_keys[@]} -eq 0 ]]; then
+        log SUCCESS "Todas API keys configuradas!"
+        return 0
+    fi
+    
+    log WARN "${#missing_keys[@]} API key(s) não configurada(s):"
+    for key in "${missing_keys[@]}"; do
+        echo "   ❌ $key"
+    done
+    
+    echo -e "\n${CYAN}Deseja ver tutorial de configuração?${NC}"
+    echo "[T] Tutorial completo"
+    echo "[P] Pular (continuar sem keys)"
+    echo "[C] Configurar agora (abre config.sh)"
+    read -rp "Escolha: " choice
+    
+    case $choice in
+        T|t) show_api_tutorial "${missing_keys[@]}" ;;
+        C|c) "${EDITOR:-nano}" "$OPENPIPES_CONFIG" ;;
+        *) log WARN "Continuando sem API keys (funcionalidade limitada)" ;;
+    esac
+}
 
-echo -e "${GREEN}    ✓ Diretórios criados${NC}"
-echo ""
+show_api_tutorial() {
+    local keys=("$@")
+    clear
+    echo -e "${CYAN}╔═══════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║       🔑 TUTORIAL API KEYS                ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════╝${NC}\n"
+    
+    for key in "${keys[@]}"; do
+        case $key in
+            SecurityTrails)
+                echo -e "${YELLOW}▸ SecurityTrails${NC} (Subdomain Discovery)"
+                echo "   URL: https://securitytrails.com/app/account/credentials"
+                echo "   Config: securitytrailskey=\"SUA_KEY_AQUI\""
+                ;;
+            OpenAI)
+                echo -e "${YELLOW}▸ OpenAI GPT-4${NC} (Vuln Enrichment)"
+                echo "   URL: https://platform.openai.com/api-keys"
+                echo "   Config: OPENAI_API_KEY=\"sk-...\""
+                ;;
+            SerpAPI)
+                echo -e "${YELLOW}▸ SerpAPI${NC} (OSINT People)"
+                echo "   URL: https://serpapi.com/manage-api-key"
+                echo "   Config: SERPAPI_KEY=\"...\""
+                ;;
+            Google)
+                echo -e "${YELLOW}▸ Google Custom Search${NC} (Document Discovery)"
+                echo "   URL: https://console.cloud.google.com/apis/credentials"
+                echo "   Config: GOOGLE_API_KEY=\"...\" + GOOGLE_CSE_ID=\"...\""
+                ;;
+        esac
+        echo ""
+    done
+    
+    echo -e "${CYAN}Arquivo de configuração:${NC} $OPENPIPES_CONFIG"
+    echo -e "Edite com: ${GREEN}openpipes config${NC} ou ${GREEN}nano ~/.openpipes/config.sh${NC}"
+    read -rp "Pressione ENTER para continuar..."
+}
 
-echo -e "${GREEN}[+] Copiando templates...${NC}"
+# ─────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────
+main() {
+    clear
+    echo -e "${CYAN}"
+    cat << 'EOF'
+   ___  ____                 ____  _                 ____  
+ 
+                                     |_|                    
+                     INICIALIZADOR v2.1
+EOF
+    echo -e "${NC}\n"
+    
+    preflight_checks
+    
+    # Checa se projeto existe
+    if [[ -d "$proj_path" ]]; then
+        log WARN "Projeto '$proj_name' já existe em $proj_path"
+        read -rp "Sobrescrever? [s/N]: " overwrite
+        [[ ! "$overwrite" =~ ^[Ss]$ ]] && { log INFO "Operação cancelada"; exit 0; }
+    fi
+    
+    log INFO "Inicializando projeto: $proj_name"
+    
+    create_explorer_structure
+    create_obsidian_structure
+    validate_api_keys
+    
+    # Summary
+    echo -e "\n${GREEN}╔═══════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║     ✅ PROJETO CRIADO COM SUCESSO!        ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════╝${NC}\n"
+    
+    echo -e "${CYAN}📁 Estrutura Explorador:${NC}"
+    tree -L 2 "$proj_path" 2>/dev/null || ls -lR "$proj_path"
+    
+    echo -e "\n${CYAN}📝 Obsidian Vault:${NC} $OBSIDIAN_PROJ_PATH"
+    
+    echo -e "\n${CYAN}🎯 PRÓXIMOS PASSOS:${NC}"
+    echo "1. Popule domains.txt: nano $proj_path/domains.txt"
+    echo "2. Configure API keys: openpipes config"
+    echo "3. Inicie pipeline: openpipes"
+}
 
-TEMPLATES_DIR="$HOME/.openpipes/.templates"
-
-if [[ ! -f "$TEMPLATES_DIR/Dashboard_Global.md" ]]; then
-    echo -e "${RED}[ERRO] Template Dashboard_Global.md não encontrado!${NC}"
-    exit 1
-fi
-
-if [[ ! -f "$TEMPLATES_DIR/Tarefas.md" ]]; then
-    echo -e "${RED}[ERRO] Template Tarefas.md não encontrado!${NC}"
-    exit 1
-fi
-
-cp "$TEMPLATES_DIR/Dashboard_Global.md" "$PENTEST_ROOT/Dashboard_Global.md"
-sed -i "s/{{proj_name}}/$proj_name/g" "$PENTEST_ROOT/Dashboard_Global.md"
-
-echo -e "${GREEN}    ✓ Dashboard_Global.md${NC}"
-
-cp "$TEMPLATES_DIR/Tarefas.md" "$PENTEST_ROOT/Tarefas.md"
-sed -i "s/{{proj_name}}/$proj_name/g" "$PENTEST_ROOT/Tarefas.md"
-
-echo -e "${GREEN}    ✓ Tarefas.md${NC}"
-
-if [[ -f "$TEMPLATES_DIR/README.md" ]]; then
-    cp "$TEMPLATES_DIR/README.md" "$OBSIDIAN_PROJ_ROOT/README.md"
-    sed -i "s/{{proj_name}}/$proj_name/g" "$OBSIDIAN_PROJ_ROOT/README.md"
-    echo -e "${GREEN}    ✓ README.md${NC}"
-fi
-
-if [[ -f "$TEMPLATES_DIR/.gitignore" ]]; then
-    cp "$TEMPLATES_DIR/.gitignore" "$OBSIDIAN_PROJ_ROOT/.gitignore"
-    echo -e "${GREEN}    ✓ .gitignore${NC}"
-fi
-
-if [[ ! -f "$proj_path/domains.txt" ]]; then
-    cat > "$proj_path/domains.txt" << 'DOM_EOF'
-# Domínios para reconhecimento
-# Adicione um por linha (SLD apenas, sem www)
-
-DOM_EOF
-    echo -e "${GREEN}    ✓ domains.txt${NC}"
-fi
-
-echo ""
-echo -e "${GREEN}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}${BOLD}║  ✓ Projeto inicializado com sucesso!             ║${NC}"
-echo -e "${GREEN}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo -e "${CYAN}📁 Estrutura criada em:${NC}"
-echo -e "   ${BLUE}Obsidian:${NC} $OBSIDIAN_PROJ_PATH"
-echo -e "   ${BLUE}Trabalho:${NC} $proj_path"
-echo ""
-echo -e "${CYAN}📊 Arquivos copiados:${NC}"
-echo -e "   ${GREEN}✓${NC} Dashboard_Global.md (com DataviewJS)"
-echo -e "   ${GREEN}✓${NC} Tarefas.md (original)"
-echo -e "   ${GREEN}✓${NC} README.md"
-echo -e "   ${GREEN}✓${NC} .gitignore"
-echo -e "   ${GREEN}✓{{NC}} domains.txt"
-echo ""
-echo -e "${YELLOW}${BOLD}🚀 Próximos passos:{{NC}}"
-echo -e "   ${CYAN}1.{{NC}} Adicione domínios em: ${BLUE}$proj_path/domains.txt{{NC}}"
-echo -e "   ${CYAN}2.{{NC}} Execute reconhecimento: ${GREEN}recon.sh <domain>{{NC}}"
-echo -e "   ${CYAN}3.{{NC}} Execute port scan: ${GREEN}nwrapper.sh <domain>{{NC}}"
-echo -e "   ${CYAN}4.{{NC}} Crie estrutura Obsidian: ${GREEN}cria-alvos{{NC}}"
-echo ""
+main "$@"
