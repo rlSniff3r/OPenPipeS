@@ -387,8 +387,9 @@ run_module() {
                 log ERROR "Execute [R] Reconhecimento primeiro"
                 return 1
             fi
+            ;;
 			
-		screenshot-runner)
+       screenshot-runner)
             # Valida recon output
             if [[ ! -d "$RECON_DIR" ]] || [[ -z "$(ls -A "$RECON_DIR" 2>/dev/null)" ]]; then
                 log ERROR "Nenhum output de reconhecimento encontrado"
@@ -692,9 +693,10 @@ handle_menu_choice() {
             run_module "osint-runner-people"
             press_enter
             ;;
-		[Ii])
-			log SETOP "Screenshot Module..."
-			run_module "screenshot-runner"
+        [Ii])
+            log SETOP "Screenshot Module..."
+            run_module "screenshot-runner"
+            ;;
         [Pp])
             run_full_pipeline
             press_enter
