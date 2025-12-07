@@ -67,7 +67,7 @@ create_explorer_structure() {
     mkdir -p "$proj_path"
     
     # Subdirs
-    mkdir -p "$NMAP_DIR" "$RECON_DIR" "$OSINT_DIR" "$LOG_DIR"
+    mkdir -p "$NMAP_DIR" "$RECON_DIR" "$OSINT_DIR" "$LOG_DIR" "SCREENSHOT_DIR"
     
     # domains.txt inicial
     if [[ ! -f "$proj_path/domains.txt" ]]; then

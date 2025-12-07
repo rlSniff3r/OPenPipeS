@@ -108,7 +108,7 @@ install_apt_deps() {
     local DEPS=(
         nmap curl wget git jq python3 python3-pip python3-venv
         golang-go build-essential whois dnsutils libpcap-dev
-        libssl-dev pkg-config unzip
+        libssl-dev pkg-config unzip gowitness
     )
     
     for dep in "${DEPS[@]}"; do
@@ -213,6 +213,7 @@ install_go_tools() {
         "github.com/projectdiscovery/katana/cmd/katana@latest"
         "github.com/tomnomnom/gf@latest"
         "github.com/openrdap/rdap/cmd/rdap@latest"
+		"github.com/sensepost/gowitness@latest"
     )
     
     local FAILED=0
@@ -535,6 +536,7 @@ create_symlinks() {
         "cria_Vulnerabilidades.sh:cria-vulns"
         "vuln-enricher.sh:vuln-enricher"
         "osint-runner-people.sh:osint-people"
+		"screenshot-runner.sh:screenshot-runner"
     )
     
     for script_pair in "${SHELL_SCRIPTS[@]}"; do
@@ -787,7 +789,7 @@ verify_installation() {
     
     # Verificar ferramentas Go
     echo -e "\n${CYAN}=== Ferramentas Go ===${NC}"
-    for tool in httpx nuclei katana gf rdap; do
+    for tool in httpx nuclei katana gf rdap gowitness; do
         if command -v "$tool" &>/dev/null; then
             log SUCCESS "$tool"
         else
@@ -891,6 +893,7 @@ print_final_message() {
     echo -e "  ${BLUE}httpx-runner${NC}       - HTTP probing"
     echo -e "  ${BLUE}katana-buster${NC}      - Web discovery"
     echo -e "  ${BLUE}nuclei-runner${NC}      - Vulnerability scanning"
+    echo -e "  ${BLUE}screenshot-runner${NC}      - Screenshots module"	
     echo -e "  ${BLUE}osint-people${NC}       - OSINT People module"
     echo -e "  ${BLUE}apt-openpipes${NC}      - Wrapper APT seguro"
     echo -e ""

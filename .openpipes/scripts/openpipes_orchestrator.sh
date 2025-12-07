@@ -1,150 +1,161 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# ============================================================================
-# OPenPipeS - Obsidian Pentest Pipeline Stack
-# Orquestrador Principal v2.1
-# Author: Rafael Luís da Silva & Claude Beast A.I.
-# ============================================================================
+################################################################################
+#
+#  OPenPipeS v2.1 - Orchestrador Principal
+#  Framework de Reconhecimento Automatizado com Integração Obsidian MD
+#
+#  Autor: Rafael Luís da Silva
+#  Descrição: Menu interativo para orquestração de módulos de pentest
+#  Responsabilidade: APENAS orquestração - setup é responsabilidade do init
+#
+################################################################################
 
-set -euo pipefail
+set -uo pipefail
 
-# Cores
+# ═══════════════════════════════════════════════════════════════════════════
+# CONFIGURAÇÃO INICIAL
+# ═══════════════════════════════════════════════════════════════════════════
+
+source $OPENPIPES_CONFIG
+
+# Detecta diretório do script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Paths críticos
+OPENPIPES_HOME="${HOME}/.openpipes"
+OPENPIPES_CONFIG="${OPENPIPES_HOME}/config.sh"
+OPENPIPES_BIN="${OPENPIPES_HOME}/bin"
+OPENPIPES_TEMPLATES="${OPENPIPES_HOME}/.templates"
+OPENPIPES_CACHE="${HOME}/.openpipes_cache"
+
+# Cores ANSI
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
+WHITE='\033[1;37m'
 NC='\033[0m'
 
-# Diretórios
-OPENPIPES_HOME="${OPENPIPES_DIR:-$HOME/.openpipes}"
-OPENPIPES_BIN="$OPENPIPES_HOME/bin"
-OPENPIPES_SCRIPTS="$OPENPIPES_HOME/scripts"
-OPENPIPES_TEMPLATES="$OPENPIPES_HOME/.templates"
-OPENPIPES_CACHE="${OPENPIPES_CACHE:-$HOME/.openpipes_cache}"
-OPENPIPES_CONFIG="$OPENPIPES_HOME/config.sh"
-
-# Variáveis globais do projeto (carregadas do config.sh)
+# Variáveis globais (carregadas do config.sh)
 proj_dir=""
 proj_name=""
 proj_path=""
 obsdir=""
+NMAP_DIR=""
+RECON_DIR=""
+OSINT_DIR=""
+LOG_DIR=""
+SCREENSHOT_DIR=""
 
-# ============================================================================
-# FUNÇÕES DE UTILIDADE
-# ============================================================================
-
-show_banner() {
-    clear
-    echo -e "${BLUE}"
-    cat << "EOF"
-   ___  ____                 ____  _                ____  
-  / _ \|  _ \ ___ _ __  _ __|  _ \(_)_ __   ___  / ___| 
- | | | | |_) / _ | '_ \| '__| |_) | | '_ \ / _ \ \___ \ 
- | |_| |  __/  __| | | | |  |  __/| | |_) |  __/  ___) |
-  \___/|_|   \___|_| |_|_|  |_|   |_| .__/ \___| |____/ 
-                                     |_|                  
-            Obsidian Pentest Pipeline Stack v2.1
-EOF
-    echo -e "${NC}"
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-}
+# ═══════════════════════════════════════════════════════════════════════════
+# FUNÇÕES DE LOGGING
+# ═══════════════════════════════════════════════════════════════════════════
 
 log() {
-    local level=$1
+    local level="$1"
     shift
-    local message="$@"
+    local message="$*"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
-    case $level in
+    case "$level" in
         INFO)
-            echo -e "${BLUE}[*]${NC} $message"
+            echo -e "${BLUE}[INFO]${NC} $message"
             ;;
         SUCCESS)
             echo -e "${GREEN}[✓]${NC} $message"
             ;;
-        WARNING)
+        WARN)
             echo -e "${YELLOW}[!]${NC} $message"
             ;;
         ERROR)
-            echo -e "${RED}[✗]${NC} $message"
+            echo -e "${RED}[✗]${NC} $message" >&2
             ;;
         STEP)
-            echo -e "\n${MAGENTA}▶${NC} ${CYAN}$message${NC}\n"
+            echo -e "${CYAN}[→]${NC} $message"
             ;;
-        QUESTION)
-            echo -e "${YELLOW}[?]${NC} $message"
+        DEBUG)
+            if [[ "${DEBUG:-0}" == "1" ]]; then
+                echo -e "${MAGENTA}[DEBUG]${NC} $message"
+            fi
             ;;
     esac
 }
 
-press_enter() {
-    echo ""
-    read -p "Pressione ENTER para continuar..."
-}
-
-# ============================================================================
-# VALIDAÇÃO E CONFIGURAÇÃO
-# ============================================================================
-
-check_root() {
-    if [[ $EUID -eq 0 ]]; then
-        log ERROR "Este script não deve ser executado como root!"
-        log WARNING "Execute como usuário normal. Sudo será solicitado quando necessário."
-        exit 1
-    fi
-}
+# ═══════════════════════════════════════════════════════════════════════════
+# PRÉ-FLIGHT CHECKS
+# ═══════════════════════════════════════════════════════════════════════════
 
 check_config() {
+    log INFO "Verificando configuração..."
+    
     if [[ ! -f "$OPENPIPES_CONFIG" ]]; then
-        log ERROR "Arquivo de configuração não encontrado!"
-        log INFO "Esperado em: $OPENPIPES_CONFIG"
-        log INFO "Execute o instalador primeiro: installer.sh"
-        exit 1
+        log ERROR "config.sh não encontrado em $OPENPIPES_CONFIG"
+        log ERROR "Execute: make install"
+        return 1
     fi
     
-    source "$OPENPIPES_CONFIG"
+    # Source config.sh
+    source "$OPENPIPES_CONFIG" || {
+        log ERROR "Erro ao carregar config.sh"
+        return 1
+    }
     
-    # Validar variáveis obrigatórias
-    local required_vars=(
-        "proj_dir"
-        "proj_name"
-        "obsdir"
-    )
-    
-    local missing_vars=()
-    
-    for var in "${required_vars[@]}"; do
-        if [[ -z "${!var}" ]]; then
-            missing_vars+=("$var")
+    # Valida variáveis essenciais
+    for var in proj_name proj_dir obsdir; do
+        if [[ -z "${!var:-}" ]]; then
+            log ERROR "Variável \$$var não definida em config.sh"
+            return 1
         fi
     done
     
-    if [[ ${#missing_vars[@]} -gt 0 ]]; then
-        log ERROR "Variáveis não configuradas em config.sh:"
-        for var in "${missing_vars[@]}"; do
-            echo "  - $var"
-        done
-        log INFO "Configure usando a opção [C] do menu"
-    fi
+    # Calcula paths derivados
+    proj_path="${proj_dir}/${proj_name}"
+    NMAP_DIR="${proj_path}/Varreduras"
+    RECON_DIR="${proj_path}/Recon"
+    OSINT_DIR="${proj_path}/OSINT"
+    LOG_DIR="${proj_path}/Logs"
+	SCREENSHOT_DIR="${proj_path}/Screenshots"
     
-    # Construir caminho completo do projeto
-    proj_path="$proj_dir/$proj_name"
+    log SUCCESS "config.sh carregado com sucesso"
+    return 0
 }
 
-# ============================================================================
-# NOVA FUNÇÃO: VALIDAÇÃO COMPLETA DO PROJETO
-# ============================================================================
+check_openpipes_structure() {
+    log INFO "Verificando estrutura OPenPipeS..."
+    
+    # Valida diretórios críticos
+    if [[ ! -d "$OPENPIPES_HOME" ]]; then
+        log ERROR "Diretório OPenPipeS não encontrado: $OPENPIPES_HOME"
+        return 1
+    fi
+    
+    if [[ ! -d "$OPENPIPES_BIN" ]]; then
+        log ERROR "Diretório bin não encontrado: $OPENPIPES_BIN"
+        return 1
+    fi
+    
+    if [[ ! -d "$OPENPIPES_TEMPLATES" ]]; then
+        log WARN "Diretório templates não encontrado: $OPENPIPES_TEMPLATES"
+    fi
+    
+    log SUCCESS "Estrutura OPenPipeS OK"
+    return 0
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VALIDAÇÃO DE PROJETO
+# ═══════════════════════════════════════════════════════════════════════════
 
 validate_project() {
+    log INFO "Validando estrutura do projeto..."
+    
     local errors=0
-    local warnings=0
+    local pentest_root="${obsdir}/${proj_name}/Pentest"
     
-    log STEP "Validando estrutura do projeto..."
-    
-    # 1. Verificar se diretório do projeto existe
+    # 1. Valida diretório principal
     if [[ ! -d "$proj_path" ]]; then
         log ERROR "Diretório do projeto não existe: $proj_path"
         ((errors++))
@@ -152,802 +163,947 @@ validate_project() {
         log SUCCESS "Diretório do projeto existe"
     fi
     
-    # 2. Verificar se domains.txt existe
-    if [[ ! -f "$proj_path/Recon/domains.txt" ]]; then
-        log ERROR "Arquivo domains.txt não encontrado: $proj_path/Recon/domains.txt"
+    # 2. Valida subdirs explorador
+    for dir in "$NMAP_DIR" "$RECON_DIR" "$OSINT_DIR" "$LOG_DIR"; do
+        if [[ ! -d "$dir" ]]; then
+            log WARN "Subdiretório ausente: $dir"
+        fi
+    done
+    
+    # 3. Valida domains.txt
+    if [[ ! -f "$proj_path/domains.txt" ]]; then
+        log ERROR "Arquivo domains.txt não encontrado em $proj_path"
         ((errors++))
     else
-        log SUCCESS "Arquivo domains.txt existe"
-        
-        # 3. Verificar se domains.txt tem conteúdo
-        if [[ ! -s "$proj_path/Recon/domains.txt" ]]; then
-            log WARNING "domains.txt está vazio!"
-            ((warnings++))
+        local valid_lines=$(grep -v '^\s*#' "$proj_path/domains.txt" 2>/dev/null | grep -v '^\s*$' | wc -l)
+        if [[ $valid_lines -eq 0 ]]; then
+            log WARN "domains.txt está vazio ou contém apenas comentários"
+            log WARN "Adicione alvos antes de executar reconhecimento"
         else
-            local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
-            if [[ $domain_count -eq 0 ]]; then
-                log WARNING "domains.txt não possui domínios válidos (apenas comentários/linhas vazias)"
-                ((warnings++))
-            else
-                log SUCCESS "domains.txt contém $domain_count domínio(s)"
-            fi
+            log SUCCESS "domains.txt contém $valid_lines alvo(s)"
         fi
     fi
     
-    # 4. Verificar subdiretórios essenciais
-    local required_dirs=(
-        "Recon"
-        "Varreduras"
-    )
-    
-    for dir in "${required_dirs[@]}"; do
-        if [[ ! -d "$proj_path/$dir" ]]; then
-            log WARNING "Diretório $dir não existe (será criado quando necessário)"
-            ((warnings++))
-        else
-            log SUCCESS "Diretório $dir existe"
-        fi
-    done
-    
-    # 5. Verificar Obsidian vault
+    # 4. Valida Obsidian vault
     if [[ ! -d "$obsdir" ]]; then
-        log WARNING "Obsidian vault não existe: $obsdir"
-        ((warnings++))
+        log ERROR "Obsidian vault não encontrado: $obsdir"
+        ((errors++))
     else
-        log SUCCESS "Obsidian vault configurado"
+        log SUCCESS "Obsidian vault encontrado"
     fi
     
-    echo ""
+    # 5. Valida estrutura Obsidian do projeto
+    if [[ ! -d "$pentest_root" ]]; then
+        log ERROR "Estrutura Obsidian do projeto não existe: $pentest_root"
+        ((errors++))
+    else
+        log SUCCESS "Estrutura Obsidian do projeto existe"
+        
+        # Valida subdirs Obsidian
+        for dir in "$pentest_root/Alvos" "$pentest_root/OSINT"; do
+            if [[ ! -d "$dir" ]]; then
+                log WARN "Subdiretório Obsidian ausente: $dir"
+            fi
+        done
+    fi
     
-    # Resultado da validação
+    # 6. Resultado final
     if [[ $errors -gt 0 ]]; then
-        log ERROR "Validação falhou: $errors erro(s), $warnings aviso(s)"
-        log QUESTION "Deseja inicializar a estrutura do projeto agora?"
-        read -p "$(echo -e ${YELLOW}[S/n]:${NC} )" -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Ss]$ ]] || [[ -z $REPLY ]]; then
-            setup_project_structure
-            return 0
-        else
-            log WARNING "Execute a opção [I] do menu para inicializar o projeto"
-            return 1
-        fi
-    elif [[ $warnings -gt 0 ]]; then
-        log WARNING "Validação concluída com $warnings aviso(s)"
-        return 0
-    else
-        log SUCCESS "Validação concluída! Projeto pronto para uso."
-        return 0
+        log ERROR "Validação falhou com $errors erro(s) crítico(s)"
+        log ERROR "Execute: init-openpipes"
+        return 1
     fi
+    
+    log SUCCESS "Validação concluída (projeto OK)"
+    return 0
 }
 
-# ============================================================================
-# NOVA FUNÇÃO: CRIAR ESTRUTURA DO PROJETO
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# VALIDAÇÃO DE FERRAMENTAS
+# ═══════════════════════════════════════════════════════════════════════════
 
-setup_project_structure() {
-    log STEP "Inicializando estrutura do projeto..."
+check_tool_dependency() {
+    local tool="$1"
     
-    # 1. Criar diretório principal do projeto
-    if [[ ! -d "$proj_path" ]]; then
-        log INFO "Criando diretório do projeto: $proj_path"
-        mkdir -p "$proj_path"
-        log SUCCESS "Diretório criado"
-    else
-        log SUCCESS "Diretório do projeto já existe"
+    if ! command -v "$tool" &>/dev/null; then
+        return 1
     fi
-    
-    # 2. Criar subdiretórios
-    local project_dirs=(
-        "Recon"
-        "Varreduras"
-        "OSINT"
-        "Logs"
-    )
-    
-    log INFO "Criando estrutura de diretórios..."
-    for dir in "${project_dirs[@]}"; do
-        if [[ ! -d "$proj_path/$dir" ]]; then
-            mkdir -p "$proj_path/$dir"
-            log SUCCESS "  ✓ $dir/"
-        else
-            echo -e "${CYAN}  - $dir/ ${YELLOW}(já existe)${NC}"
-        fi
-    done
-    
-    # 3. Criar domains.txt (se não existir)
-    if [[ ! -f "$proj_path/Recon/domains.txt" ]]; then
-        log INFO "Criando domains.txt..."
-        
-        cat > "$proj_path/Recon/domains.txt" << 'DOMAINS_EOF'
-# ============================================================================
-# domains.txt - Lista de Domínios para Reconhecimento
-# ============================================================================
-# 
-# Instruções:
-# - Adicione um domínio por linha (SLDs apenas, sem subdomínios)
-# - Linhas começando com # são ignoradas
-# - Linhas vazias são ignoradas
-#
-# Exemplos:
-# example.com
-# target.com.br
-# test-domain.org
-#
-# ============================================================================
+    return 0
+}
 
-DOMAINS_EOF
-        
-        log SUCCESS "domains.txt criado"
-        log WARNING "Arquivo está vazio! Adicione domínios antes de executar o pipeline."
-        
-        # Perguntar se quer adicionar domínios agora
-        echo ""
-        log QUESTION "Deseja adicionar domínios agora?"
-        read -p "$(echo -e ${YELLOW}[s/N]:${NC} )" -n 1 -r
-        echo
-        
-        if [[ $REPLY =~ ^[Ss]$ ]]; then
-            ${EDITOR:-nano} "$proj_path/Recon/domains.txt"
-            
-            # Validar se foram adicionados domínios
-            local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
-            if [[ $domain_count -gt 0 ]]; then
-                log SUCCESS "$domain_count domínio(s) adicionado(s)"
-            else
-                log WARNING "Nenhum domínio adicionado. Lembre-se de adicionar antes de executar módulos."
+validate_module_dependencies() {
+    local module="$1"
+    
+    case "$module" in
+        recon)
+            for tool in dnsrecon amass; do
+                if ! check_tool_dependency "$tool"; then
+                    log ERROR "Dependência ausente: $tool"
+                    return 1
+                fi
+            done
+            ;;
+        nwrapper)
+            if ! check_tool_dependency nmap; then
+                log ERROR "Dependência ausente: nmap"
+                return 1
             fi
-        fi
-    else
-        log SUCCESS "domains.txt já existe"
-        
-        # Mostrar quantos domínios existem
-        local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
-        if [[ $domain_count -gt 0 ]]; then
-            log INFO "Domínios configurados: $domain_count"
-        else
-            log WARNING "domains.txt existe mas está vazio!"
-        fi
-    fi
+            ;;
+        httpx-runner)
+            if ! check_tool_dependency httpx; then
+                log ERROR "Dependência ausente: httpx"
+                log ERROR "Instale: go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest"
+                return 1
+            fi
+            ;;
+        nuclei-runner)
+            if ! check_tool_dependency nuclei; then
+                log ERROR "Dependência ausente: nuclei"
+                return 1
+            fi
+            ;;
+        katana-buster)
+            for tool in katana feroxbuster; do
+                if ! check_tool_dependency "$tool"; then
+                    log ERROR "Dependência ausente: $tool"
+                    return 1
+                fi
+            done
+            ;;
+        jsfinder-runner)
+            if ! check_tool_dependency linkfinder.py; then
+                log ERROR "Dependência ausente: linkfinder.py"
+                return 1
+            fi
+            ;;
+        gf-summary)
+            if ! check_tool_dependency gf; then
+                log ERROR "Dependência ausente: gf (GrepFuzzable)"
+                return 1
+            fi
+            ;;
+		screenshot-runner)
+            if ! check_tool_dependency gf; then
+                log ERROR "Dependência ausente: gf (GrepFuzzable)"
+                return 1
+            fi
+            ;;
+        osint-runner-people)
+            if ! check_tool_dependency python3; then
+                log ERROR "Dependência ausente: python3"
+                return 1
+            fi
+            ;;
+    esac
     
-    # 4. Criar .gitignore (se não existir)
-    if [[ ! -f "$proj_path/.gitignore" ]]; then
-        log INFO "Criando .gitignore..."
-        
-        cat > "$proj_path/.gitignore" << 'GITIGNORE_EOF'
-# OPenPipeS - GitIgnore
-*.log
-*.tmp
-.DS_Store
-Thumbs.db
-GITIGNORE_EOF
-        
-        log SUCCESS ".gitignore criado"
-    fi
-    
-    # 5. Criar Obsidian vault (se não existir)
-    if [[ ! -d "$obsdir" ]]; then
-        log INFO "Criando Obsidian vault: $obsdir"
-        mkdir -p "$obsdir/$proj_name/Pentest"
-        mkdir -p "$obsdir/$proj_name/Pentest/Alvos"
-        log SUCCESS "Obsidian vault criado"
-    else
-        log SUCCESS "Obsidian vault já existe"
-    fi
-    
-    # 6. Criar README do projeto
-    if [[ ! -f "$proj_path/README.md" ]]; then
-        log INFO "Criando README.md..."
-        
-        cat > "$proj_path/README.md" << EOF
-# Projeto: $proj_name
-
-**Criado em:** $(date '+%Y-%m-%d %H:%M:%S')  
-**Framework:** OPenPipeS v2.1
-
----
-
-## 📁 Estrutura de Diretórios
-
-\`\`\`
-$proj_name/
-├── Varreduras/          # Scans Nmap
-├── OSINT/               # OSINT People
-├── Logs/                # Execution logs
-├── README.md            # Informações do Projeto
-└── Recon/               # Reconhecimento DNS
-     └── domains.txt          # Lista de domínios alvo
-\`\`\`
-
----
-
-## 🚀 Comandos Rápidos
-
-\`\`\`bash
-# Executar orchestrador
-openpipes
-
-# Módulos individuais
-recon                  # Reconhecimento
-nwrapper               # Nmap scan
-httpx-runner           # HTTP probing
-nuclei-runner          # Vulnerability scan
-\`\`\`
-
----
-
-## 📊 Obsidian Vault
-
-**Localização:** \`$obsdir/$proj_name\`
-
-Acesse os dashboards gerados em:
-- Dashboard Global: \`Pentest/Dashboard_Global.md\`
-- Alvos individuais: \`Pentest/Alvos/<target>/\`
-
----
-
-Gerado automaticamente por OPenPipeS
-EOF
-        
-        log SUCCESS "README.md criado"
-    fi
-    
-    echo ""
-    log SUCCESS "Estrutura do projeto inicializada com sucesso!"
-    log INFO "Diretório: $proj_path"
-    
-    # Mostrar resumo
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}✓${NC} Diretórios criados"
-    echo -e "${GREEN}✓${NC} domains.txt configurado"
-    echo -e "${GREEN}✓${NC} README.md gerado"
-    
-    local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
-    if [[ $domain_count -gt 0 ]]; then
-        echo -e "${GREEN}✓${NC} $domain_count domínio(s) configurado(s)"
-    else
-        echo -e "${YELLOW}!${NC} domains.txt vazio (adicione domínios antes de executar)"
-    fi
-    
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    return 0
 }
 
-# ============================================================================
-# MENU PRINCIPAL
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# EXECUÇÃO DE MÓDULOS
+# ═══════════════════════════════════════════════════════════════════════════
 
-show_menu() {
-    show_banner
-    
-    # Mostrar configuração atual
-    echo -e "${CYAN}Projeto atual:${NC} ${GREEN}$proj_name${NC}"
-    echo -e "${CYAN}Diretório:${NC} $proj_path"
-    
-    # Verificar se domains.txt existe e mostrar status
-    if [[ -f "$proj_path/Recon/domains.txt" ]]; then
-        local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" | grep -v '^$' | wc -l)
-        if [[ $domain_count -gt 0 ]]; then
-            echo -e "${CYAN}Domínios:${NC} ${GREEN}$domain_count configurado(s)${NC}"
-        else
-            echo -e "${CYAN}Domínios:${NC} ${YELLOW}0 (domains.txt vazio!)${NC}"
-        fi
-    else
-        echo -e "${CYAN}Domínios:${NC} ${RED}domains.txt não encontrado!${NC}"
-    fi
-    
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    
-    echo -e "${GREEN}[I]${NC} Inicializar Projeto     ${CYAN}(Criar estrutura e domains.txt)${NC}"
-    echo -e "${GREEN}[R]${NC} Reconhecimento          ${CYAN}(dnsrecon, amass, SecurityTrails)${NC}"
-    echo -e "${GREEN}[S]${NC} Scanning                ${CYAN}(nmap wrapper)${NC}"
-    echo -e "${GREEN}[O]${NC} Setup Obsidian          ${CYAN}(cria estrutura de alvos)${NC}"
-    echo -e "${GREEN}[H]${NC} HTTPx Runner            ${CYAN}(HTTP probing)${NC}"
-    echo -e "${GREEN}[K]${NC} Katana + Feroxbuster    ${CYAN}(web discovery)${NC}"
-    echo -e "${GREEN}[N]${NC} Nuclei Scan             ${CYAN}(vulnerability scanning)${NC}"
-    echo -e "${GREEN}[J]${NC} JSFinder                ${CYAN}(JavaScript analysis)${NC}"
-    echo -e "${GREEN}[G]${NC} GF Summary              ${CYAN}(pattern matching)${NC}"
-    echo -e "${GREEN}[W]${NC} WHOIS Enricher          ${CYAN}(WHOIS data)${NC}"
-    echo -e "${GREEN}[Y]${NC} OSINT People            ${CYAN}(people reconnaissance)${NC}"
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo -e "${MAGENTA}[P]${NC} Pipeline Completo       ${CYAN}(executa todos os módulos)${NC}"
-    echo -e "${MAGENTA}[V]${NC} Vulnerabilidades        ${CYAN}(gerenciar vulnerabilidades)${NC}"
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo -e "${YELLOW}[C]${NC} Configuração            ${CYAN}(editar config.sh)${NC}"
-    echo -e "${YELLOW}[T]${NC} Status                  ${CYAN}(verificar ferramentas)${NC}"
-    echo -e "${YELLOW}[?]${NC} Ajuda"
-    echo -e "${YELLOW}[Q]${NC} Sair"
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-}
-
-
-# ============================================================================
-# PIPELINE COMPLETO
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# EXECUÇÃO DE MÓDULOS COM PRÉ-FLIGHT CHECKS
+# ═══════════════════════════════════════════════════════════════════════════
 
 run_module() {
-    local module=$1
-    local script=""
-    local description=""
-
-    case $module in
+    local module_name="$1"
+    shift  # Remove module_name dos argumentos
+    
+    local module_script="${OPENPIPES_BIN}/${module_name}"
+    local current_dir="$(pwd)"
+    
+    # 1. Valida script existe e é executável
+    if [[ ! -x "$module_script" ]]; then
+        log ERROR "Módulo não encontrado ou não executável: $module_script"
+        return 1
+    fi
+    
+    # 2. Valida dependências
+    if ! validate_module_dependencies "$module_name"; then
+        log ERROR "Dependências não atendidas para: $module_name"
+        return 1
+    fi
+    
+    # 3. PRÉ-FLIGHT CHECKS específicos por módulo
+    case "$module_name" in
         recon)
-            script="$OPENPIPES_BIN/recon"
-            description="Reconhecimento DNS"
-            
-            # PRÉ-VALIDAÇÕES ESPECÍFICAS DO RECON
-            if [[ ! -f "$proj_path/Recon/domains.txt" ]]; then
-                log ERROR "domains.txt não encontrado em $proj_path/Recon/"
-                log INFO "Execute [I] Inicializar Projeto para criar a estrutura"
+            # Verifica se DOMAIN_FILE está definido e existe
+            if [[ -z "${DOMAIN_FILE:-}" ]]; then
+                log ERROR "Variável DOMAIN_FILE não está definida em config.sh"
                 return 1
             fi
             
-            local domain_count=$(grep -v '^#' "$proj_path/Recon/domains.txt" 2>/dev/null | grep -v '^$' | wc -l)
-            if [[ $domain_count -eq 0 ]]; then
-                log ERROR "domains.txt está vazio ou contém apenas comentários"
-                log INFO "Adicione domínios em: $proj_path/Recon/domains.txt"
-                return 2
+            if [[ ! -f "$DOMAIN_FILE" ]]; then
+                log ERROR "Arquivo DOMAIN_FILE não encontrado: $DOMAIN_FILE"
+                return 1
             fi
             
-            log INFO "Encontrados $domain_count domínio(s) para processar"
+            # Valida se tem conteúdo (não vazio, não só comentários)
+            if ! grep -qvE '^\s*(#|$)' "$DOMAIN_FILE" 2>/dev/null; then
+                log ERROR "DOMAIN_FILE está vazio ou contém apenas comentários: $DOMAIN_FILE"
+                return 1
+            fi
+            
+            local domain_count=$(grep -v '^\s*#' "$DOMAIN_FILE" 2>/dev/null | grep -v '^\s*$' | wc -l)
+            log SUCCESS "DOMAIN_FILE validado: $domain_count alvo(s)"
+            
+            # Muda para proj_path (onde recon.sh espera encontrar domains.txt)
+            log STEP "Mudando para diretório do projeto: $proj_path"
+            cd "$proj_path" || {
+                log ERROR "Falha ao mudar para: $proj_path"
+                return 1
+            }
             ;;
+        
+        nwrapper)
+            # Valida que há outputs de recon
+            if [[ ! -d "$RECON_DIR" ]] || [[ -z "$(ls -A "$RECON_DIR" 2>/dev/null)" ]]; then
+                log WARN "Nenhum output de reconhecimento encontrado"
+                log WARN "Execute [R] Reconhecimento primeiro"
+            fi
+            (
+            cd "$NMAP_DIR" 
+            nwrapper -f targets.txt 
+            ) || return 1
+            ;;
+        
+        httpx-runner|katana-buster|nuclei-runner|jsfinder-runner|gf-summary)
+            # Valida que há outputs de nmap
+            if [[ ! -d "$NMAP_DIR" ]] || [[ -z "$(ls -A "$NMAP_DIR" 2>/dev/null)" ]]; then
+                log ERROR "Nenhum output de nmap encontrado"
+                log ERROR "Execute [S] Scanning primeiro"
+                return 1
+            fi
             
-
-         nwrapper)
-             script="$OPENPIPES_BIN/nwrapper"
-             description="Scanning (Nmap)"
+            cd "$proj_path" || return 1
+            ;;
         
-            # PRÉ-VALIDAÇÃO: targets.txt existe?
-             if [[ ! -f "$proj_path/Varreduras/targets.txt" ]]; then
-                 log ERROR "targets.txt não encontrado em $proj_path/Varreduras/"
-                 log INFO "Execute [R] Recon primeiro para gerar os targets"
-                 return 1
-             fi
-        
-             local target_count=$(grep -v '^#' "$proj_path/Varreduras/targets.txt" 2>/dev/null | grep -v '^$' | wc -l)
-             if [[ $target_count -eq 0 ]]; then
-                 log ERROR "targets.txt está vazio"
-                 return 2
-             fi
-        
-             log INFO "Encontrados $target_count alvo(s) para varredura"
-             ;;
-
-#        nwrapper)
-#            script="$OPENPIPES_BIN/nwrapper"
-#            description="Scanning (Nmap)"
-#            ;;
+        whois-enricher)
+            # Valida recon output
+            if [[ ! -d "$RECON_DIR" ]] || [[ -z "$(ls -A "$RECON_DIR" 2>/dev/null)" ]]; then
+                log ERROR "Nenhum output de reconhecimento encontrado"
+                log ERROR "Execute [R] Reconhecimento primeiro"
+                return 1
+            fi
+			
+		screenshot-runner)
+            # Valida recon output
+            if [[ ! -d "$RECON_DIR" ]] || [[ -z "$(ls -A "$RECON_DIR" 2>/dev/null)" ]]; then
+                log ERROR "Nenhum output de reconhecimento encontrado"
+                log ERROR "Execute [R] Reconhecimento primeiro"
+                return 1
+            fi
             
+            cd "$proj_path" || return 1
+            ;;
+        
+        osint-runner-people)
+            cd "$proj_path" || return 1
+            ;;
+        
         cria-alvos)
-            script="$OPENPIPES_BIN/cria-alvos"
-            description="Setup Obsidian"
-            ;;
+            # Valida que há outputs de nmap
+            if [[ ! -d "$NMAP_DIR" ]] || [[ -z "$(ls -A "$NMAP_DIR" 2>/dev/null)" ]]; then
+                log ERROR "Nenhum output de nmap encontrado"
+                log ERROR "Execute [S] Scanning primeiro"
+                return 1
+            fi
             
-        httpx)
-            script="$OPENPIPES_BIN/httpx-runner"
-            description="HTTPx Runner"
+            cd "$proj_path" || return 1
             ;;
-            
-        katana)
-            script="$OPENPIPES_BIN/katana-buster"
-            description="Katana + Feroxbuster"
-            ;;
-            
-        nuclei)
-            script="$OPENPIPES_BIN/nuclei-runner"
-            description="Nuclei Scan"
-            ;;
-            
-        jsfinder)
-            script="$OPENPIPES_BIN/jsfinder-runner"
-            description="JSFinder"
-            ;;
-            
-        gf)
-            script="$OPENPIPES_BIN/gf-summary"
-            description="GF Summary"
-            ;;
-            
-        whois)
-            script="$OPENPIPES_BIN/whois-enricher"
-            description="WHOIS Enricher"
-            ;;
-            
-        osint)
-            script="$OPENPIPES_BIN/osint-people"
-            description="OSINT People"
-            ;;
-            
-        *)
-            log ERROR "Módulo desconhecido: $module"
-            return 1
+        
+        cria-vulnerabilidades)
+            cd "$proj_path" || return 1
             ;;
     esac
+    
+    # 4. Executa módulo (EXATAMENTE COMO ANTES - SEM ALTERAÇÕES)
+    log STEP "Executando módulo: $module_name"
+    
+    "$module_script" "$@"
+    local exit_code=$?
+    
+    # 5. Volta ao diretório original
+    cd "$current_dir" || {
+        log WARN "Falha ao voltar para diretório original: $current_dir"
+    }
+    
+    # 6. Feedback
+    if [[ $exit_code -eq 0 ]]; then
+        log SUCCESS "Módulo $module_name concluído"
+    else
+        log ERROR "Módulo $module_name falhou (exit code: $exit_code)"
+    fi
+    
+    return $exit_code
+}
 
-    if [[ ! -f "$script" ]]; then
-        log ERROR "Script não encontrado: $script"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PIPELINE COMPLETO COM PRÉ-FLIGHT CHECKS
+# ═══════════════════════════════════════════════════════════════════════════
+
+run_full_pipeline() {
+    log INFO "═══════════════════════════════════════════"
+    log INFO "  INICIANDO PIPELINE COMPLETO"
+    log INFO "═══════════════════════════════════════════"
+    
+    # Valida DOMAIN_FILE antes de começar
+    if [[ -z "${DOMAIN_FILE:-}" ]]; then
+        log ERROR "Variável DOMAIN_FILE não está definida em config.sh"
         return 1
     fi
-
-    log STEP "Executando: $description"
-
-    # EXECUTA todos os módulos no contexto correto
-    (
-        cd "$proj_path" || {
-            log ERROR "Não foi possível acessar $proj_path"
-            return 1
-        }
-        
-        # Para recon e nwraper passa arquivos de consumo.
-        if [[ "$module" == "recon" ]]; then
-            bash "$script" -d "$proj_path/Recon/domains.txt"
-        elif [[ "$module" == "nwrapper" ]]; then
-            (
-                cd "$proj_path/Varreduras" || {
-                    log ERROR "Não foi possível acessar $proj_path/Varreduras"
-                    return 1
-                }
-                bash "$script" -f "$proj_path/Varreduras/targets.txt"
-            )
-        elif [[ "$module" == "cria-alvos" ]]; then
-            (
-                cd "$proj_path/Varreduras" || {
-                    log ERROR "Não foi possível acessar $proj_path/Varreduras"
-                    return 1
-                }
-                bash "$script"
-            )
-        else
-            bash "$script"
-        fi
-)
- 
-    local exit_code=$?
-
-    if [[ $exit_code -eq 0 ]]; then
-        log SUCCESS "$description concluído"
-        return 0
-    else
-        log ERROR "$description falhou (exit code: $exit_code)"
+    
+    if [[ ! -f "$DOMAIN_FILE" ]]; then
+        log ERROR "Arquivo DOMAIN_FILE não encontrado: $DOMAIN_FILE"
         return 1
+    fi
+    
+    # Valida se tem conteúdo
+    if ! grep -qvE '^\s*(#|$)' "$DOMAIN_FILE" 2>/dev/null; then
+        log ERROR "DOMAIN_FILE está vazio ou contém apenas comentários"
+        log ERROR "Popule com alvos antes de executar pipeline"
+        return 1
+    fi
+    
+    local valid_lines=$(grep -v '^\s*#' "$DOMAIN_FILE" 2>/dev/null | grep -v '^\s*$' | wc -l)
+    log SUCCESS "Pipeline iniciado com $valid_lines alvo(s)"
+    
+    # Array de módulos (ordem lógica)
+    local modules=(
+        "recon"
+        "nwrapper"
+        "cria-alvos"
+        "httpx-runner"
+        "katana-buster"
+        "nuclei-runner"
+        "jsfinder-runner"
+        "gf-summary"
+        "whois-enricher"
+		"screenshot-runner"
+    )
+    
+    local total=${#modules[@]}
+    local current=0
+    local failed_modules=()
+    local current_dir="$(pwd)"
+    
+    # Executa pipeline
+    for module in "${modules[@]}"; do
+        ((current++))
+        
+        echo -e "\n${CYAN}╔════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║ [$current/$total] Executando: $module${NC}"
+        echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
+        
+        if run_module "$module"; then
+            log SUCCESS "[$current/$total] $module concluído"
+        else
+            log ERROR "[$current/$total] $module falhou"
+            failed_modules+=("$module")
+            
+            # Pergunta se continua ou aborta
+            read -rp "Continuar pipeline mesmo com falha? [s/N]: " continue_choice
+            if [[ ! "$continue_choice" =~ ^[Ss]$ ]]; then
+                log ERROR "Pipeline abortado"
+                cd "$current_dir"
+                return 1
+            fi
+        fi
+        
+        sleep 1  # Pequeno delay entre módulos
+    done
+    
+    # Volta ao diretório original
+    cd "$current_dir"
+    
+    # Relatório final
+    echo -e "\n${CYAN}╔════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  PIPELINE COMPLETO - RELATÓRIO FINAL   ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════╝${NC}\n"
+    
+    if [[ ${#failed_modules[@]} -eq 0 ]]; then
+        log SUCCESS "✅ Pipeline concluído com sucesso!"
+        log SUCCESS "Todos os $total módulos executados"
+    else
+        log WARN "⚠  Pipeline concluído com ${#failed_modules[@]} falha(s):"
+        for failed in "${failed_modules[@]}"; do
+            echo "   ❌ $failed"
+        done
+    fi
+    
+    echo -e "\n${CYAN}📊 Outputs disponíveis em:${NC}"
+    echo "   Explorador: $proj_path"
+    echo "   Obsidian: ${obsdir}/${proj_name}/Pentest"
+    
+    return 0
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# UTILITÁRIOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+press_enter() {
+    read -rp "Pressione ENTER para continuar..." -t 0.1
+    read -rp ""
+}
+
+show_banner() {
+    clear
+    cat << 'EOF'
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║            ___  ____             ____  _                       ║
+║          / _ \|  _ \ ___ _ __  |  _ \(_)_ __   ___  ___        ║
+║         | | | | |_) / _ \ '_ \ | |_) | | '_ \ / _ \/ __|       ║
+║         | |_| |  __/  __/ | | ||  __/| | |_) |  __/\__ \       ║
+║          \___/|_|   \___|_| |_||_|   |_| .__/ \___||___/       ║
+║                                             |_|                ║
+║                                                                ║
+║              🔍 Obsidian Pentest Pipeline Stack v2.1           ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+EOF
+}
+
+show_status_bar() {
+    echo -e "${CYAN}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  PROJETO ATIVO: ${YELLOW}$proj_name${NC}${CYAN}                        ║${NC}"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════╣${NC}"
+    
+    # Checa API keys (apenas aviso)
+    local keys_configured=0
+    local keys_total=5
+    
+    [[ -n "${securitytrailskey:-}" ]] && ((keys_configured++))
+    [[ -n "${OPENAI_API_KEY:-}" ]] && ((keys_configured++))
+    [[ -n "${SERPAPI_KEY:-}" ]] && ((keys_configured++))
+    [[ -n "${GOOGLE_API_KEY:-}" ]] && ((keys_configured++))
+    [[ -n "${GOOGLE_CSE_ID:-}" ]] && ((keys_configured++))
+    
+    # Status visual
+    if [[ $keys_configured -eq 0 ]]; then
+        echo -e "${RED}⚠  Nenhuma API Key configurada${NC}"
+        echo -e "   ${YELLOW}Funcionalidade limitada!${NC} Configure: ${GREEN}[C]${NC}"
+    elif [[ $keys_configured -lt 3 ]]; then
+        echo -e "${YELLOW}⚠  API Keys parciais ($keys_configured/$keys_total)${NC}"
+        echo -e "   Alguns módulos podem falhar. Configure:    ${GREEN}[C]${NC}"
+    else
+        echo -e "${GREEN}✓  API Keys: $keys_configured/$keys_total configuradas${NC}"
+    fi
+    
+    echo -e "${CYAN}╚════════════════════════════════════════════════════╝${NC}\n"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MENU PRINCIPAL
+# ═══════════════════════════════════════════════════════════════════════════
+
+show_menu() {
+    show_banner
+    show_status_bar
+    
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                   MÓDULOS DISPONÍVEIS                        ║${NC}"
+    echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║  RECONHECIMENTO                                              ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[R]${NC} Reconhecimento (Subdomain Discovery)                    ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[S]${NC} Scanning Nmap (Port Scanning)                           ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[W]${NC} WHOIS Enrichment                                        ║${NC}"
+    echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║  WEB DISCOVERY                                               ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[H]${NC} HTTP Probing (HTTPx)                                    ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[K]${NC} Web Discovery (Katana + Ferox)                          ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[J]${NC} JSFinder (JavaScript Analysis)                          ║${NC}"
+	echo -e "${CYAN}║  ${GREEN}[I]${NC} Screenshots (Eye-Witness)                          ║${NC}"
+    echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║  ANÁLISE & VULNERABILIDADES                                  ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[N]${NC} Nuclei Scan (Vulnerability Scanner)                     ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[G]${NC} GF Summary (Pattern Matching)                           ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[O]${NC} OSINT People                                            ║${NC}"
+    echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║  PIPELINE & GESTÃO                                           ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[P]${NC} Pipeline Completo (R→S→H→K→N→J→G→W)                     ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[V]${NC} Gestão de Vulnerabilidades                              ║${NC}"
+    echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║  UTILITÁRIOS                                                 ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[L]${NC} Listar Alvos                                            ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[E]${NC} Editar domains.txt                                      ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[M]${NC} Mostrar Últimos Outputs                                 ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[T]${NC} Status de Ferramentas                                   ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[C]${NC} Configuração                                            ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[A]${NC} Ajuda                                                   ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[Q]${NC} Sair                                                    ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
+    
+    read -rp "Escolha uma opção: " choice
+    handle_menu_choice "$choice"
+}
+
+handle_menu_choice() {
+    local choice="$1"
+    
+    case "$choice" in
+        [Rr])
+            log STEP "Reconhecimento (Subdomain Discovery)..."
+            run_module "recon"
+            press_enter
+            ;;
+        [Ss])
+            log STEP "Scanning Nmap (Port Scanning)..."
+            run_module "nwrapper"
+            press_enter
+            ;;
+        [Hh])
+            log STEP "HTTP Probing (HTTPx)..."
+            run_module "httpx-runner"
+            press_enter
+            ;;
+        [Kk])
+            log STEP "Web Discovery (Katana + Ferox)..."
+            run_module "katana-buster"
+            press_enter
+            ;;
+        [Nn])
+            log STEP "Nuclei Scan (Vulnerability Scanner)..."
+            run_module "nuclei-runner"
+            press_enter
+            ;;
+        [Jj])
+            log STEP "JSFinder (JavaScript Analysis)..."
+            run_module "jsfinder-runner"
+            press_enter
+            ;;
+        [Gg])
+            log STEP "GF Summary (Pattern Matching)..."
+            run_module "gf-summary"
+            press_enter
+            ;;
+        [Ww])
+            log STEP "WHOIS Enrichment..."
+            run_module "whois-enricher"
+            press_enter
+            ;;
+        [Oo])
+            log STEP "OSINT People..."
+            run_module "osint-runner-people"
+            press_enter
+            ;;
+		[Ii])
+			log SETOP "Screenshot Module..."
+			run_module "screenshot-runner"
+        [Pp])
+            run_full_pipeline
+            press_enter
+            ;;
+        [Vv])
+            log STEP "Gestão de Vulnerabilidades..."
+            run_module "cria-vulnerabilidades"
+            press_enter
+            ;;
+        [Ll])
+            show_targets_list
+            press_enter
+            ;;
+        [Ee])
+            show_edit_domains
+            press_enter
+            ;;
+        [Mm])
+            show_recent_outputs
+            press_enter
+            ;;
+        [Tt])
+            show_status
+            ;;
+        [Cc])
+            show_config
+            ;;
+        [Aa])
+            show_help
+            ;;
+        [Qq])
+            log INFO "Encerrando OPenPipeS..."
+            exit 0
+            ;;
+        *)
+            log ERROR "Opção inválida: $choice"
+            press_enter
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FUNÇÕES DE UTILITÁRIOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+show_targets_list() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║              📋 ALVOS CONFIGURADOS                 ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════╝${NC}\n"
+    
+    if [[ ! -f "$proj_path/domains.txt" ]]; then
+        log ERROR "domains.txt não encontrado"
+        return
+    fi
+    
+    local count=0
+    while IFS= read -r domain; do
+        # Ignora comentários e linhas vazias
+        [[ "$domain" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$domain" ]] && continue
+        
+        ((count++))
+        echo "   $count. $domain"
+    done < "$proj_path/domains.txt"
+    
+    if [[ $count -eq 0 ]]; then
+        log WARN "Nenhum alvo configurado em domains.txt"
+    else
+        log SUCCESS "Total de $count alvo(s) configurado(s)"
     fi
 }
 
-# ============================================================================
-# MENU DE VULNERABILIDADES
-# ============================================================================
+show_edit_domains() {
+    log STEP "Editando domains.txt..."
+    
+    if [[ ! -f "$proj_path/domains.txt" ]]; then
+        log ERROR "domains.txt não encontrado em $proj_path"
+        return
+    fi
+    
+    "${EDITOR:-nano}" "$proj_path/domains.txt"
+    log SUCCESS "domains.txt atualizado"
+}
 
-vulnerabilities_menu() {
-    while true; do
-        show_banner
-        echo -e "${CYAN}━━━ GERENCIAMENTO DE VULNERABILIDADES ━━━${NC}"
-        echo ""
-        echo -e "${GREEN}[1]${NC} Criar Nova Vulnerabilidade"
-        echo -e "${GREEN}[2]${NC} Enriquecer Vulnerabilidade (OpenAI)"
-        echo -e "${GREEN}[3]${NC} Listar Cache de Vulnerabilidades"
-        echo -e "${GREEN}[4]${NC} Voltar ao Menu Principal"
-        echo ""
-        
-        read -p "$(echo -e ${YELLOW}Escolha uma opção:${NC} )" choice
-        
-        case $choice in
-            1)
-                cria_vulnerabilidades
-                ;;
-            2)
-                enriquecer_vulnerabilidade
-                ;;
-            3)
-                listar_cache
-                ;;
-            4)
-                break
-                ;;
-            *)
-                log ERROR "Opção inválida"
-                press_enter
-                ;;
-        esac
+show_recent_outputs() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║              📊 OUTPUTS RECENTES                   ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════╝${NC}\n"
+    
+    echo -e "${YELLOW}▸ Últimos scans Nmap:${NC}"
+    find "$NMAP_DIR" -type f -name "*.nmap" -printf '%T@ %p\n' 2>/dev/null | \
+        sort -rn | head -5 | cut -d' ' -f2- | while read -r file; do
+        echo "   • $(basename "$file")"
+    done
+    
+    echo -e "\n${YELLOW}▸ Últimos relatórios:${NC}"
+    find "$proj_path" -type f \( -name "*.md" -o -name "*.json" \) -printf '%T@ %p\n' 2>/dev/null | \
+        sort -rn | head -5 | cut -d' ' -f2- | while read -r file; do
+        echo "   • $(basename "$file")"
     done
 }
 
-cria_vulnerabilidades() {
-    log STEP "Criando Nova Vulnerabilidade"
-    
-    local script="$OPENPIPES_BIN/cria-vulns"
-    
-    if [[ ! -f "$script" ]]; then
-        log ERROR "Script cria-vulns não encontrado"
-        press_enter
-        return 1
-    fi
-    
-    bash "$script"
-    press_enter
-}
-
-enriquecer_vulnerabilidade() {
-    log STEP "Enriquecimento de Vulnerabilidade"
-    
-    # Verificar se OpenAI API key está configurada
-    if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-        log ERROR "OPENAI_API_KEY não configurada!"
-        log INFO "Configure em: $OPENPIPES_CONFIG"
-        press_enter
-        return 1
-    fi
-    
-    local script="$OPENPIPES_BIN/vuln-enricher"
-    
-    if [[ ! -f "$script" ]]; then
-        log ERROR "Script vuln-enricher não encontrado"
-        press_enter
-        return 1
-    fi
-    
-    bash "$script"
-    press_enter
-}
-
-listar_cache() {
-    log STEP "Cache de Vulnerabilidades"
-    
-    if [[ ! -d "$OPENPIPES_CACHE" ]]; then
-        log ERROR "Cache não encontrado: $OPENPIPES_CACHE"
-        press_enter
-        return 1
-    fi
-    
-    local vuln_files=$(find "$OPENPIPES_CACHE" -type f -name "*.json" | wc -l)
-    
-    if [[ $vuln_files -eq 0 ]]; then
-        log WARNING "Nenhum arquivo de vulnerabilidade encontrado no cache"
-    else
-        log SUCCESS "Vulnerabilidades em cache: $vuln_files"
-        echo ""
-        
-        find "$OPENPIPES_CACHE" -type f -name "*.json" -exec basename {} \; | sort | nl
-    fi
-    
-    press_enter
-}
-
-# ============================================================================
-# CONFIGURAÇÃO E STATUS
-# ============================================================================
-
 show_config() {
-    show_banner
-    log STEP "Configuração Atual"
-    echo ""
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║              ⚙️  CONFIGURAÇÃO                      ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════╝${NC}\n"
     
-    cat "$OPENPIPES_CONFIG"
+    echo -e "${YELLOW}Arquivo de configuração:${NC} $OPENPIPES_CONFIG"
+    echo -e "${YELLOW}Editor padrão:${NC} ${EDITOR:-nano}\n"
     
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
+    echo -e "${CYAN}Deseja editar config.sh? [s/N]:${NC}"
+    read -rp "" edit_choice
     
-    read -p "$(echo -e ${YELLOW}Deseja editar a configuração? [s/N]:${NC} )" -n 1 -r
-    echo
-    
-    if [[ $REPLY =~ ^[Ss]$ ]]; then
-        ${EDITOR:-nano} "$OPENPIPES_CONFIG"
+    if [[ "$edit_choice" =~ ^[Ss]$ ]]; then
+        "${EDITOR:-nano}" "$OPENPIPES_CONFIG"
+        log SUCCESS "config.sh atualizado"
         
-        # Recarregar configuração
-        source "$OPENPIPES_CONFIG"
-        proj_path="$proj_dir/$proj_name"
-        
-        log SUCCESS "Configuração atualizada!"
-        echo ""
-        
-        # Perguntar se quer criar estrutura
-        log QUESTION "Deseja verificar/criar a estrutura do projeto agora?"
-        read -p "$(echo -e ${YELLOW}[S/n]:${NC} )" -n 1 -r
-        echo
-        
-        if [[ $REPLY =~ ^[Ss]$ ]] || [[ -z $REPLY ]]; then
-            if [[ -d "$proj_path" ]] && [[ -f "$proj_path/Recon/domains.txt" ]]; then
-                validate_project
-            else
-                setup_project_structure
-            fi
+        # Recarrega config
+        if check_config; then
+            log SUCCESS "Configuração recarregada"
+        else
+            log ERROR "Erro ao recarregar configuração"
         fi
     fi
-    
-    press_enter
 }
 
 show_status() {
-    show_banner
-    log STEP "Status da Instalação"
-    echo ""
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║          🔍 STATUS DO FRAMEWORK                    ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════╝${NC}\n"
+    
+    # 1. Configuração
+    echo -e "${YELLOW}▸ CONFIGURAÇÃO${NC}"
+    if [[ -f "$OPENPIPES_CONFIG" ]]; then
+        log SUCCESS "config.sh encontrado"
+        echo "   proj_name: $proj_name"
+        echo "   proj_dir: $proj_dir"
+        echo "   obsdir: $obsdir"
+    else
+        log ERROR "config.sh não encontrado"
+    fi
+    
+    # 2. Estrutura do Projeto
+    echo -e "\n${YELLOW}▸ PROJETO ATUAL: $proj_name${NC}"
+    if [[ -d "$proj_path" ]]; then
+        log SUCCESS "Diretório do projeto existe"
+        echo "   Localização: $proj_path"
+        
+        # Valida subdirs
+        for subdir in Recon Varreduras OSINT Logs; do
+            if [[ -d "$proj_path/$subdir" ]]; then
+                echo "   ✓ $subdir/"
+            else
+                echo "   ✗ $subdir/ (ausente)"
+            fi
+        done
+        
+        # Valida domains.txt
+        if [[ -f "$proj_path/domains.txt" ]]; then
+             local domain_count=$(grep -v '^\s*#' "$proj_path/domains.txt" 2>/dev/null | grep -v '^\s*$' | wc -l)
+            echo "   ✓ domains.txt ($domain_count alvos)"
+        else
+            echo "   ✗ domains.txt (ausente)"
+        fi
+    else
+        log ERROR "Projeto não inicializado"
+        echo "   Execute: init-openpipes"
+    fi
+    
+    # 3. Obsidian Vault
+    echo -e "\n${YELLOW}▸ OBSIDIAN VAULT${NC}"
+    local pentest_root="${obsdir}/${proj_name}/Pentest"
+    if [[ -d "$pentest_root" ]]; then
+        log SUCCESS "Vault do projeto existe"
+        echo "   Localização: $pentest_root"
+        
+        # Valida estrutura
+        for subdir in Alvos OSINT; do
+            if [[ -d "$pentest_root/$subdir" ]]; then
+                echo "   ✓ $subdir/"
+            else
+                echo "   ✗ $subdir/ (ausente)"
+            fi
+        done
+        
+        # Valida dashboards
+        for file in Dashboard_Global.md Tarefas.md; do
+            if [[ -f "$pentest_root/$file" ]]; then
+                echo "   ✓ $file"
+            else
+                echo "   ✗ $file (ausente)"
+            fi
+        done
+    else
+        log ERROR "Vault do projeto não encontrado"
+    fi
+    
+    # 4. Ferramentas Instaladas
+    echo -e "\n${YELLOW}▸ FERRAMENTAS INSTALADAS${NC}"
     
     local tools=(
-        "nmap:Nmap"
-        "httpx:HTTPx"
-        "nuclei:Nuclei"
-        "katana:Katana"
-        "feroxbuster:Feroxbuster"
-        "gf:GF"
-        "amass:Amass"
-        "dnsrecon:DNSRecon"
-        "jq:jq"
-        "curl:curl"
-        "linkfinder.py:LinkFinder"
+        "nmap:Nmap Port Scanner"
+        "httpx:HTTPx Prober"
+        "nuclei:Nuclei Scanner"
+        "katana:Katana Crawler"
+        "feroxbuster:Feroxbuster Brute Force"
+        "dnsrecon:DNS Recon"
+        "amass:Amass OSINT"
+        "gf:GrepFuzzable"
+        "jq:JSON Processor"
+        "curl:HTTP Client"
+		"gowitness:Webserver Screenshotter"
     )
     
-    local installed=0
-    local missing=0
-    
-    for tool_pair in "${tools[@]}"; do
-        local cmd="${tool_pair%%:*}"
-        local name="${tool_pair##*:}"
+    for tool_entry in "${tools[@]}"; do
+        IFS=':' read -r tool_name tool_desc <<< "$tool_entry"
         
-        if command -v "$cmd" &>/dev/null; then
-            echo -e "${GREEN}[✓]${NC} $name"
-            ((installed++))
+        if command -v "$tool_name" &>/dev/null; then
+            local version=$("$tool_name" --version 2>/dev/null | head -1 || echo "instalado")
+            log SUCCESS "$tool_desc"
+            echo "   └─ $version"
         else
-            echo -e "${RED}[✗]${NC} $name ${YELLOW}(não instalado)${NC}"
-            ((missing++))
+            log ERROR "$tool_desc"
+            echo "   └─ Não encontrado"
         fi
     done
     
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}Instaladas:${NC} $installed/${#tools[@]}"
+    # 5. API Keys
+    echo -e "\n${YELLOW}▸ API KEYS CONFIGURADAS${NC}"
     
-    if [[ $missing -gt 0 ]]; then
-        echo -e "${YELLOW}Faltando:${NC} $missing"
-        echo ""
-        log WARNING "Execute o instalador para instalar ferramentas faltantes"
+    local keys=(
+        "securitytrailskey:SecurityTrails"
+        "OPENAI_API_KEY:OpenAI GPT-4"
+        "SERPAPI_KEY:SerpAPI"
+        "GOOGLE_API_KEY:Google Custom Search"
+        "GOOGLE_CSE_ID:Google CSE ID"
+    )
+    
+    local keys_ok=0
+    for key_entry in "${keys[@]}"; do
+        IFS=':' read -r key_var key_name <<< "$key_entry"
+        
+        if [[ -n "${!key_var:-}" ]]; then
+            log SUCCESS "$key_name"
+            ((keys_ok++))
+        else
+            log ERROR "$key_name"
+        fi
+    done
+    
+    echo -e "\n   Total: $keys_ok/${#keys[@]} configuradas"
+    
+    # 6. Resumo
+    echo -e "\n${CYAN}╔════════════════════════════════════════════════════╗${NC}"
+    if validate_project &>/dev/null; then
+        echo -e "${GREEN}║  ✅ FRAMEWORK PRONTO PARA USO                      ║${NC}"
+    else
+        echo -e "${YELLOW}║  ⚠  ATENÇÃO: Alguns itens precisam de ajuste       ║${NC}"
     fi
-    
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════╝${NC}\n"
     
     press_enter
 }
 
 show_help() {
-    show_banner
-    log STEP "Ajuda do OPenPipeS"
-    echo ""
-    
-    cat << 'HELP_EOF'
-OPenPipeS - Obsidian Pentest Pipeline Stack
+    clear
+    cat << 'EOF'
+╔════════════════════════════════════════════════════════════════╗
+║                    📚 AJUDA - OPenPipeS v2.1                   ║
+╚════════════════════════════════════════════════════════════════╝
 
-FLUXO DE TRABALHO:
-  1. [I] Inicializar Projeto       - Criar estrutura e configurar domains.txt
-  2. [C] Configuração               - Editar configurações (API keys, paths)
-  3. Adicionar domínios             - Editar domains.txt manualmente
-  4. [P] Pipeline Completo          - Executar todos os módulos automaticamente
-     OU executar módulos individuais:
-       [R] Reconhecimento
-       [S] Scanning (Nmap)
-       [O] Setup Obsidian
-       [H] HTTPx
-       [K] Katana/Ferox
-       [N] Nuclei
-       [J] JSFinder
-       [G] GF Summary
-       [W] WHOIS
-  5. [V] Vulnerabilidades           - Documentar e enriquecer vulnerabilidades
+🎯 WORKFLOW RECOMENDADO:
 
-ESTRUTURA DE DIRETÓRIOS:
-  ~/.openpipes/               - Instalação do framework
-  ~/Desktop/BugBounty/        - Projetos (configurável)
-  ~/.obsidianFixedMount/      - Vault Obsidian
+1️⃣  INICIALIZAR PROJETO (primeira vez)
+   $ init-openpipes
+   → Cria estrutura explorador + Obsidian
+   → Valida API keys
+   → Popula domains.txt
 
-ARQUIVOS IMPORTANTES:
-  config.sh                   - Configuração global
-  domains.txt                 - Lista de domínios alvo
-  
-COMANDOS RÁPIDOS:
-  openpipes                   - Menu principal
-  recon                       - Módulo reconhecimento
-  nwrapper                    - Módulo nmap
-  nuclei-runner               - Módulo nuclei
-  
-DOCUMENTAÇÃO COMPLETA:
-  https://github.com/rlSniff3r/openPipes
+2️⃣  ABRIR ORCHESTRADOR
+   $ openpipes
+   → Menu interativo com opções de scan
 
-HELP_EOF
-    
+3️⃣  EXECUTAR MÓDULOS (ordem sugerida)
+   [R] Reconhecimento      → Subdomain discovery
+   [S] Scanning            → Port scanning (nmap)
+   [H] HTTP Probing        → Detecta serviços web
+   [K] Web Discovery       → Crawling + bruteforce
+   [N] Nuclei Scan         → Vulnerability scanning
+   [J] JSFinder            → Extrai endpoints JS
+   [G] GF Summary          → Pattern matching
+   [W] WHOIS               → Enrichment de dados
+   [I] SCREENSHOTS		   → SS de Webservers	
+
+4️⃣  PIPELINE COMPLETO
+   [P] Executa todos os módulos em sequência
+
+5️⃣  GESTÃO E ANÁLISE
+   [V] Criar/editar vulnerabilidades
+   [L] Listar alvos
+   [E] Editar domains.txt
+   [M] Ver outputs recentes
+
+═══════════════════════════════════════════════════════════════
+
+📁 ESTRUTURA DE DIRETÓRIOS:
+
+Explorador (Kali):
+  ~/Projetos/projeto-alvo/
+  ├── domains.txt           ← Adicione alvos aqui
+  ├── Recon/                ← Outputs de reconhecimento
+  ├── Varreduras/           ← Outputs de nmap
+  ├── OSINT/                ← Outputs de OSINT
+  ├── Screenshots/          ← Outputs de screenshot-runner  
+  └── Logs/                 ← Arquivos de log
+
+Obsidian (Analista):
+  ~/.obsidianFixedMount/projeto-alvo/Pentest/
+  ├── Alvos/                ← Um .md por alvo
+  ├── OSINT/                ← Dados de OSINT
+  ├── Dashboard_Global.md   ← Visão agregada
+  └── Tarefas.md            ← Task tracking
+
+═══════════════════════════════════════════════════════════════
+
+🔑 API KEYS NECESSÁRIAS:
+
+1. SecurityTrails (Subdomain Discovery)
+   URL: https://securitytrails.com/app/account/credentials
+   Config: securitytrailskey="sua_key_aqui"
+
+2. OpenAI GPT-4 (Vuln Enrichment)
+   URL: https://platform.openai.com/api-keys
+   Config: OPENAI_API_KEY="sk-..."
+
+3. SerpAPI (OSINT People)
+   URL: https://serpapi.com/manage-api-key
+   Config: SERPAPI_KEY="..."
+
+4. Google Custom Search (Document Discovery)
+   URL: https://console.cloud.google.com/apis/credentials
+   Config: GOOGLE_API_KEY="..." + GOOGLE_CSE_ID="..."
+
+Configure em: ~/.openpipes/config.sh
+
+═══════════════════════════════════════════════════════════════
+
+⚙️  COMANDOS ÚTEIS:
+
+openpipes              ← Abre orchestrador
+init-openpipes         ← Inicializa novo projeto
+openpipes config       ← Edita configuração
+openpipes status       ← Mostra status do framework
+make install           ← Instala framework
+make update            ← Atualiza framework
+
+═══════════════════════════════════════════════════════════════
+
+💡 DICAS:
+
+• Sempre popule domains.txt ANTES de executar módulos
+• Use [P] Pipeline Completo para automatizar tudo
+• Verifique [T] Status antes de começar
+• Configure todas as API keys para máxima funcionalidade
+• Abra Obsidian em paralelo para acompanhar resultados
+
+═══════════════════════════════════════════════════════════════
+EOF
     press_enter
 }
 
-# ============================================================================
-# MAIN
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN - FUNÇÃO PRINCIPAL
+# ═══════════════════════════════════════════════════════════════════════════
 
 main() {
-    check_root
-    check_config
+    # 1. Pré-flight checks
+    if ! check_config; then
+        log ERROR "Falha na verificação de configuração"
+        exit 1
+    fi
     
+    if ! check_openpipes_structure; then
+        log ERROR "Falha na verificação de estrutura OPenPipeS"
+        exit 1
+    fi
+    
+    # 2. Valida projeto inicializado
+    if ! validate_project; then
+        log ERROR "Projeto não está inicializado corretamente"
+        log ERROR "Execute: init-openpipes"
+        exit 1
+    fi
+    
+    # 3. Loop do menu
     while true; do
         show_menu
-        
-        read -p "$(echo -e ${YELLOW}Escolha uma opção:${NC} )" choice
-        
-        case $choice in
-            [Ii])
-                setup_project_structure
-                press_enter
-                ;;
-            [Rr])
-                run_module "recon"
-                press_enter
-                ;;
-            [Ss])
-                run_module "nwrapper"
-                press_enter
-                ;;
-            [Oo])
-                run_module "cria-alvos"
-                press_enter
-                ;;
-            [Hh])
-                run_module "httpx"
-                press_enter
-                ;;
-            [Kk])
-                run_module "katana"
-                press_enter
-                ;;
-            [Nn])
-                run_module "nuclei"
-                press_enter
-                ;;
-            [Jj])
-                run_module "jsfinder"
-                press_enter
-                ;;
-            [Gg])
-                run_module "gf"
-                press_enter
-                ;;
-            [Ww])
-                run_module "whois"
-                press_enter
-                ;;
-            [Yy])
-                run_module "osint"
-                press_enter
-                ;;
-            [Pp])
-                run_full_pipeline
-                press_enter
-                ;;
-            [Vv])
-                vulnerabilities_menu
-                ;;
-            [Cc])
-                show_config
-                ;;
-            [Tt])
-                show_status
-                ;;
-            [\?])
-                show_help
-                ;;
-            [Qq])
-                log SUCCESS "Até logo!"
-                exit 0
-                ;;
-            *)
-                log ERROR "Opção inválida: $choice"
-                press_enter
-                ;;
-        esac
     done
 }
 
-# Executar
-main "$@"
+# ═══════════════════════════════════════════════════════════════════════════
+# ENTRY POINT
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Executa main se script for executado diretamente (não sourced)
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
