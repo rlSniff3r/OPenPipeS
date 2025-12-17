@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Updating...
+
 # Configs
 source $HOME/.openpipes/config.sh
 
@@ -34,6 +36,14 @@ done
 for dir in "$base_dir"/nmap-*; do
   [[ ! -d "$dir" ]] && continue
   targetName="${dir##*/nmap-}"
+
+  # Verifica se o relatório já existe
+  md_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/httpx.md"
+  if [[ -f "$md_file" ]]; then
+    echo "[*] Relatório para $targetName já existe. Pulando."
+    continue
+  fi
+
   ip=$(grep "Nmap scan report for" $dir/initial | sed 's/Nmap scan report for //g' |cut -d "(" -f2 | cut -d ")" -f1 | cut -d ":" -f2)
 #  ip=$(grep "Nmap scan report for" "$dir/nmap.nmap" | head -n1 | cut -d "(" -f2 | cut -d ")" -f1)
 
@@ -78,7 +88,6 @@ for dir in "$base_dir"/nmap-*; do
   # Sempre mantenha os IPs como fallback
   echo "http://$ip" >> "$target_list"
   echo "https://$ip" >> "$target_list"
-
 
   timestamp=$(date +%Y%m%d-%H%M%S)
   json_out="$dir/httpx-$timestamp.json"
@@ -138,6 +147,9 @@ for dir in "$base_dir"/nmap-*; do
   # endpoints.md
   endpoints_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/endpoints.md"
   jq -r '.[] | select(.status_code >= 200 and .status_code < 300) | .url' "$dedup_json" | sort -u >> "$endpoints_file"
+
+  (head -n4 "$md_file"; tail -n +5 "$md_file" | sort -u | egrep -v "400 |406 ") > $md_file.txt
+  mv "$md_file.txt" "$md_file"
 
   echo "[✔] $targetName finalizado."
 done

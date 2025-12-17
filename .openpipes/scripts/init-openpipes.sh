@@ -237,3 +237,5 @@ EOF
 }
 
 main "$@"
+
+source ~/.bashrc

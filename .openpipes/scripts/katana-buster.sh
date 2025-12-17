@@ -175,7 +175,7 @@ process_target() {
   echo -e "${BLUE}[*] Processando $targetName ($ip)${NC}"
 
   # === Diretório destino no Obsidian ===
-  outdir=$obsdir/Pentest/Alvos/$targetName
+  outdir=$obsdir/$proj_name/Pentest/Alvos/$targetName
   mkdir -p "$outdir"
 
   # === Deduplicar e salvar lista final ===

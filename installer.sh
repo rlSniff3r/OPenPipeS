@@ -533,7 +533,7 @@ create_symlinks() {
         "nuclei-runner.sh:nuclei-runner"
         "gf-summary.sh:gf-summary"
         "whois-enricher.sh:whois-enricher"
-        "cria_Vulnerabilidades.sh:cria-vulns"
+        "cria_Vulnerabilidades.sh:cria-vulnerabilidades"
         "vuln-enricher.sh:vuln-enricher"
         "osint-runner-people.sh:osint-people"
 		"screenshot-runner.sh:screenshot-runner"

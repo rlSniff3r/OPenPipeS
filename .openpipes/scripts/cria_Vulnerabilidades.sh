@@ -9,7 +9,7 @@ tpdir="$HOME/.openpipes/.templates/"
 
 # Seleciona alvo
 echo "[*] Selecione o alvo:"
-targetName=$(find "$obsdir/Pentest/Alvos" -mindepth 1 -maxdepth 1 -type d | sed 's|.*/||' | fzf --prompt="Alvo: ")
+targetName=$(find "$obsdir/$proj_name/Pentest/Alvos" -mindepth 1 -maxdepth 1 -type d | sed 's|.*/||' | fzf --prompt="Alvo: ")
 [[ -z "$targetName" ]] && echo "[!] Nenhum alvo selecionado." && exit 1
 
 # Pega IP do alvo
@@ -46,7 +46,7 @@ esac
 # Cria arquivo markdown com timestamp
 timestamp=$(date +%Y%m%d%H%M%S)
 filename="${timestamp}_${title}.md"
-vulnDir="$obsdir/Pentest/Alvos/$targetName/Vulnerabilidades"
+vulnDir="$obsdir/$proj_name/Pentest/Alvos/$targetName/Vulnerabilidades"
 mkdir -p "$vulnDir"
 
 cp "$tpdir/vuln.stub.md" "$vulnDir/$filename"

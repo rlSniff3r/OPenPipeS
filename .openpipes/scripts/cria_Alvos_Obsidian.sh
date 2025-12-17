@@ -1,4 +1,4 @@
-n#!/bin/bash
+#!/bin/bash
 
 # Diretórios
 source "$OPENPIPES_CONFIG"
@@ -83,11 +83,10 @@ for host in $(ls $NMAP_DIR/ | grep nmap- 2>/dev/null); do
         "$tpdir/vuln.stub.md" > "$vulnDir/VULN_$targetName.stub.md"
 
     # Copia o nmap.nmap para a pasta do Alvo e transforma em sintaxe MD
-    cp $NMAP_DIR/$host/nmap.nmap $tgtDir/nmap.md
-    sed -i "1 i\```" $tgtDir/nmap.md
-    sed -i "$a\```" $tgtDir/nmap.md
+    cat $NMAP_DIR/$host/nmap.nmap | sed '1 i\```bash wrap' | sed '$a\```' > $tgtDir/nmap.md
 
-    # Remove as vulnerabilidades STUB de todos os alvos
-    rm -rf "$obsdir/$proj_name/Pentest/Alvos/*/Vulnerabilidades/*"
 
 done 2>/dev/null
+
+# Remove as vulnerabilidades STUB de todos os alvos
+rm -rf "$obsdir/$proj_name/Pentest/Alvos/*/Vulnerabilidades/*"
