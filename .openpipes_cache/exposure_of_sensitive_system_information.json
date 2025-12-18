@@ -1,0 +1,10 @@
+{
+  "title": "Exposure of Sensitive System Information (CWE-497)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+  "description": "O sistema ou aplicação expõe informações detalhadas sobre o ambiente subjacente para uma esfera de controle não autorizada. Isso pode incluir, mas não se limita a: versões de software e serviços, caminhos de diretórios internos (full path disclosure), endereçamento de rede interna, topologia de servidores ou configurações do sistema operacional. Embora estas informações não constituam uma invasão direta, elas facilitam drasticamente a fase de reconhecimento (fingerprinting), permitindo que um atacante mapeie a superfície de ataque e selecione exploits específicos para as tecnologias e versões identificadas.",
+  "observation": "Confidencialidade: Divulgação de Informações de Infraestrutura. O atacante obtém inteligência técnica privilegiada sobre o ambiente, eliminando a necessidade de varreduras ruidosas e acelerando a identificação de vetores de ataque.",
+  "remediation": "Endurecer (harden) as configurações do serviço para restringir a divulgação de metadados. Isso inclui: desabilitar banners de versão em cabeçalhos de resposta (ex: Server, X-Powered-By), configurar páginas de erro genéricas que não revelem stack traces ou caminhos de sistema, e restringir o acesso a interfaces de diagnóstico ou consulta de metadados apenas a origens confiáveis (whitelisting).",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/497.html"
+  ]
+}

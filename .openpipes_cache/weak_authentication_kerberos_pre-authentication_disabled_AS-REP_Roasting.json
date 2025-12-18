@@ -1,0 +1,11 @@
+{
+  "title": "Weak Authentication Kerberos Pre-Authentication Disabled AS-REP Roasting",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+  "description": "Uma ou mais contas de usuário no Active Directory estão configuradas com a opção 'Do not require Kerberos preauthentication' habilitada. Esta configuração insegura permite que qualquer atacante com acesso à rede solicite um Ticket Granting Ticket (TGT) para o usuário alvo sem precisar provar sua identidade previamente. O Controlador de Domínio (DC) responde com um TGT criptografado utilizando o hash da senha do usuário. O atacante pode então capturar essa resposta e realizar um ataque de força bruta offline (cracking) para recuperar a senha em texto claro, sem risco de bloqueio de conta ou detecção imediata.",
+  "observation": "Confidencialidade: Comprometimento de Credenciais. Permite a recuperação de senhas de usuários válidos, possibilitando acesso inicial ou escalada de privilégios no domínio.",
+  "remediation": "Identificar todas as contas com a flag 'UF_DONT_REQUIRE_PREAUTH' habilitada e desativar a opção 'Do not require Kerberos preauthentication' nas propriedades da conta no Active Directory Users and Computers (ADUC). Caso a pré-autenticação seja estritamente necessária para compatibilidade com sistemas legados, garantir que a conta utilize uma senha de alta entropia (acima de 25 caracteres) para inviabilizar ataques de dicionário.",
+  "references": [
+    "https://cwe.mitre.org/data/definitions/287.html",
+    "https://attack.mitre.org/techniques/T1558/004/"
+  ]
+}
