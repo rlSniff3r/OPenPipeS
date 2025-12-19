@@ -1,0 +1,12 @@
+{
+  "title": "AD CS Privilege Escalation via NTLM Relay to Web Enrollment (ESC8)",
+  "cvssv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+  "description": "O serviço de Inscrição na Web (Web Enrollment) do Active Directory Certificate Services (AD CS) está configurado para permitir autenticação NTLM via HTTP sem a proteção estendida para autenticação (EPA - Extended Protection for Authentication). Esta configuração permite que um atacante posicionado na rede realize ataques de NTLM Relay. Ao coagir uma autenticação de uma vítima (como um Controlador de Domínio) para a máquina do atacante, é possível retransmitir essas credenciais para o serviço web da CA, solicitando e obtendo um certificado digital válido em nome da vítima. Se a vítima for um DC, o atacante obtém privilégios administrativos totais sobre o domínio.",
+  "observation": "Confidencialidade e Integridade: Comprometimento Total do Domínio. O atacante pode obter um certificado de máquina para o Domain Controller, permitindo a execução de ataques DCSync para extrair todos os hashes de senha do Active Directory.",
+  "remediation": "Recomenda-se desabilitar o suporte a HTTP no servidor CA e exigir conexões HTTPS com a flag 'Extended Protection for Authentication' (EPA) habilitada no IIS. Alternativamente, se o Web Enrollment não for estritamente necessário para operações de negócio, o recurso deve ser removido do servidor. Para mitigar a coerção, recomenda-se também desabilitar o NTLM no domínio ou aplicar patches que limitem chamadas RPC anônimas ou não autenticadas (como o patch para PetitPotam/CVE-2021-36942).",
+  "references": [
+    "https://specterops.io/wp-content/uploads/sites/3/2022/06/Certified_Pre-Owned.pdf",
+    "https://attack.mitre.org/techniques/T1649/",
+    "https://cwe.mitre.org/data/definitions/287.html"
+  ]
+}

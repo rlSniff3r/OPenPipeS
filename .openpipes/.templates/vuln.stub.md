@@ -11,21 +11,20 @@ cvss_v: cvss:vector:here
 title
 
 > [!note] Descrição
-***
 
 description
 
+> [!todo] Passos para Reproduzir
+
+
 > [!danger] Impacto
-***
 
 observation
 
 > [!success] Recomendação
-***
 
 remediation
 
 > [!tldr] Referências
-***
 
 references
