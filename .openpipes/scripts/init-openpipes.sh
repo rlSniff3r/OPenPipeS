@@ -1,241 +1,169 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 
-# OPenPipeS v2.1 - Project Initialization
-# Responsabilidade: Setup completo (explorador + analista + API keys)
-# 
+# ==============================================================================
+# 🚀 OPenPipeS - Project Initializer v3.0
+# Responsável por criar a estrutura do projeto, validar segurança e templates.
+# ==============================================================================
 
-source ~/.bashrc
-source $OPENPIPES_CONFIG
+CONFIG_FILE="$HOME/.openpipes/config.sh"
+SECRETS_FILE="$HOME/.openpipes/secrets.conf"
 
-OPENPIPES_CONFIG="${HOME}/.openpipes/config.sh"
-
-# Colors
-RED='\033[0;31m'
+# Cores para Output
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
 BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
-log() {
-    local level=$1
-    shift
-    case $level in
-        INFO)    echo -e "${BLUE}[INFO]${NC} $*" ;;
-        SUCCESS) echo -e "${GREEN}[✓]${NC} $*" ;;
-        WARN)    echo -e "${YELLOW}[!]${NC} $*" ;;
-        ERROR)   echo -e "${RED}[✗]${NC} $*" >&2 ;;
-    esac
-}
+echo -e "${BLUE}"
+echo "   ___  ____            ____  _            ____ "
+echo "  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___/ ___|"
+echo " | | | | |_) / _ \ '_ \| |_) | | '_ \ / _ \___ \\"
+echo " | |_| |  __/  __/ | | |  __/| | |_) |  __/___) |"
+echo "  \___/|_|   \___|_| |_|_|   |_| .__/ \___|____/ "
+echo "                               |_|               "
+echo -e "${NC}"
+echo -e "${BLUE}[*] Project Initializer v3.0${NC}\n"
 
-# ─────────────────────────────────────────
-# PRÉ-FLIGHT CHECKS
-# ─────────────────────────────────────────
-preflight_checks() {
-    log INFO "Executando verificações pré-flight..."
-    
-    # 1. Config.sh existe?
-    if [[ ! -f "$OPENPIPES_CONFIG" ]]; then
-        log ERROR "config.sh não encontrado em $OPENPIPES_CONFIG"
-        log ERROR "Execute: make install"
-        exit 1
-    fi
-    
-    # 2. Source config
-    source "$OPENPIPES_CONFIG"
-    
-    # 3. Variáveis essenciais definidas?
-    for var in proj_name proj_dir obsdir OBSIDIAN_PROJ_PATH; do
-        if [[ -z "${!var:-}" ]]; then
-            log ERROR "Variável \$$var não definida em config.sh"
-            exit 1
+# ------------------------------------------------------------------------------
+# 1. Input do Projeto e Atualização do Config
+# ------------------------------------------------------------------------------
+if [ -z "${1:-}" ]; then
+    read -p "Nome do Projeto (Ex: cliente-xyz): " PROJ_NAME_INPUT
+else
+    PROJ_NAME_INPUT="$1"
+fi
+
+if [[ -z "$PROJ_NAME_INPUT" ]]; then
+    echo -e "${RED}[ERRO] O nome do projeto não pode ser vazio.${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}[*] Atualizando projeto ativo em config.sh...${NC}"
+
+# Atualiza a variável proj_name no config.sh usando Regex seguro
+if grep -q "proj_name=" "$CONFIG_FILE"; then
+    sed -i "s|proj_name=\".*\"|proj_name=\"$PROJ_NAME_INPUT\"|" "$CONFIG_FILE"
+else
+    echo "proj_name=\"$PROJ_NAME_INPUT\"" >> "$CONFIG_FILE"
+fi
+
+# ------------------------------------------------------------------------------
+# 2. Carregar Configurações (Agora com o nome correto)
+# ------------------------------------------------------------------------------
+source "$CONFIG_FILE"
+
+# Validação de Variáveis Críticas do Config
+if [[ -z "${proj_dir:-}" ]] || [[ -z "${obsdir:-}" ]] || [[ -z "${tpdir:-}" ]]; then
+    echo -e "${RED}[ERRO] Variáveis base (proj_dir, obsdir, tpdir) não definidas no config.sh!${NC}"
+    exit 1
+fi
+
+# Definir caminhos baseados no config carregado
+# Nota: Usamos as variáveis que você definiu no config.sh (OBSIDIAN_PROJ_PATH, etc)
+# Se elas não estiverem exportadas lá, montamos aqui por garantia:
+OBS_PATH="${OBSIDIAN_PROJ_PATH:-$obsdir/$proj_name/Pentest}"
+SCANS_PATH="${NMAP_DIR:-$proj_dir/$proj_name/Varreduras}"
+
+echo -e "${BLUE}[>] Projeto define: $proj_name${NC}"
+echo -e "${BLUE}[>] Obsidian Path:  $OBS_PATH${NC}"
+echo -e "${BLUE}[>] Work Path:      $SCANS_PATH${NC}"
+
+# ------------------------------------------------------------------------------
+# 3. Auditoria de Segurança (Secrets & Keys)
+# ------------------------------------------------------------------------------
+echo -e "\n${YELLOW}[*] Realizando Auditoria de Segurança...${NC}"
+
+if [[ ! -f "$SECRETS_FILE" ]]; then
+    echo -e "${RED}[PERIGO] Arquivo secrets.conf não encontrado!${NC}"
+    echo "Por favor, crie-o a partir do secrets.conf.example"
+    exit 1
+fi
+
+# Check de Permissões (Deve ser 600)
+PERM=$(stat -c "%a" "$SECRETS_FILE")
+if [[ "$PERM" != "600" ]]; then
+    echo -e "${RED}[ALERTA] Permissões inseguras ($PERM) em secrets.conf. Corrigindo para 600...${NC}"
+    chmod 600 "$SECRETS_FILE"
+    echo -e "${GREEN}[OK] Permissões blindadas.${NC}"
+else
+    echo -e "${GREEN}[OK] Permissões do arquivo de segredos seguras (600).${NC}"
+fi
+
+# Carregar Segredos para validar se estão preenchidos
+source "$SECRETS_FILE"
+
+MISSING_KEYS=0
+if [[ -z "${securitytrailskey:-}" ]]; then
+    echo -e "${YELLOW}[AVISO] SecurityTrails Key não configurada. O Recon será limitado.${NC}"
+    ((MISSING_KEYS++))
+fi
+if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+    echo -e "${YELLOW}[AVISO] OpenAI Key não configurada. Análise de IA desativada.${NC}"
+    ((MISSING_KEYS++))
+fi
+
+if [[ $MISSING_KEYS -eq 0 ]]; then
+    echo -e "${GREEN}[OK] Todas as chaves principais detectadas.${NC}"
+fi
+
+# ------------------------------------------------------------------------------
+# 4. Criação de Estrutura de Diretórios
+# ------------------------------------------------------------------------------
+echo -e "\n${YELLOW}[*] Criando estrutura de pastas...${NC}"
+
+# Pastas Físicas (Onde as ferramentas rodam)
+mkdir -p "$proj_path"/{Recon,OSINT,Screenshots,Varreduras}
+
+# Pastas Lógicas (Obsidian - Onde os links simbólicos ou sync ocorrem)
+mkdir -p "$OBS_PATH/Alvos"
+mkdir -p "$OBSIDIAN_PROJ_ROOT/OSINT"
+
+echo -e "${GREEN}[OK] Estrutura criada.${NC}"
+
+# ------------------------------------------------------------------------------
+# 5. Instalação de Templates (Dashboards & Loots)
+# ------------------------------------------------------------------------------
+echo -e "\n${YELLOW}[*] Gerando Dashboards e Arquivos Mestre...${NC}"
+
+# Função auxiliar para copiar e processar templates
+# Uso: install_template "template_origem" "arquivo_destino"
+install_template() {
+    local tpl_name="$1"
+    local dest_path="$2"
+
+    if [[ -f "$tpdir/$tpl_name" ]]; then
+        if [[ -f "$dest_path" ]]; then
+            echo -e "    ${YELLOW}[SKIP] $tpl_name já existe no destino.${NC}"
+        else
+            cp "$tpdir/$tpl_name" "$dest_path"
+            # Substituição de Variáveis Globais (Usando pipe | como delimitador)
+            sed -i "s|{{proj_name}}|$proj_name|g" "$dest_path"
+            sed -i "s|{{date}}|$(date +%Y-%m-%d)|g" "$dest_path"
+            echo -e "    ${GREEN}[+] $tpl_name instalado com sucesso.${NC}"
         fi
-    done
-    
-    log SUCCESS "Pré-flight OK: config.sh carregado"
-}
-
-# ─────────────────────────────────────────
-# CRIAR ESTRUTURA EXPLORADOR
-# ─────────────────────────────────────────
-create_explorer_structure() {
-    log INFO "Criando estrutura explorador (Kali)..."
-    
-    # Diretório principal
-    mkdir -p "$proj_path"
-    
-    # Subdirs
-    mkdir -p "$NMAP_DIR" "$RECON_DIR" "$OSINT_DIR" "$LOG_DIR" "SCREENSHOT_DIR"
-    
-    # domains.txt inicial
-    if [[ ! -f "$proj_path/domains.txt" ]]; then
-        cat > "$proj_path/domains.txt" << 'EOF'
-# Lista de domínios alvo (um por linha)
-# Exemplo:
-# example.com
-# target.org
-EOF
-        log SUCCESS "domains.txt criado"
+    else
+        echo -e "    ${RED}[ERRO] Template $tpl_name não encontrado na pasta .templates!${NC}"
     fi
-    
-    # .gitignore
-    cat > "$proj_path/.gitignore" << 'EOF'
-*.log
-*.tmp
-.DS_Store
-Logs/
-Varreduras/*.xml
-EOF
-    
-    log SUCCESS "Estrutura explorador criada em $proj_path"
 }
 
-# ─────────────────────────────────────────
-# CRIAR ESTRUTURA OBSIDIAN
-# ─────────────────────────────────────────
-create_obsidian_structure() {
-    log INFO "Criando estrutura Obsidian (Analista)..."
-    
-    local pentest_root="$OBSIDIAN_PROJ_PATH"
-    mkdir -p "$pentest_root/Alvos" "$pentest_root/OSINT"
-    
-    # Copiar templates
-    local templates_dir="${HOME}/.openpipes/.templates"
-    
-    if [[ -f "$templates_dir/Dashboard_Global.md" ]]; then
-        sed "s/{{proj_name}}/$proj_name/g" \
-            "$templates_dir/Dashboard_Global.md" \
-            > "$pentest_root/Dashboard_Global.md"
-    fi
-    
-    if [[ -f "$templates_dir/Tarefas.md" ]]; then
-        cp "$templates_dir/Tarefas.md" "$pentest_root/"
-    fi
-    
-    log SUCCESS "Obsidian vault criado em $pentest_root"
-}
+# 5.1 Dashboard Global
+install_template "Dashboard_Global.md" "$OBS_PATH/Dashboard_Global.md"
 
-# ─────────────────────────────────────────
-# VALIDAR API KEYS + TUTORIAL
-# ─────────────────────────────────────────
-validate_api_keys() {
-    log INFO "Verificando API keys..."
-    
-    local missing_keys=()
-    
-    [[ -z "${securitytrailskey:-}" ]] && missing_keys+=("SecurityTrails")
-    [[ -z "${OPENAI_API_KEY:-}" ]] && missing_keys+=("OpenAI")
-    [[ -z "${SERPAPI_KEY:-}" ]] && missing_keys+=("SerpAPI")
-    [[ -z "${GOOGLE_API_KEY:-}" ]] && missing_keys+=("Google")
-    
-    if [[ ${#missing_keys[@]} -eq 0 ]]; then
-        log SUCCESS "Todas API keys configuradas!"
-        return 0
-    fi
-    
-    log WARN "${#missing_keys[@]} API key(s) não configurada(s):"
-    for key in "${missing_keys[@]}"; do
-        echo "   ❌ $key"
-    done
-    
-    echo -e "\n${CYAN}Deseja ver tutorial de configuração?${NC}"
-    echo "[T] Tutorial completo"
-    echo "[P] Pular (continuar sem keys)"
-    echo "[C] Configurar agora (abre config.sh)"
-    read -rp "Escolha: " choice
-    
-    case $choice in
-        T|t) show_api_tutorial "${missing_keys[@]}" ;;
-        C|c) "${EDITOR:-nano}" "$OPENPIPES_CONFIG" ;;
-        *) log WARN "Continuando sem API keys (funcionalidade limitada)" ;;
-    esac
-}
+# 5.2 Dashboard de Loots (NOVO)
+install_template "Dashboard_Loots.md" "$OBS_PATH/Dashboard_Loots.md"
 
-show_api_tutorial() {
-    local keys=("$@")
-    clear
-    echo -e "${CYAN}╔═══════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║       🔑 TUTORIAL API KEYS                ║${NC}"
-    echo -e "${CYAN}╚═══════════════════════════════════════════╝${NC}\n"
-    
-    for key in "${keys[@]}"; do
-        case $key in
-            SecurityTrails)
-                echo -e "${YELLOW}▸ SecurityTrails${NC} (Subdomain Discovery)"
-                echo "   URL: https://securitytrails.com/app/account/credentials"
-                echo "   Config: securitytrailskey=\"SUA_KEY_AQUI\""
-                ;;
-            OpenAI)
-                echo -e "${YELLOW}▸ OpenAI GPT-4${NC} (Vuln Enrichment)"
-                echo "   URL: https://platform.openai.com/api-keys"
-                echo "   Config: OPENAI_API_KEY=\"sk-...\""
-                ;;
-            SerpAPI)
-                echo -e "${YELLOW}▸ SerpAPI${NC} (OSINT People)"
-                echo "   URL: https://serpapi.com/manage-api-key"
-                echo "   Config: SERPAPI_KEY=\"...\""
-                ;;
-            Google)
-                echo -e "${YELLOW}▸ Google Custom Search${NC} (Document Discovery)"
-                echo "   URL: https://console.cloud.google.com/apis/credentials"
-                echo "   Config: GOOGLE_API_KEY=\"...\" + GOOGLE_CSE_ID=\"...\""
-                ;;
-        esac
-        echo ""
-    done
-    
-    echo -e "${CYAN}Arquivo de configuração:${NC} $OPENPIPES_CONFIG"
-    echo -e "Edite com: ${GREEN}openpipes config${NC} ou ${GREEN}nano ~/.openpipes/config.sh${NC}"
-    read -rp "Pressione ENTER para continuar..."
-}
+# 5.3 Tarefas / Todo List
+install_template "Tarefas.md" "$OBS_PATH/Tarefas.md"
 
-# ─────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────
-main() {
-    clear
-    echo -e "${CYAN}"
-    cat << 'EOF'
-   ___  ____                 ____  _                 ____  
- 
-                                     |_|                    
-                     INICIALIZADOR v2.1
-EOF
-    echo -e "${NC}\n"
-    
-    preflight_checks
-    
-    # Checa se projeto existe
-    if [[ -d "$proj_path" ]]; then
-        log WARN "Projeto '$proj_name' já existe em $proj_path"
-        read -rp "Sobrescrever? [s/N]: " overwrite
-        [[ ! "$overwrite" =~ ^[Ss]$ ]] && { log INFO "Operação cancelada"; exit 0; }
-    fi
-    
-    log INFO "Inicializando projeto: $proj_name"
-    
-    create_explorer_structure
-    create_obsidian_structure
-    validate_api_keys
-    
-    # Summary
-    echo -e "\n${GREEN}╔═══════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║     ✅ PROJETO CRIADO COM SUCESSO!        ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════╝${NC}\n"
-    
-    echo -e "${CYAN}📁 Estrutura Explorador:${NC}"
-    tree -L 2 "$proj_path" 2>/dev/null || ls -lR "$proj_path"
-    
-    echo -e "\n${CYAN}📝 Obsidian Vault:${NC} $OBSIDIAN_PROJ_PATH"
-    
-    echo -e "\n${CYAN}🎯 PRÓXIMOS PASSOS:${NC}"
-    echo "1. Popule domains.txt: nano $proj_path/domains.txt"
-    echo "2. Configure API keys: openpipes config"
-    echo "3. Inicie pipeline: openpipes"
-}
-
-main "$@"
-
-source ~/.bashrc
+# ------------------------------------------------------------------------------
+# 6. Finalização
+# ------------------------------------------------------------------------------
+echo -e "\n${GREEN}==============================================${NC}"
+echo -e "${GREEN}   PROJETO '$proj_name' INICIALIZADO! 🚀${NC}"
+echo -e "${GREEN}==============================================${NC}"
+echo -e "Próximos passos:"
+echo -e "1. Adicione domínios em: ${BLUE}$proj_path/domains.txt${NC}"
+echo -e "2. Execute o Recon:      ${BLUE}openpipes recon${NC}"
+echo -e "3. Visualize no Obsidian:${BLUE} $OBSIDIAN_PROJ_ROOT${NC}"

@@ -48,12 +48,12 @@ log() {
 print_banner() {
     echo -e "${BLUE}"
     cat << "EOF"
-   ___  ____                 ____  _                ____  
-  / _ \|  _ \ ___ _ __  _ __|  _ \(_)_ __   ___  / ___| 
- | | | | |_) / _ | '_ \| '__| |_) | | '_ \ / _ \ \___ \ 
- | |_| |  __/  __| | | | |  |  __/| | |_) |  __/  ___) |
-  \___/|_|   \___|_| |_|_|  |_|   |_| .__/ \___| |____/ 
-                                     |_|                  
+   ___  ____            ____  _              ____  
+  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___  / ___| 
+ | | | | |_) / _ | '_ \| |_) | | '_ \ / _ \ \___ \ 
+ | |_| |  __/  __| | | |  __/| | |_) |  __/  ___) |
+  \___/|_|   \___|_| |_|_|   |_| .__/ \___| |____/ 
+                               |_|                  
                     Framework de Reconhecimento v2.0
 EOF
     echo -e "${NC}"
@@ -537,6 +537,7 @@ create_symlinks() {
         "vuln-enricher.sh:vuln-enricher"
         "osint-runner-people.sh:osint-people"
 		"screenshot-runner.sh:screenshot-runner"
+        "identities_manager.sh:id-manager"
     )
     
     for script_pair in "${SHELL_SCRIPTS[@]}"; do
@@ -893,7 +894,8 @@ print_final_message() {
     echo -e "  ${BLUE}httpx-runner${NC}       - HTTP probing"
     echo -e "  ${BLUE}katana-buster${NC}      - Web discovery"
     echo -e "  ${BLUE}nuclei-runner${NC}      - Vulnerability scanning"
-    echo -e "  ${BLUE}screenshot-runner${NC}      - Screenshots module"	
+    echo -e "  ${BLUE}screenshot-runner${NC}  - Screenshots module"	
+    echo -e "  ${BLUE}id-manager${NC}         - Identities Manager"	
     echo -e "  ${BLUE}osint-people${NC}       - OSINT People module"
     echo -e "  ${BLUE}apt-openpipes${NC}      - Wrapper APT seguro"
     echo -e ""

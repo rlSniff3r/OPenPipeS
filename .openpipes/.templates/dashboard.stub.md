@@ -54,7 +54,7 @@ if (!identitiesFile) {
     } else {
         // Função auxiliar para extrair valor de um campo inline
         const extractField = (line, fieldName) => {
-            const regex = new RegExp(`\[${fieldName}::\s*([^\]]+)\]`);
+            const regex = new RegExp(`\\[${fieldName}::\\s*([^\\]]+)\\]`);
             const match = line.match(regex);
             return match ? match[1].trim() : "-";
         };

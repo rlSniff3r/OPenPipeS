@@ -141,11 +141,11 @@ add_credential() {
     read -p "$(echo -e ${BOLD}Usuário:${NC} )" username
     read -sp "$(echo -e ${BOLD}Senha:${NC} )" password
     echo ""
-    read -p "$(echo -e ${BOLD}Fonte (ex: manual, mimikatz, secretsdump):${NC} )" source
-    read -p "$(echo -e ${BOLD}Endereço/Serviço (opcional):${NC} )" address
+    read -p "$(echo -e ${BOLD}Fonte:${NC} )" data_source
+    read -p "$(echo -e ${BOLD}Endereço/Serviço:${NC} )" address
     
     # Valida campos obrigatórios
-    if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$source" ]]; then
+    if [[ -z "$username" ]] || [[ -z "$password" ]] || [[ -z "$data_source" ]]; then
         echo -e "\n${RED}❌ Campos obrigatórios não preenchidos!${NC}\n"
         return 1
     fi
@@ -168,20 +168,20 @@ add_credential() {
 add_hash() {
     echo -e "\n${YELLOW}═══ Adicionando Hash ═══${NC}\n"
     
-    read -p "$(echo -e ${BOLD}Usuário (opcional):${NC} )" username
+    read -p "$(echo -e ${BOLD}Usuário:${NC} )" username
     read -p "$(echo -e ${BOLD}Hash:${NC} )" hash_value
-    read -p "$(echo -e ${BOLD}Formato (ex: NTLM, MD5, SHA256):${NC} )" hash_format
-    read -p "$(echo -e ${BOLD}Fonte (ex: manual, mimikatz, secretsdump):${NC} )" source
-    read -p "$(echo -e ${BOLD}Endereço/Serviço (opcional):${NC} )" address
+    read -p "$(echo -e ${BOLD}Formato do hash:${NC} )" hash_format
+    read -p "$(echo -e ${BOLD}Fonte:${NC} )" data_source
+    read -p "$(echo -e ${BOLD}Endereço/Serviço:${NC} )" address
     
     # Valida campos obrigatórios
-    if [[ -z "$hash_value" ]] || [[ -z "$hash_format" ]] || [[ -z "$source" ]]; then
+    if [[ -z "$hash_value" ]] || [[ -z "$hash_format" ]] || [[ -z "$data_source" ]]; then
         echo -e "\n${RED}❌ Campos obrigatórios não preenchidos!${NC}\n"
         return 1
     fi
     
     # Monta a linha no formato Dataview Inline Fields
-    local identity_line="[type:: hash] [hash:: $hash_value] [format:: $hash_format] [source:: $source] [target:: $SELECTED_TARGET]"
+    local identity_line="[type:: hash] [hash:: $hash_value] [format:: $hash_format] [source:: $data_source] [target:: $SELECTED_TARGET]"
     
     # Adiciona o usuário se fornecido
     if [[ -n "$username" ]]; then
@@ -204,17 +204,17 @@ add_email() {
     echo -e "\n${YELLOW}═══ Adicionando E-mail ═══${NC}\n"
     
     read -p "$(echo -e ${BOLD}E-mail:${NC} )" email_value
-    read -p "$(echo -e ${BOLD}Fonte (ex: manual, hunter.io, theHarvester):${NC} )" source
-    read -p "$(echo -e ${BOLD}Observações (opcional):${NC} )" notes
+    read -p "$(echo -e ${BOLD}Fonte:${NC} )" data_source
+    read -p "$(echo -e ${BOLD}Observações:${NC} )" notes
     
     # Valida campos obrigatórios
-    if [[ -z "$email_value" ]] || [[ -z "$source" ]]; then
+    if [[ -z "$email_value" ]] || [[ -z "$data_source" ]]; then
         echo -e "\n${RED}❌ Campos obrigatórios não preenchidos!${NC}\n"
         return 1
     fi
     
     # Monta a linha no formato Dataview Inline Fields
-    local identity_line="[type:: email] [address:: $email_value] [source:: $source] [target:: $SELECTED_TARGET]"
+    local identity_line="[type:: email] [address:: $email_value] [source:: $data_source] [target:: $SELECTED_TARGET]"
     
     # Adiciona observações se fornecidas
     if [[ -n "$notes" ]]; then
@@ -232,18 +232,18 @@ add_user() {
     echo -e "\n${YELLOW}═══ Adicionando Usuário ═══${NC}\n"
     
     read -p "$(echo -e ${BOLD}Usuário:${NC} )" username
-    read -p "$(echo -e ${BOLD}Fonte (ex: manual, enum4linux, ldapsearch):${NC} )" source
-    read -p "$(echo -e ${BOLD}Endereço/Serviço (opcional):${NC} )" address
-    read -p "$(echo -e ${BOLD}Observações (opcional):${NC} )" notes
+    read -p "$(echo -e ${BOLD}Fonte:${NC} )" data_source
+    read -p "$(echo -e ${BOLD}Endereço/Serviço:${NC} )" address
+    read -p "$(echo -e ${BOLD}Observações:${NC} )" notes
     
     # Valida campos obrigatórios
-    if [[ -z "$username" ]] || [[ -z "$source" ]]; then
+    if [[ -z "$username" ]] || [[ -z "$data_source" ]]; then
         echo -e "\n${RED}❌ Campos obrigatórios não preenchidos!${NC}\n"
         return 1
     fi
     
     # Monta a linha no formato Dataview Inline Fields
-    local identity_line="[type:: user] [user:: $username] [source:: $source] [target:: $SELECTED_TARGET]"
+    local identity_line="[type:: user] [user:: $username] [source:: $data_source] [target:: $SELECTED_TARGET]"
     
     # Adiciona o endereço se fornecido
     if [[ -n "$address" ]]; then
