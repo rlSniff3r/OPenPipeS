@@ -418,6 +418,22 @@ run_module() {
         cria-vulnerabilidades)
             cd "$proj_path" || return 1
             ;;
+
+        id-manager)
+            cd "$proj_path" || return 1
+            echo -e "\n${CYAN}════════════════════════════════════════════════════════════════${NC}"
+            echo -e "${BOLD}🔐 Executando Identities Manager...${NC}"
+            echo -e "${CYAN}════════════════════════════════════════════════════════════════${NC}\n"
+            
+            # Verifica se o script existe
+            if [[ -f "${HOME}/.openpipes/scripts/identities_manager.sh" ]]; then
+                bash "${HOME}/.openpipes/scripts/identities_manager.sh"
+            else
+                echo -e "${RED}❌ ERRO: Script identities_manager.sh não encontrado!${NC}"
+                echo -e "Verifique a instalação do OpenPipeS.\n"
+            fi
+            ;;
+            
     esac
     
     # 4. Executa módulo (EXATAMENTE COMO ANTES - SEM ALTERAÇÕES)
@@ -484,6 +500,7 @@ run_full_pipeline() {
         "gf-summary"
         "whois-enricher"
 		"screenshot-runner"
+        "id-manager"
     )
     
     local total=${#modules[@]}
@@ -625,11 +642,11 @@ show_menu() {
     echo -e "${CYAN}║  ${GREEN}[N]${NC} Nuclei Scan (Vulnerability Scanner)                     ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[G]${NC} GF Summary (Pattern Matching)                           ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[O]${NC} OSINT People                                            ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[U]${NC} Identity Manager                                        ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[U]${NC} Identity Manager (credenciais, hashes, etc.)            ║${NC}"
     echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║  PIPELINE & GESTÃO                                           ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[P]${NC} Pipeline Completo (R→S→H→K→N→J→G→W)                     ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[V]${NC} Gerenciar loot (credenciais, hashes, etc.)              ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[V]${NC} Criar/editar vulnerabilidades                           ║${NC}"
     echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║  UTILITÁRIOS                                                 ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[L]${NC} Listar Alvos                                            ║${NC}"
@@ -685,19 +702,9 @@ handle_menu_choice() {
             press_enter
             ;;
         [Uu])
-            echo -e "\n${CYAN}════════════════════════════════════════════════════════════════${NC}"
-            echo -e "${BOLD}🔐 Executando Identities Manager...${NC}"
-            echo -e "${CYAN}════════════════════════════════════════════════════════════════${NC}\n"
-            
-            # Verifica se o script existe
-            if [[ -f "${HOME}/.openpipes/scripts/identities_manager.sh" ]]; then
-                bash "${HOME}/.openpipes/scripts/identities_manager.sh"
-            else
-                echo -e "${RED}❌ ERRO: Script identities_manager.sh não encontrado!${NC}"
-                echo -e "Verifique a instalação do OpenPipeS.\n"
-            fi
-            
-            pause
+            log STEP "Identities Manager (Creds, E-mails, etc.)..."
+            run_module "id-manager"
+            press_enter
             ;;
         [Ww])
             log STEP "WHOIS Enrichment..."
@@ -1010,15 +1017,20 @@ show_help() {
    [G] GF Summary          → Pattern matching
    [W] WHOIS               → Enrichment de dados
    [I] SCREENSHOTS		   → SS de Webservers	
+   [U] IDENTITIES MANAGER  → Credenciais, E-mails, etc.
 
 4️⃣  PIPELINE COMPLETO
    [P] Executa todos os módulos em sequência
 
 5️⃣  GESTÃO E ANÁLISE
    [V] Criar/editar vulnerabilidades
+   [E] Editar domains.txt  
    [L] Listar alvos
    [E] Editar domains.txt
    [M] Ver outputs recentes
+   [T] Status de Ferramentas 
+   [C] Configuração
+   [A] Ajuda     
 
 ═══════════════════════════════════════════════════════════════
 
