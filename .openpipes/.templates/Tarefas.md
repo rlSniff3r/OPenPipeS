@@ -66,8 +66,8 @@ if (targetNames.length === 0) {
     
     // Função para determinar cor e ícone baseado na quantidade de tarefas
     const getStatusStyle = (count) => {
-        if (count <= 3) return { color: '#10b981', icon: '🟢', label: 'Baixa' };
-        if (count <= 7) return { color: '#f59e0b', icon: '🟡', label: 'Média' };
+        if (count <= 4) return { color: '#10b981', icon: '🟢', label: 'Baixa' };
+        if (count <= 10) return { color: '#f59e0b', icon: '🟡', label: 'Média' };
         return { color: '#ef4444', icon: '🔴', label: 'Alta' };
     };
     
