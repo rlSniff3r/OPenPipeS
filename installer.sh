@@ -538,6 +538,9 @@ create_symlinks() {
         "osint-runner-people.sh:osint-people"
 		"screenshot-runner.sh:screenshot-runner"
         "identities_manager.sh:id-manager"
+        "katana-runner.sh:katana-runner"
+        "context-wordlist-builder.sh:context-builder"
+        "feroxbuster-runner.sh:feroxbuster-runner"
     )
     
     for script_pair in "${SHELL_SCRIPTS[@]}"; do

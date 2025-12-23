@@ -1,157 +1,276 @@
-#!/bin/bash
+!#/bin/bash
 
-# Updating...
+════════════════════════════════════════════════════════════════════════════
+httpx-runner.sh v2.0 - HTTP Probing com Hybrid Target Preparation
+Parte do OpenPipeS Framework
+════════════════════════════════════════════════════════════════════════════
 
-# Configs
-source $HOME/.openpipes/config.sh
 
-base_dir=$NMAP_DIR
-recon_dir="$base_dir/../Recon"
-domains_file="$base_dir/../domains.txt"
-common_http_ports=(80 443 8000 8080 8443 10443 4443)
+source ~/.openpipes/config.sh
+source ~/colorCodes.sh
+
+
+cat <<Banner
+${CYAN}
+██╗  ██╗████████╗████████╗██████╗ ██╗  ██╗   ██████╗ ██╗   ██╗███╗   ██╗███╗   ██╗███████╗██████╗
+██║  ██║╚══██╔══╝╚══██╔══╝██╔══██╗╚██╗██╔╝   ██╔══██╗██║   ██║████╗  ██║████╗  ██║██╔════╝██╔══██╗
+███████║   ██║      ██║   ██████╔╝ ╚███╔╝    ██████╔╝██║   ██║██╔██╗ ██║██╔██╗ ██║█████╗  ██████╔╝
+██╔══██║   ██║      ██║   ██╔═══╝  ██╔██╗    ██╔══██╗██║   ██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗
+██║  ██║   ██║      ██║   ██║     ██╔╝ ██╗   ██║  ██║╚██████╔╝██║ ╚████║██║ ╚████║███████╗██║  ██║
+╚═╝  ╚═╝   ╚═╝      ╚═╝   ╚═╝     ╚═╝  ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
+${NC}
+${BLUE}                      HTTP Probing com Tech Detection
+v2.0 - Hybrid Target Preparation${NC}
+Banner
+
+
+════════════════════════════════════════════════════════════════════════════
+CONFIGURAÇÃO
+════════════════════════════════════════════════════════════════════════════
 export NO_COLOR=1
+COMMON_HTTP_PORTS=(80 443 8000 8080 8443 10443 4443 3000 5000 8888 9000)
+IGNORE_PORTS="21|22|23|25|53|111|135|137|139|445|3306|3389|5432|5900|6379"
+════════════════════════════════════════════════════════════════════════════
+FUNÇÕES AUXILIARES
+════════════════════════════════════════════════════════════════════════════
 
-regex_domains=$(paste -sd"|" "$domains_file")
-
-# Mapeia domínios a IPs
-mapfile -t ip_mappings < <(grep -hE "has address" $recon_dir/*/hosts-allsubs | grep -E "$regex_domains")
-declare -A ip_to_domains
-for line in "${ip_mappings[@]}"; do
-  domain=$(echo "$line" | awk '{print $1}')
-  ip=$(echo "$line" | awk '{print $NF}')
-  [[ "$ip" =~ : ]] && continue
-  ip_to_domains[$ip]="${ip_to_domains[$ip]} $domain"
-done
-
-# Complementa com JSON do allsubs.httpx.json
-for json in $recon_dir/*/allsubs.httpx.json; do
-  [[ ! -f "$json" ]] && continue
-  jq -r 'select(.input and .host) | [.input, .host] | @tsv' "$json" | while IFS=$'\t' read -r domain ip; do
-    [[ "$ip" =~ : ]] && continue
-    ip_to_domains[$ip]="${ip_to_domains[$ip]} $domain"
-  done
-done
-
-# Processa cada alvo
-for dir in "$base_dir"/nmap-*; do
-  [[ ! -d "$dir" ]] && continue
-  targetName="${dir##*/nmap-}"
-
-  # Verifica se o relatório já existe
-  md_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/httpx.md"
-  if [[ -f "$md_file" ]]; then
-    echo "[*] Relatório para $targetName já existe. Pulando."
-    continue
-  fi
-
-  ip=$(grep "Nmap scan report for" $dir/initial | sed 's/Nmap scan report for //g' |cut -d "(" -f2 | cut -d ")" -f1 | cut -d ":" -f2)
-#  ip=$(grep "Nmap scan report for" "$dir/nmap.nmap" | head -n1 | cut -d "(" -f2 | cut -d ")" -f1)
-
-  [[ -z "$ip" ]] && echo "[!] IP não encontrado para $targetName" && continue
-
-  echo "[*] Processando alvo: $targetName com IP $ip"
-
-  mapfile -t all_ports < <(grep "/tcp" "$dir"/*.nmap 2>/dev/null | grep open | cut -d"/" -f1 | sort -nu)
-  http_ports=()
-  for port in "${all_ports[@]}"; do
-    service_line=$(grep "^$port/tcp" "$dir"/*.nmap | head -n1)
-    service=$(echo "$service_line" | awk '{print $3}')
-    if [[ "$service" =~ ^(http|https|ssl|proxy|ajp|sun-answerbook|webmin|zabbix|grafana|http.*|.*http)$ ]]; then
-      http_ports+=("$port")
+check_tool() {
+    if ! command -v "$1" &> /dev/null; then
+        echo -e "{RED}[ERROR] Ferramenta '$1' não encontrada! {NC}"
+        return 1
     fi
-  done
+    return 0
+}
 
-  for p in "${common_http_ports[@]}"; do
-    if [[ ! " ${http_ports[*]} " =~ " $p " ]]; then
-      http_ports+=("$p")
+════════════════════════════════════════════════════════════════════════════
+HYBRID TARGET PREPARATION
+Combina portas do Nmap + subdomínios do Recon
+════════════════════════════════════════════════════════════════════════════
+prepare_hybrid_targets() {
+    local TGT="$1"
+    local WORK_DIR="$2"
+    echo -e "${GREEN}[+] Preparando alvos (Modo Híbrido: Nmap + Recon)...${NC}"
+
+    local GNMAP_FILE="$NMAP_DIR/nmap-${TGT}/nmap.gnmap"
+    local SUBDOMAINS_FILE="$TARGETS_DIR/$TGT/Recon/subdomains_final.txt"
+
+    local RAW_TARGETS="$WORK_DIR/raw_targets.txt"
+    local FINAL_TARGETS="$WORK_DIR/targets_for_httpx.txt"
+
+    : > "$RAW_TARGETS"
+
+    # ──────────────────────────────────────────────────────────────────────
+    # FONTE 1: Portas do Nmap (Host:Port específicas)
+    # ──────────────────────────────────────────────────────────────────────
+    if [ -f "$GNMAP_FILE" ]; then
+        echo -e "${BLUE}    -> Extraindo portas do Nmap...${NC}"
+        
+        grep "Ports:" "$GNMAP_FILE" | while read -r line; do
+            echo "$line" | grep -oE "[0-9]+/open/tcp" | while read -r port_block; do
+                PORT=$(echo "$port_block" | cut -d/ -f1)
+                
+                # Ignora portas de infraestrutura
+                if [[ "$PORT" =~ ^($IGNORE_PORTS)$ ]]; then
+                    continue
+                fi
+                
+                # Adiciona target:port
+                echo "$TGT:$PORT" >> "$RAW_TARGETS"
+            done
+        done
+    else
+        echo -e "${YELLOW}    -> Nmap não encontrado, seguindo apenas com subdomínios.${NC}"
     fi
-  done
-  ports=$(IFS=','; echo "${http_ports[*]}")
 
-  target_list="httpx_targets.txt"
-  > "$HTTPX_DIR/$target_list"
-  seen=()
-  for domain in ${ip_to_domains[$ip]}; do
-    [[ " ${seen[*]} " =~ " $domain " ]] && continue
-    seen+=("$domain")
-    echo "http://$domain" >> "$target_list"
-    echo "https://$domain" >> "$target_list"
-  done
+    # ──────────────────────────────────────────────────────────────────────
+    # FONTE 2: Subdomínios do Recon (com portas comuns)
+    # ──────────────────────────────────────────────────────────────────────
+    if [ -f "$SUBDOMAINS_FILE" ]; then
+        echo -e "${BLUE}    -> Injetando subdomínios do Recon...${NC}"
+        
+        # Adiciona subdomínios puros (HTTPx vai testar 80/443 automaticamente)
+        cat "$SUBDOMAINS_FILE" >> "$RAW_TARGETS"
+        
+        # Se temos portas do Nmap, testa subdomínios nessas portas também!
+        if [ -f "$GNMAP_FILE" ]; then
+            local DISCOVERED_PORTS=($(grep "Ports:" "$GNMAP_FILE" | grep -oE "[0-9]+/open/tcp" | cut -d/ -f1 | sort -u))
+            
+            # Testa cada subdomínio nas portas descobertas
+            while read -r subdomain; do
+                for port in "${DISCOVERED_PORTS[@]}"; do
+                    # Pula portas de infraestrutura
+                    if [[ "$port" =~ ^($IGNORE_PORTS)$ ]]; then
+                        continue
+                    fi
+                    
+                    # Adiciona subdomain:port
+                    echo "$subdomain:$port" >> "$RAW_TARGETS"
+                done
+            done < "$SUBDOMAINS_FILE"
+        fi
+    else
+        echo -e "${YELLOW}    -> Lista de subdomínios não encontrada em $SUBDOMAINS_FILE${NC}"
+        # Fallback: adiciona o próprio target
+        echo "$TGT" >> "$RAW_TARGETS"
+    fi
 
-  # Garantir que o hostname (nome do diretório / nmap-<host>) também seja testado
-  if [[ ! " ${seen[*]} " =~ " $targetName " ]]; then
-    seen+=("$targetName")
-    echo "http://$targetName" >> "$target_list"
-    echo "https://$targetName" >> "$target_list"
-  fi
+    # ──────────────────────────────────────────────────────────────────────
+    # FONTE 3: Portas comuns (fallback se não achou nada)
+    # ──────────────────────────────────────────────────────────────────────
+    if [ ! -s "$RAW_TARGETS" ]; then
+        echo -e "${YELLOW}    -> Nenhum alvo encontrado, usando portas comuns...${NC}"
+        for port in "${COMMON_HTTP_PORTS[@]}"; do
+            echo "$TGT:$port" >> "$RAW_TARGETS"
+        done
+    fi
 
-  # Sempre mantenha os IPs como fallback
-  echo "http://$ip" >> "$target_list"
-  echo "https://$ip" >> "$target_list"
+    # ──────────────────────────────────────────────────────────────────────
+    # Consolidação e Deduplicação
+    # ──────────────────────────────────────────────────────────────────────
+    sort -u "$RAW_TARGETS" > "$FINAL_TARGETS"
 
-  timestamp=$(date +%Y%m%d-%H%M%S)
-  json_out="$dir/httpx-$timestamp.json"
-  url_list="$dir/httpx-$timestamp.list"
-  echo "[*] Executando httpx para $targetName → $json_out"
+    local TOTAL=$(wc -l < "$FINAL_TARGETS")
+    echo -e "${YELLOW}    -> INPUT LIST TURBINADA: $TOTAL alvos para o HTTPx${NC}"
 
-  httpx -l "$target_list" -p "$ports" -x GET,POST,OPTIONS,HEAD \
-    -title -tech-detect -server -sc -fr -ip -json -o "$json_out"
+    # Retorna o arquivo final
+    echo "$FINAL_TARGETS"
+}
 
-  jq -r '.url' "$json_out" | sort -u > "$url_list"
 
-  json_files=("$dir"/httpx-*.json)
-  combined_httpx="$dir/httpx-combined.json"
-  jq -s '[.[] | select(type=="object" and has("status_code"))]' "${json_files[@]}" > "$combined_httpx"
+════════════════════════════════════════════════════════════════════════════
+PIPELINE POR ALVO
+════════════════════════════════════════════════════════════════════════════
+process_target() {
+    local TARGET="$1"
+    echo -e "${BLUE}[*] >>> Processando: ${YELLOW}$TARGET${NC}"
 
-  dedup_json="$dir/httpx-dedup.json"
-  jq 'unique_by(.url, .method, .final_url)' "$combined_httpx" > "$dedup_json"
+    # Diretórios
+    local WORK_DIR="$NMAP_DIR/nmap-$TARGET/Web"
+    local OBSIDIAN_DIR="$TARGETS_DIR/$TARGET"
 
-  # Markdown: httpx.md
-  md_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/httpx.md"
-  mkdir -p "$(dirname "$md_file")"
-  echo "# 🌐 HTTPX - $targetName" > "$md_file"
-  echo "" >> "$md_file"
-  echo "| Method | URL | IP | Port | Status | Title | Tecnologias | Servidor |" >> "$md_file"
-  echo "|--------|-----|----|------|--------|-------|-------------|----------|" >> "$md_file"
+    mkdir -p "$WORK_DIR"
 
-  if [[ -f "$dedup_json" ]]; then
-  jq -r '
-    sort_by(.method, .url, .final_url) |
-    .[] |
-    . as $h |
-    [
-      $h.method,
-      ($h.final_url // $h.url // "-"),
-      ($h.host // "-"),
-      ($h.port|tostring // "-"),
-      (
-        ($h.status_code|tostring + " " + ($h.status_line // "-")) +
-        (if $h.chain_status_codes then
-          " (" + ($h.chain_status_codes | map(tostring) | join("→")) + ")"
-        else
-          ""
-        end)
-      ),
-      (($h.title // "-") | gsub("\\|"; "-")),
-      (($h.tech // ["-"] | join(",") | gsub("\\|"; "-"))),
-      (($h.webserver // "-") | gsub("\\|"; "-"))
-#      ($h.title // "-"),
-#      ($h.tech // ["-"] | join(",")),
-#      ($h.webserver // "-")
-    ] | "| " + join(" | ") + " |"
-  ' "$dedup_json" >> "$md_file"
-  else
-    echo "| - | - | - | - | - | - | - | - |" >> "$md_file"
-  fi
+    # ──────────────────────────────────────────────────────────────────────
+    # PASSO 1: Preparar alvos (Hybrid)
+    # ──────────────────────────────────────────────────────────────────────
+    local INPUT_FILE=$(prepare_hybrid_targets "$TARGET" "$WORK_DIR")
 
-  # endpoints.md
-  endpoints_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/endpoints.md"
-  jq -r '.[] | select(.status_code >= 200 and .status_code < 300) | .url' "$dedup_json" | sort -u >> "$endpoints_file"
+    if [ ! -s "$INPUT_FILE" ]; then
+        echo -e "${RED}[!] Nenhum alvo válido para $TARGET. Abortando.${NC}"
+        return 1
+    fi
 
-  (head -n4 "$md_file"; tail -n +5 "$md_file" | sort -u | egrep -v "400 |406 ") > $md_file.txt
-  mv "$md_file.txt" "$md_file"
+    # ──────────────────────────────────────────────────────────────────────
+    # PASSO 2: HTTPx Probing
+    # ──────────────────────────────────────────────────────────────────────
+    echo -e "${GREEN}[+] Executando HTTPx...${NC}"
+    check_tool "httpx" || return 1
 
-  echo "[✔] $targetName finalizado."
+    local JSON_OUT="$WORK_DIR/alive_hosts.json"
+    local URLS_OUT="$WORK_DIR/alive_urls.txt"
+
+    httpx -l "$INPUT_FILE" \
+        -silent -sc -title -td -ip -cdn -tech-detect -server \
+        -fr -probe \
+        -json -o "$JSON_OUT"
+
+    if [ ! -f "$JSON_OUT" ]; then
+        echo -e "${RED}[!] HTTPx não gerou saída JSON${NC}"
+        return 1
+    fi
+
+    # ──────────────────────────────────────────────────────────────────────
+    # PASSO 3: Processar resultados
+    # ──────────────────────────────────────────────────────────────────────
+
+    # Extrai URLs vivas
+    jq -r '.url' "$JSON_OUT" 2>/dev/null | sort -u > "$URLS_OUT"
+
+    # Extrai tecnologias (feed pro context builder)
+    cp "$JSON_OUT" "$WORK_DIR/technologies.json"
+
+    local WEB_COUNT=$(wc -l < "$URLS_OUT")
+    echo -e "${YELLOW}    -> $WEB_COUNT serviços WEB confirmados${NC}"
+
+    if [ "$WEB_COUNT" -eq 0 ]; then
+        echo -e "${YELLOW}[!] Nenhum serviço HTTP respondeu${NC}"
+        return 0
+    fi
+
+    # ──────────────────────────────────────────────────────────────────────
+    # PASSO 4: Gerar Markdown para Obsidian
+    # ──────────────────────────────────────────────────────────────────────
+
+    local MD_FILE="$OBSIDIAN_DIR/httpx.md"
+    mkdir -p "$OBSIDIAN_DIR"
+
+    echo "#  HTTPX - $TARGET" > "$MD_FILE"
+    echo "" >> "$MD_FILE"
+    echo "| Method | URL | IP | Port | Status | Title | Tecnologias | Servidor |" >> "$MD_FILE"
+    echo "|--------|-----|----|------|--------|-------|-------------|----------|" >> "$MD_FILE"
+
+    jq -r '
+        sort_by(.method, .url) |
+        .[] |
+        [
+            .method,
+            (.final_url // .url // "-"),
+            (.host // "-"),
+            (.port|tostring // "-"),
+            ((.status_code|tostring) + " " + (.status_line // "-")),
+            ((.title // "-") | gsub("\\|"; "-")),
+            ((.tech // ["-"] | join(",")) | gsub("\\|"; "-")),
+            ((.webserver // "-") | gsub("\\|"; "-"))
+        ] | "| " + join(" | ") + " |"
+    ' "$JSON_OUT" >> "$MD_FILE" 2>/dev/null
+
+    # Gera endpoints.md (URLs com status 200-299)
+    local ENDPOINTS_FILE="$OBSIDIAN_DIR/endpoints.md"
+    jq -r '.[] | select(.status_code >= 200 and .status_code < 300) | .url' "$JSON_OUT" 2>/dev/null | sort -u > "$ENDPOINTS_FILE"
+
+    echo -e "${GREEN}[✔] $TARGET finalizado!${NC}"
+    echo -e "${CYAN}    -> Markdown: $MD_FILE${NC}"
+    echo -e "${CYAN}    -> Endpoints: $ENDPOINTS_FILE${NC}"
+}
+
+
+════════════════════════════════════════════════════════════════════════════
+MAIN
+════════════════════════════════════════════════════════════════════════════
+if [ -n "$1" ]; then
+    # Modo manual: target específico
+    process_target "$1"
+else
+    # Modo batch: processa todos os targets
+    echo -e "MAGENTA[∗]ModoBatch:Processandotodososalvos...{MAGENTA}[*] Modo Batch: Processando todos os alvos...
+MAGENTA[∗]ModoBatch:Processandotodososalvos...{NC}"
+fi
+
+TARGETS_FILE="$NMAP_DIR/targets.txt"
+
+if [ ! -f "$TARGETS_FILE" ]; then
+    echo -e "${RED}[ERROR] targets.txt não encontrado em $NMAP_DIR${NC}"
+    exit 1
+fi
+
+# Carrega targets em array (evita roubo de stdin)
+mapfile -t TARGETS_ARRAY < "$TARGETS_FILE"
+
+echo -e "${YELLOW}[i] Carregados ${#TARGETS_ARRAY[@]} alvos${NC}"
+
+for TARGET_NAME in "${TARGETS_ARRAY[@]}"; do
+    # Ignora comentários e linhas vazias
+    [[ -z "$TARGET_NAME" || "$TARGET_NAME" =~ ^# ]] && continue
+    
+    echo -e "${YELLOW}────────────────────────────────────────${NC}"
+    
+    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME" ]; then
+        process_target "$TARGET_NAME" || echo -e "${RED}[FAIL] Erro ao processar $TARGET_NAME${NC}"
+    else
+        echo -e "${RED}[!] Scan não encontrado para $TARGET_NAME${NC}"
+    fi
 done
 
-echo -e "\n[🏁] httpx-runner.v3.sh finalizado com sucesso!"
+echo -e "GREEN[★]HTTPxRunnerfinalizado!{GREEN}[★] HTTPx Runner finalizado!
+GREEN[★]HTTPxRunnerfinalizado!{NC}"
+

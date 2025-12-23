@@ -623,7 +623,6 @@ show_status_bar() {
 show_menu() {
     show_banner
     show_status_bar
-    
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║                   MÓDULOS DISPONÍVEIS                        ║${NC}"
     echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
@@ -632,40 +631,69 @@ show_menu() {
     echo -e "${CYAN}║  ${GREEN}[S]${NC} Scanning Nmap (Port Scanning)                           ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[W]${NC} WHOIS Enrichment                                        ║${NC}"
     echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║  WEB DISCOVERY                                               ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[H]${NC} HTTP Probing (HTTPx)                                    ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[K]${NC} Web Discovery (Katana + Ferox)                          ║${NC}"
+    echo -e "${CYAN}║  WEB DISCOVERY (MODULAR)                                     ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[H]${NC} HTTP Probing (HTTPx + Hybrid Targets)                   ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[K]${NC} Web Crawling (Katana)                                   ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[C]${NC} Context Wordlist Builder (Tech-Aware)                   ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[F]${NC} Fuzzing (Feroxbuster + Context Wordlist)                ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[J]${NC} JSFinder (JavaScript Analysis)                          ║${NC}"
-	echo -e "${CYAN}║  ${GREEN}[I]${NC} Screenshots (Eye-Witness)                          ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[I]${NC} Screenshots (Smart Dedupe)                              ║${NC}"
     echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║  ANÁLISE & VULNERABILIDADES                                  ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[N]${NC} Nuclei Scan (Vulnerability Scanner)                     ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[G]${NC} GF Summary (Pattern Matching)                           ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[O]${NC} OSINT People                                            ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[U]${NC} Identity Manager (credenciais, hashes, etc.)            ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[U]${NC} Identity Manager (Credenciais, Hashes, etc.)            ║${NC}"
     echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║  PIPELINE & GESTÃO                                           ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[P]${NC} Pipeline Completo (R→S→H→K→N→J→G→W)                     ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[P]${NC} Pipeline Completo (R→S→H→K→C→F→N→J→I→G→W)              ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[L]${NC} Pipeline Legacy (katana-buster antigo)                  ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[V]${NC} Criar/editar vulnerabilidades                           ║${NC}"
     echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║  UTILITÁRIOS                                                 ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[L]${NC} Listar Alvos                                            ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[T]${NC} Listar Alvos                                            ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[E]${NC} Editar domains.txt                                      ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[M]${NC} Mostrar Últimos Outputs                                 ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[T]${NC} Status de Ferramentas                                   ║${NC}"
-    echo -e "${CYAN}║  ${GREEN}[C]${NC} Configuração                                            ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[X]${NC} Status de Ferramentas                                   ║${NC}"
+    echo -e "${CYAN}║  ${GREEN}[Z]${NC} Configuração                                            ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[A]${NC} Ajuda                                                   ║${NC}"
     echo -e "${CYAN}║  ${GREEN}[Q]${NC} Sair                                                    ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
-    
+
     read -rp "Escolha uma opção: " choice
-    handle_menu_choice "$choice"
+handle_menu_choice "$choice"
 }
+
 
 handle_menu_choice() {
     local choice="$1"
     
+    local choice="$1"
     case "$choice" in
+        # ... casos existentes ...
+        
+        [Kk])
+            log STEP "Web Crawling (Katana)..."
+            run_module "katana-runner"
+            press_enter
+            ;;
+        [Cc])
+            log STEP "Context Wordlist Builder..."
+            run_module "context-wordlist-builder"
+            press_enter
+            ;;
+        [Ff])
+            log STEP "Fuzzing (Feroxbuster)..."
+            run_module "feroxbuster-runner"
+            press_enter
+            ;;
+        [Ll])
+            log STEP "Pipeline Legacy (katana-buster antigo)..."
+            log WARN "DEPRECATED: Este módulo será removido na v3.0"
+            run_module "katana-buster"
+            press_enter
+            ;;
+
         [Rr])
             log STEP "Reconhecimento (Subdomain Discovery)..."
             run_module "recon"
@@ -679,11 +707,6 @@ handle_menu_choice() {
         [Hh])
             log STEP "HTTP Probing (HTTPx)..."
             run_module "httpx-runner"
-            press_enter
-            ;;
-        [Kk])
-            log STEP "Web Discovery (Katana + Ferox)..."
-            run_module "katana-buster"
             press_enter
             ;;
         [Nn])
@@ -729,10 +752,6 @@ handle_menu_choice() {
             run_module "cria-vulnerabilidades"
             press_enter
             ;;
-        [Ll])
-            show_targets_list
-            press_enter
-            ;;
         [Ee])
             show_edit_domains
             press_enter
@@ -743,9 +762,6 @@ handle_menu_choice() {
             ;;
         [Tt])
             show_status
-            ;;
-        [Cc])
-            show_config
             ;;
         [Aa])
             show_help
@@ -1105,6 +1121,28 @@ EOF
 # ═══════════════════════════════════════════════════════════════════════════
 
 main() {
+        log INFO "═══════════════════════════════════════════════"
+    log INFO "  PIPELINE COMPLETO v3.0 (MODULAR)"
+    log INFO "═══════════════════════════════════════════════"
+    # Validação omitida por brevidade (já existe no código)
+
+    # Nova ordem de módulos
+    local modules=(
+        "recon"                      # 1. Reconhecimento
+        "nwrapper"                   # 2. Port Scan
+        "cria-alvos"                 # 3. Criar estrutura Obsidian
+        "httpx-runner"               # 4. HTTP Probing (Hybrid)
+        "katana-runner"              # 5. Web Crawling
+        "context-wordlist-builder"   # 6. Context Wordlist
+        "feroxbuster-runner"         # 7. Fuzzing
+        "nuclei-runner"              # 8. Nuclei Scan
+        "jsfinder-runner"            # 9. JS Analysis
+        "screenshot-runner"          # 10. Screenshots
+        "gf-summary"                 # 11. GF Summary
+        "whois-enricher"             # 12. WHOIS
+        "id-manager"                 # 13. Identity Manager
+    )
+    
     # 1. Pré-flight checks
     if ! check_config; then
         log ERROR "Falha na verificação de configuração"
