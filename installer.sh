@@ -14,7 +14,7 @@ NC='\033[0m'
 # Variáveis globais
 OPENPIPES_DIR="$HOME/.openpipes"
 OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
-SECRETS_OPENPIPES="$OPENPIPES_DIR/secrets.sh"
+SECRETS_OPENPIPES="$OPENPIPES_DIR/secrets.conf"
 OPENPIPES_BIN="$OPENPIPES_DIR/bin"
 OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
 OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
@@ -751,9 +751,9 @@ create_default_config() {
     cp $SECRETS_OPENPIPES ~/${backup_dir}
 
     cp $INSTALL_DIR/.openpipes/config.sh $CONFIG_FILE
-    cp .openpipes/secrets.conf.example $SECRETS_OPENPIPES
+    cp $INSTALL_DIR/.openpipes/secrets.conf.example $SECRETS_OPENPIPES
 
-    echo -e "${CYAN}[i] Edite suas API keys em: $CONFIG_FILE${NC}"
+    echo -e "${CYAN}[i] Edite suas API keys em: $SECRETS_OPENPIPES ${NC}"
 }
 
 # Verificar instalação
