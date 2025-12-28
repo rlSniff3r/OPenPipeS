@@ -707,31 +707,18 @@ APT_WRAPPER_EOF
     echo -e "${CYAN}[i] Use 'apt-openpipes' em vez de 'apt' para proteger dnsrecon${NC}"
 }
 
-# Download cache de vulnerabilidades
+# Copiar cache de vulnerabilidades
 download_vuln_cache() {
-    log INFO "Baixando cache de vulnerabilidades..."
+    log INFO "Copiando Cache de Vulnerabilidades"
     
-    local CACHE_URL="https://raw.githubusercontent.com/rlSniff3r/openPipes/master/.openpipes_cache/OWASP_WSTG_PwnDoc_pt-br.json"
-    local CACHE_FILE="$OPENPIPES_CACHE/OWASP_WSTG_PwnDoc_pt-br.json"
+    local SOURCE_CACHE=.openpipes_cache
+    local DEST_CACHE=$OPENPIPES_CACHE
+    local CACHE_COUNT=$(find ~/.openpipes_cache -maxdepth 1 -type f | wc -l)
+
+    cp -r $SOURCE_CACHE/* $DEST_CACHE
+
+    log SUCCESS "Copiados ${CACHE_COUNT} vulnerabilidades para o cache."
     
-    if [ -f "$CACHE_FILE" ]; then
-        log WARNING "Cache já existe: $CACHE_FILE"
-        read -p "Sobrescrever? (s/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Ss]$ ]]; then
-            log WARNING "Download cancelado"
-            return 0
-        fi
-    fi
-    
-    wget -q -O "$CACHE_FILE" "$CACHE_URL"
-    
-    if [ $? -eq 0 ]; then
-        local VULN_COUNT=$(jq '. | length' "$CACHE_FILE" 2>/dev/null || echo "?")
-        log SUCCESS "Cache baixado: $VULN_COUNT templates"
-    else
-        log WARNING "Falha no download. Cache será criado no primeiro uso."
-    fi
 }
 
 # Copiar templates
