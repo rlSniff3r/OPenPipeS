@@ -14,6 +14,7 @@ NC='\033[0m'
 # Variáveis globais
 OPENPIPES_DIR="$HOME/.openpipes"
 OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
+SECRETS_OPENPIPES="$OPENPIPES_DIR/secrets.sh"
 OPENPIPES_BIN="$OPENPIPES_DIR/bin"
 OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
 OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
@@ -484,6 +485,8 @@ export OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
 export OPENPIPES_TOOLS="$OPENPIPES_DIR/tools"
 export OPENPIPES_CACHE="$HOME/.openpipes_cache"
 export PATH="$OPENPIPES_BIN:$PATH"
+export CONFIG_FILE="$OPENPIPES_CONFIG"
+export SECRETS_OPENPIPES="$OPENPIPES_DIR/secrets.conf"
 
 # Go configuration
 export GOPATH="$HOME/go"
@@ -758,8 +761,11 @@ create_default_config() {
     mkdir -p ~/${backup_dir}
 
     cp $CONFIG_FILE ~/${backup_dir}
+    cp $SECRETS_OPENPIPES ~/${backup_dir}
 
     cp $INSTALL_DIR/.openpipes/config.sh $CONFIG_FILE
+    cp .openpipes/secrets.conf.example $SECRETS_OPENPIPES
+
     echo -e "${CYAN}[i] Edite suas API keys em: $CONFIG_FILE${NC}"
 }
 
