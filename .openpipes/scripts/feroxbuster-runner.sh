@@ -1,10 +1,12 @@
 #!/bin/bash
-════════════════════════════════════════════════════════════════════════════
-feroxbuster-runner.sh v1.0 - Fuzzing Inteligente
-Parte do OpenPipeS Framework
-════════════════════════════════════════════════════════════════════════════
+
+# ════════════════════════════════════════════════════════════════════════════
+# feroxbuster-runner.sh v1.0 - Fuzzing Inteligente
+# Parte do OpenPipeS Framework
+# ════════════════════════════════════════════════════════════════════════════
 source ~/.openpipes/config.sh
 source ~/colorCodes.sh
+
 cat <<Banner
 ${RED}
 ███████╗███████╗██████╗  ██████╗ ██╗  ██╗██████╗ ██╗   ██╗███████╗████████╗███████╗██████╗
@@ -17,40 +19,44 @@ ${NC}
 ${BLUE}                           Fuzzing com Wordlist Contextualizada
 v1.0 - Smart Fuzzing${NC}
 Banner
-════════════════════════════════════════════════════════════════════════════
-CONFIGURAÇÃO
-════════════════════════════════════════════════════════════════════════════
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# CONFIGURAÇÃO
+#  ════════════════════════════════════════════════════════════════════════════
+
 FEROX_THREADS=50
 FEROX_DEPTH=2
 FEROX_TIMEOUT="10m"
-Wordlist fallback (se contextualizada não existir)
+
+# Wordlist fallback (se contextualizada não existir)
 FALLBACK_WL="/usr/share/wordlists/seclists/Discovery/Web-Content/common.txt"
-════════════════════════════════════════════════════════════════════════════
-FUNÇÕES AUXILIARES
-════════════════════════════════════════════════════════════════════════════
+
+# ════════════════════════════════════════════════════════════════════════════
+# FUNÇÕES AUXILIARES
+# ════════════════════════════════════════════════════════════════════════════
 check_tool() {
     if ! command -v "$1" &> /dev/null; then
-        echo -e "{RED}[ERROR] '$1' não encontrado!
-{NC}"
+        echo -e "${RED}[ERROR] '$1' não encontrado! ${NC}"
         return 1
     fi
     return 0
 }
 
-════════════════════════════════════════════════════════════════════════════
-PIPELINE POR ALVO
-════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# PIPELINE POR ALVO
+# ════════════════════════════════════════════════════════════════════════════
 process_target() {
         local TARGET="$1"
-        echo -e "${BLUE}[*] >>> Processando: ${YELLOW}$TARGET${NC}"
+        echo -e "${BLUE}[*] >>> Processando: ${YELLOW}$TARGET ${NC}"
 
         # Diretórios
-        local WORK_DIR="$NMAP_DIR/nmap-$TARGET/Web"
+        local WORK_DIR="$NMAP_DIR/nmap-$TARGET"
         local OBSIDIAN_DIR="$TARGETS_DIR/$TARGET"
 
         if [ ! -d "$WORK_DIR" ]; then
-            echo -e "${RED}[!] Diretório Web não encontrado${NC}"
-            echo -e "${YELLOW}    Execute httpx-runner primeiro!${NC}"
+            echo -e "${RED}[!] Diretório Web não encontrado ${NC}"
+            echo -e "${YELLOW}    Execute httpx-runner primeiro! ${NC}"
             return 1
         fi
 
@@ -61,12 +67,12 @@ process_target() {
         local URLS_FILE="$WORK_DIR/alive_urls.txt"
 
         if [ ! -s "$URLS_FILE" ]; then
-            echo -e "${RED}[!] alive_urls.txt não encontrado ou vazio${NC}"
+            echo -e "${RED}[!] alive_urls.txt não encontrado ou vazio ${NC}"
             return 1
         fi
 
         local URL_COUNT=$(wc -l < "$URLS_FILE")
-        echo -e "${GREEN}[+] Fuzzing em $URL_COUNT URL(s)${NC}"
+        echo -e "${GREEN}[+] Fuzzing em $URL_COUNT URL(s) ${NC}"
 
         # ──────────────────────────────────────────────────────────────────────
         # PASSO 2: Selecionar wordlist (prioriza contextualizada)
@@ -180,29 +186,26 @@ process_target() {
             echo "| Endpoints Únicos | $UNIQUE_FOUND |"
             echo "| Taxa de Sucesso | $(awk "BEGIN {printf \"%.1f%%\", ($UNIQUE_FOUND/$WL_SIZE)*100}") |"
             echo ""
-            echo "##  Top 50 Descobertas"
+            echo "## Endpoints Descobertos"
             echo ""
-            echo '```'
-            head -50 "$CONSOLIDATED" 2>/dev/null || echo "Nenhum endpoint descoberto"
-            echo '```'
+            cat "$CONSOLIDATED" 2>/dev/null || echo "Nenhum endpoint descoberto"
             echo ""
             echo "---"
-    echo "*Arquivos completos: \`Web/ferox_*.txt\`*"
 } > "$MD_FILE"
 
 echo -e "${CYAN}    -> Markdown: $MD_FILE${NC}"
 
 
-════════════════════════════════════════════════════════════════════════════
-MAIN
-════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ════════════════════════════════════════════════════════════════════════════
+
 if [ -n "$1" ]; then
     # Modo manual
     process_target "$1"
 else
     # Modo batch
-    echo -e "YELLOW[∗]ModoBatch:Processandotodososalvos...{YELLOW}[*] Modo Batch: Processando todos os alvos...
-YELLOW[∗]ModoBatch:Processandotodososalvos...{NC}"
+    echo -e "${YELLOW}[*] Modo Batch: Processando todos os alvos... ${NC}"
 
 TARGETS_FILE="$NMAP_DIR/targets.txt"
 
@@ -225,5 +228,5 @@ for TARGET_NAME in "${TARGETS_ARRAY[@]}"; do
     fi
 done
 fi
-echo -e "GREEN[★]FeroxbusterRunnerfinalizado!{GREEN}[★] Feroxbuster Runner finalizado!
-GREEN[★]FeroxbusterRunnerfinalizado!{NC}"
+
+echo -e "${GREEN}[*] Feroxbuster Runner finalizado! ${NC}"

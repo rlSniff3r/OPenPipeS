@@ -2,10 +2,10 @@
 #!/bin/bash
 
 
-════════════════════════════════════════════════════════════════════════════
-context-wordlist-builder.sh v1.0 - Wordlist Contextualizada
-Parte do OpenPipeS Framework
-════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# context-wordlist-builder.sh v1.0 - Wordlist Contextualizada
+# Parte do OpenPipeS Framework
+# ════════════════════════════════════════════════════════════════════════════
 
 source ~/.openpipes/config.sh
 source ~/colorCodes.sh
@@ -25,13 +25,16 @@ v1.0 - Python Powered${NC}
 Banner
 
 
-════════════════════════════════════════════════════════════════════════════
-CONFIGURAÇÃO
-════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# CONFIGURAÇÃO
+# ════════════════════════════════════════════════════════════════════════════
+
 FILTERS_SCRIPT="$HOME/.openpipes/scripts/filters.py"
-════════════════════════════════════════════════════════════════════════════
-FUNÇÕES AUXILIARES
-════════════════════════════════════════════════════════════════════════════
+
+# ════════════════════════════════════════════════════════════════════════════
+# FUNÇÕES AUXILIARES
+# ════════════════════════════════════════════════════════════════════════════
+
 check_tool() {
     if ! command -v "$1" &> /dev/null; then
         echo -e "{RED}[ERROR] '$1' não encontrado!
@@ -43,22 +46,22 @@ check_tool() {
 
 check_file() {
     if [ ! -f "$1" ]; then
-        echo -e "{RED}[ERROR] Arquivo não encontrado: $1
-{NC}"
+        echo -e "${RED}[ERROR] Arquivo não encontrado: $1 ${NC}"
         return 1
     fi
     return 0
 }
 
-════════════════════════════════════════════════════════════════════════════
-PIPELINE POR ALVO
-════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# PIPELINE POR ALVO
+# ════════════════════════════════════════════════════════════════════════════
+
 process_target() {
         local TARGET="$1"
         echo -e "${BLUE}[*] >>> Processando: ${YELLOW}$TARGET${NC}"
 
         # Diretórios
-        local WORK_DIR="$NMAP_DIR/nmap-$TARGET/Web"
+        local WORK_DIR="$NMAP_DIR/nmap-$TARGET"
 
         if [ ! -d "$WORK_DIR" ]; then
             echo -e "${RED}[!] Diretório Web não encontrado${NC}"
@@ -172,16 +175,16 @@ process_target() {
 }
 
 
-════════════════════════════════════════════════════════════════════════════
-MAIN
-════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ════════════════════════════════════════════════════════════════════════════
+
 if [ -n "$1" ]; then
     # Modo manual
     process_target "$1"
 else
     # Modo batch
-    echo -e "YELLOW[∗]ModoBatch:Processandotodososalvos...{YELLOW}[*] Modo Batch: Processando todos os alvos...
-YELLOW[∗]ModoBatch:Processandotodososalvos...{NC}"
+    echo -e "${YELLOW}[*] Modo Batch: Processando todos os alvos... ${NC}"
 
 TARGETS_FILE="$NMAP_DIR/targets.txt"
 
@@ -204,5 +207,4 @@ for TARGET_NAME in "${TARGETS_ARRAY[@]}"; do
     fi
 done
 fi
-echo -e "GREEN[★]ContextWordlistBuilderfinalizado!{GREEN}[★] Context Wordlist Builder finalizado!
-GREEN[★]ContextWordlistBuilderfinalizado!{NC}"
+echo -e "${GREEN}[★] Context Wordlist Builder finalizado! ${NC}"

@@ -1,8 +1,9 @@
 #!/bin/bash
-════════════════════════════════════════════════════════════════════════════
-katana-runner.sh v1.0 - Deep Crawling
-Parte do OpenPipeS Framework
-════════════════════════════════════════════════════════════════════════════
+
+#════════════════════════════════════════════════════════════════════════════
+#katana-runner.sh v1.0 - Deep Crawling
+#Parte do OpenPipeS Framework
+#════════════════════════════════════════════════════════════════════════════
 source ~/.openpipes/config.sh
 source ~/colorCodes.sh
 
@@ -21,33 +22,32 @@ v1.0 - Extração Pura${NC}
 Banner
 
 
-════════════════════════════════════════════════════════════════════════════
-CONFIGURAÇÃO
-════════════════════════════════════════════════════════════════════════════
+#════════════════════════════════════════════════════════════════════════════
+#CONFIGURAÇÃO
+#════════════════════════════════════════════════════════════════════════════
 KATANA_DEPTH=3
 KATANA_CONCURRENCY=20
 KATANA_JS_CRAWL=true
-════════════════════════════════════════════════════════════════════════════
-FUNÇÕES AUXILIARES
-════════════════════════════════════════════════════════════════════════════
+#════════════════════════════════════════════════════════════════════════════
+#FUNÇÕES AUXILIARES
+#════════════════════════════════════════════════════════════════════════════
 check_tool() {
     if ! command -v "$1" &> /dev/null; then
-        echo -e "{RED}[ERROR] Ferramenta '$1' não encontrada!
-{NC}"
+        echo -e "${RED}[ERROR] Ferramenta '$1' não encontrada!${NC}"
         return 1
     fi
     return 0
 }
 
-════════════════════════════════════════════════════════════════════════════
-PIPELINE POR ALVO
-════════════════════════════════════════════════════════════════════════════
+#════════════════════════════════════════════════════════════════════════════
+#PIPELINE POR ALVO
+#════════════════════════════════════════════════════════════════════════════
 process_target() {
     local TARGET="$1"
     echo -e "${BLUE}[*] >>> Processando: ${YELLOW}$TARGET${NC}"
 
     # Diretórios
-    local WORK_DIR="$NMAP_DIR/nmap-$TARGET/Web"
+    local WORK_DIR="$NMAP_DIR/nmap-$TARGET"
     local OBSIDIAN_DIR="$TARGETS_DIR/$TARGET"
 
     if [ ! -d "$WORK_DIR" ]; then
@@ -59,7 +59,8 @@ process_target() {
     # PASSO 1: Verificar input (alive_urls.txt)
     # ──────────────────────────────────────────────────────────────────────
 
-    local INPUT_FILE="$WORK_DIR/alive_urls.txt"
+#    local INPUT_TMP=$(cat "$OBSIDIAN_DIR/endpoints.md" | sed -E 's/(:80|:443)(\/|$)/\2/g' | sort -u)
+    local INPUT_FILE="$OBSIDIAN_DIR/endpoints.md"
 
     if [ ! -s "$INPUT_FILE" ]; then
         echo -e "${RED}[!] alive_urls.txt não encontrado ou vazio${NC}"
@@ -129,6 +130,9 @@ process_target() {
     # PASSO 5: Gerar Markdown para Obsidian
     # ──────────────────────────────────────────────────────────────────────
 
+    cat "$CRAWLED_FILE" "$JS_FILES" "$OBSIDIAN_DIR/endpoints.md" > /tmp/all_endpoints
+    cat /tmp/all_endpoints > "$OBSIDIAN_DIR/endpoints.md"
+
     local MD_FILE="$OBSIDIAN_DIR/katana.md"
     mkdir -p "$OBSIDIAN_DIR"
 
@@ -150,17 +154,13 @@ process_target() {
         echo "| Arquivos JS | $JS_COUNT |"
         echo "| **Total Único** | **$TOTAL_URLS** |"
         echo ""
-        echo "##  URLs Descobertas (Primeiras 50)"
+        echo "## 🌐 URLs Descobertas"
         echo ""
-        echo '```'
-        head -50 "$CRAWLED_FILE"
-        echo '```'
+        cat "$CRAWLED_FILE"
         echo ""
-        echo "##  Arquivos JS (Primeiros 20)"
+        echo "## 📑 Arquivos JS"
         echo ""
-        echo '```'
-        head -20 "$JS_FILES" 2>/dev/null || echo "Nenhum arquivo JS encontrado"
-        echo '```'
+        cat "$JS_FILES" 2>/dev/null || echo "Nenhum arquivo JS encontrado"
         echo ""
         echo "---"
         echo "*Arquivo completo: \`crawled_all.txt\`*"
@@ -172,16 +172,15 @@ process_target() {
 }
 
 
-════════════════════════════════════════════════════════════════════════════
-MAIN
-════════════════════════════════════════════════════════════════════════════
+#════════════════════════════════════════════════════════════════════════════
+#MAIN
+#════════════════════════════════════════════════════════════════════════════
 if [ -n "$1" ]; then
     # Modo manual
     process_target "$1"
 else
     # Modo batch
-    echo -e "MAGENTA[∗]ModoBatch:Processandotodososalvos...{MAGENTA}[*] Modo Batch: Processando todos os alvos...
-MAGENTA[∗]ModoBatch:Processandotodososalvos...{NC}"
+    echo -e "${MAGENTA}[*] Modo Batch: Processando todos os alvos... ${NC}"
 
 TARGETS_FILE="$NMAP_DIR/targets.txt"
 
@@ -197,12 +196,11 @@ for TARGET_NAME in "${TARGETS_ARRAY[@]}"; do
     
     echo -e "${YELLOW}────────────────────────────────────────${NC}"
     
-    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME/Web" ]; then
+#    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME/Web" ]; then
         process_target "$TARGET_NAME" || echo -e "${RED}[FAIL] Erro em $TARGET_NAME${NC}"
-    else
-        echo -e "${RED}[!] Web dir não encontrado para $TARGET_NAME${NC}"
-    fi
+#    else
+#        echo -e "${RED}[!] Web dir não encontrado para $TARGET_NAME${NC}"
+#    fi
 done
 fi
-echo -e "GREEN[★]KatanaRunnerfinalizado!{GREEN}[★] Katana Runner finalizado!
-GREEN[★]KatanaRunnerfinalizado!{NC}"
+echo -e "${GREEN}[★] Katana Runner finalizado! ${NC}"

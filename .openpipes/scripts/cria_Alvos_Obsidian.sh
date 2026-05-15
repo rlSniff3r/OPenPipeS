@@ -1,179 +1,92 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
 
-# Carregar configurações globais e segredos
+# Diretórios
 source ~/.openpipes/config.sh
+tpdir="$HOME/.openpipes/.templates/"
+obsdir="$HOME/.obsidianFixedMount/"
 
-# --- Validações ---
-if [[ -z "${TARGETS_DIR:-}" ]] || [[ -z "${NMAP_DIR:-}" ]] || [[ -z "${tpdir:-}" ]]; then
-    echo "[ERRO] Variáveis de diretório não definidas no config.sh."
-    exit 1
-fi
+cd "$proj_path/Varreduras"
 
-if [[ ! -d "$NMAP_DIR" ]]; then
-    echo "[ERRO] Diretório de varreduras não encontrado: $NMAP_DIR"
-    exit 1
-fi
-
-TEMPLATES_DIR="$tpdir"
-ALVOS_DIR="$TARGETS_DIR"
-FORCE_UPDATE_ALL="false" # Variável de controle para o modo "All"
-
-# --- Funções Auxiliares ---
-
-# Função para aplicar o template e fazer os replaces
-# Uso: aplicar_template_alvo "caminho_destino" "nome_alvo" "ip_alvo"
-aplicar_template_alvo() {
-    local dest="$1"
-    local t_name="$2"
-    local t_ip="$3"
-    
-    if [[ -f "$TEMPLATES_DIR/target.stub.md" ]]; then
-        cp "$TEMPLATES_DIR/target.stub.md" "$dest"
-        # Usando pipe | como delimitador para aceitar N/A e caminhos
-        sed -i "s|{{targetName}}|$t_name|g" "$dest"
-        sed -i "s|{{ip}}|$t_ip|g" "$dest"
-        sed -i "s|{{proj_name}}|$proj_name|g" "$dest"
-        sed -i "s|{{date}}|$(date +%Y-%m-%d)|g" "$dest"
-        return 0
-    else
-        echo "[ERRO] Template target.stub.md sumiu!"
-        return 1
-    fi
-}
-
-echo -e "\033[0;34m[OPenPipeS] Gerador de Alvos v2.4 (Batch Mode)\033[0m"
-echo -e "\033[0;33m[+] Lendo scans em: $NMAP_DIR\033[0m"
-
-# Encontrar arquivos .nmap
-mapfile -t nmap_files < <(find "$NMAP_DIR" -type f -name "*.nmap" 2>/dev/null)
-
-if [[ ${#nmap_files[@]} -eq 0 ]]; then
-    echo "[ERRO] Nenhum arquivo .nmap encontrado."
-    exit 1
-fi
-
-# Loop principal por alvo
-for nmap_file in "${nmap_files[@]}"; do
-    # Extrair metadados
-    target_dir=$(dirname "$nmap_file")
-    targetName=$(basename "$target_dir" | sed 's/^nmap-//')
-    
-    # Fallback de nome
-    if [[ "$targetName" == "initial" ]] || [[ "$targetName" == "Scans" ]]; then
-        targetName=$(basename "$nmap_file" .nmap)
+for host in $(ls -d nmap-* 2>/dev/null); do
+    # Verifica se há portas abertas
+    open_ports=$(grep "/tcp" "$host"/*.nmap | grep "open")
+    if [ -z "$open_ports" ]; then
+        continue
     fi
 
-    # Extrair IP
-    ip=$(grep -oP 'Nmap scan report for .* \(\K[0-9.]+(?=\))' "$nmap_file" | head -n1 || echo "")
-    if [[ -z "$ip" ]]; then
-        ip=$(grep -oP 'Nmap scan report for \K[0-9.]+' "$nmap_file" | head -n1 || echo "N/A")
-    fi
+    targetName="$(echo $host | sed 's/nmap-//')"
+    tgtFileName="$(echo $targetName | cut -d ' ' -f2)"
+    tgtDir="$obsdir/$proj_name/Pentest/Alvos/$targetName"
+    vulnDir="$tgtDir/Vulnerabilidades"
 
-    echo -e "\033[0;36m\n[>] Processando: $targetName ($ip)\033[0m"
+    # Cria diretórios
+    mkdir -p "$vulnDir"
 
-    # Preparar diretórios
-    CURRENT_TARGET_DIR="$ALVOS_DIR/$targetName"
-    BACKUP_DIR="$CURRENT_TARGET_DIR/_Backups"
-    mkdir -p "$CURRENT_TARGET_DIR/Vulnerabilidades"
-    
-    TARGET_NOTE="$CURRENT_TARGET_DIR/${targetName}.md"
+    # Resolve IP via DNS
+    t_IP=$(echo -n "t_IP:" $(host -t a $targetName 2>/dev/null | awk '/has address/ {print $4}' | sort -u))
 
-    # ---------------------------------------------------------
-    # 1. NOTA PRINCIPAL (Lógica Update/All/Skip)
-    # ---------------------------------------------------------
-    if [[ -f "$TARGET_NOTE" ]]; then
-        echo -e "\033[0;33m    [!] Nota '$targetName.md' já existe.\033[0m"
-        
-        # Define a escolha baseada no estado anterior ou pergunta
-        if [[ "$FORCE_UPDATE_ALL" == "true" ]]; then
-            choice="y"
-            # Feedback visual minimalista para saber que está automático
-            echo -e "\033[0;35m        [AUTO] Atualizando automaticamente (Modo All)...\033[0m"
-        else
-            # Pergunta interativa: y (Sim), n (Não), a (Todos)
-            read -t 10 -p "        Atualizar (com backup)? [y/N/a]: " input_choice || input_choice="n"
-            echo "" 
+    # Frontmatter YAML
+    tipo="Tipo: target"
+    tgtName="targetName: $targetName"
+    t_openPorts="t_openPorts: $(echo "$open_ports" | cut -d "/" -f1 | sed -z 's/\n/","/g' | sed -z 's/..$/]/g' | sed -z 'i["')"
 
-            # Processar input especial 'a'
-            if [[ "$input_choice" =~ ^[Aa]$ ]]; then
-                FORCE_UPDATE_ALL="true"
-                choice="y"
-                echo -e "\033[0;36m        [!] Opção 'Todos' selecionada. Sem mais perguntas!\033[0m"
-            else
-                choice="$input_choice"
-            fi
-        fi
+    # Lista de serviços com TTL correto e versão limpa
+    t_Services="t_services: $(echo "$open_ports" | awk '
+    {
+        split($1, port, "/");
+        svc = $3;
+        ttl = "N/A";
+        vers = "";
+        for(i=4;i<=NF;++i) {
+            if ($i == "ttl" && (i+1)<=NF) {
+                ttl = $(i+1);
+                for(j=i+2;j<=NF;++j) vers = vers" "$(j);
+                break;
+            }
+        }
+        gsub(/^ /, "", vers);
+        print port[1]" "svc" syn-ack ttl "ttl" "vers;
+    }' | sed -z 's/\n/","/g' | sed -z 's/..$/]/g' | sed -z 'i["')"
 
-        # Executar ação baseada na escolha final
-        if [[ "$choice" =~ ^[Yy]$ ]]; then
-            mkdir -p "$BACKUP_DIR"
-            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-            BKP_FILE="$BACKUP_DIR/${targetName}_bkp_$TIMESTAMP.md"
-            
-            cp "$TARGET_NOTE" "$BKP_FILE"
-            echo -e "\033[0;35m        [BKP] Backup salvo em: _Backups/$(basename "$BKP_FILE")\033[0m"
-            
-            aplicar_template_alvo "$TARGET_NOTE" "$targetName" "$ip"
-            echo -e "\033[0;32m        [OK] Nota atualizada com novo template.\033[0m"
-        else
-            echo -e "\033[0;37m        [SKIP] Mantendo arquivo original.\033[0m"
-        fi
-    else
-        aplicar_template_alvo "$TARGET_NOTE" "$targetName" "$ip"
-        echo -e "\033[0;32m    [+] Nota principal criada.\033[0m"
-    fi
+    # Gera progresso baseado nas portas abertas
+    progresso=$(echo "$open_ports" | cut -d "/" -f1 | sort -n | awk '{print "- [ ] Enumerar porta "$1}')
 
-    # ---------------------------------------------------------
-    # 2. DASHBOARD (Sempre atualiza)
-    # ---------------------------------------------------------
-    DASHBOARD_NOTE="$CURRENT_TARGET_DIR/Dashboard_${targetName}.md"
-    if [[ -f "$TEMPLATES_DIR/dashboard.stub.md" ]]; then
-        cp "$TEMPLATES_DIR/dashboard.stub.md" "$DASHBOARD_NOTE"
-        sed -i "s|{{targetName}}|$targetName|g" "$DASHBOARD_NOTE"
-        sed -i "s|{{ip}}|$ip|g" "$DASHBOARD_NOTE"
-        sed -i "s|{{proj_name}}|$proj_name|g" "$DASHBOARD_NOTE"
-        sed -i "s|{{date}}|$(date +%Y-%m-%d)|g" "$DASHBOARD_NOTE"
-    fi
+    # Criação do arquivo Markdown do alvo
+    alvoFile="$tgtDir/$tgtFileName.md"
+    {
+        echo "---"
+        echo "$tipo"
+        echo "$tgtName"
+        echo "$t_IP"
+        echo "$t_openPorts"
+        echo "$t_Services"
+        echo "tags: [alvo, host]"
+        echo "---"
+        echo ""
+        # Insere o template, mas substitui a seção de progresso
+        awk -v prog="$progresso" '
+            BEGIN {in_prog=0}
+            /^# 🚩 Progresso/ {print; print prog; in_prog=1; next}
+            in_prog && /^- / {next}
+            {print}
+        ' "$tpdir/target.stub.md"
+    } > "$alvoFile"
 
-    # ---------------------------------------------------------
-    # 3. SCAN NMAP (Log Estático)
-    # ---------------------------------------------------------
-    if [[ ! -f "$CURRENT_TARGET_DIR/nmap.md" ]]; then
-        cat > "$CURRENT_TARGET_DIR/nmap.md" <<EOF
----
-type: scan
-scan_type: nmap
-target: $targetName
-ip: $ip
-date: $(date +%Y-%m-%d)
-tags: [scan, nmap]
----
-# Nmap Scan - $targetName
-> IP: $ip
-> Data: $(date +%Y-%m-%d)
+    # Cria Dashboard com nome substituído
+    sed "s/{{targetName}}/$targetName/g" "$tpdir/dashboard.stub.md" > "$tgtDir/Dashboard_${targetName}.md"
 
-## Resultados
-\`\`\`nmap
-$(cat "$nmap_file")
-\`\`\`
+    # Copia stub de vulnerabilidade
+    # Extrai apenas o IP do campo t_IP
+    resolved_ip=$(echo "$t_IP" | awk '{print $2}')
 
-[[Dashboard_${targetName}|Voltar ao Dashboard]]
-EOF
-    fi
+    # Atualiza o stub de vulnerabilidade com os dados reais
+    sed -e "s/^targetName:.*/targetName: $targetName/" \
+        -e "s/^t_IP:.*/t_IP: $resolved_ip/" \
+        "$tpdir/vuln.stub.md" > "$vulnDir/VULN_$targetName.stub.md"
 
-    # ---------------------------------------------------------
-    # 4. INDEX DE VULNS
-    # ---------------------------------------------------------
-    if [[ ! -f "$CURRENT_TARGET_DIR/Vulnerabilidades/_index.md" ]]; then
-        if [[ -f "$TEMPLATES_DIR/vuln.stub.md" ]]; then
-             cp "$TEMPLATES_DIR/vuln.stub.md" "$CURRENT_TARGET_DIR/Vulnerabilidades/_index.md"
-             sed -i "s|{{targetName}}|$targetName|g" "$CURRENT_TARGET_DIR/Vulnerabilidades/_index.md"
-             sed -i "s|{{proj_name}}|$proj_name|g" "$CURRENT_TARGET_DIR/Vulnerabilidades/_index.md"
-             sed -i "s|{{date}}|$(date +%Y-%m-%d)|g" "$CURRENT_TARGET_DIR/Vulnerabilidades/_index.md"
-        fi
-    fi
+    # Copia o nmap.nmap para a pasta do Alvo
+    echo '```bash' > $tgtDir/nmap.md
+    cat $host/nmap.nmap >> $tgtDir/nmap.md
+    echo '```' >> $tgtDir/nmap.md
 
-done
-
-echo -e "\033[0;32m\n[✓] Processamento concluído.\033[0m"
+done 2>/dev/null
