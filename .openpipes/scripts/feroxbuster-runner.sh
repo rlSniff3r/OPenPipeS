@@ -46,6 +46,7 @@ check_tool() {
 # ════════════════════════════════════════════════════════════════════════════
 # PIPELINE POR ALVO
 # ════════════════════════════════════════════════════════════════════════════
+
 process_target() {
         local TARGET="$1"
         echo -e "${BLUE}[*] >>> Processando: ${YELLOW}$TARGET ${NC}"
@@ -64,7 +65,7 @@ process_target() {
         # PASSO 1: Validar inputs
         # ──────────────────────────────────────────────────────────────────────
 
-        local URLS_FILE="$WORK_DIR/alive_urls.txt"
+        local URLS_FILE="$obsdir/$proj_name/Pentest/Alvos/$TARGET/endpoints.md"
 
         if [ ! -s "$URLS_FILE" ]; then
             echo -e "${RED}[!] alive_urls.txt não encontrado ou vazio ${NC}"
@@ -126,13 +127,14 @@ process_target() {
                 --no-state \
                 -o "$OUTPUT_FILE" \
                 --silent 2>/dev/null || true
-            
+
             # Conta achados neste URL
-            if [ -f "$OUTPUT_FILE" ]; then
-                local FOUND=$(grep -c "^http" "$OUTPUT_FILE" 2>/dev/null || echo 0)
-                TOTAL_FOUND=$((TOTAL_FOUND + FOUND))
-                echo -e "${GREEN}        -> $FOUND endpoints encontrados${NC}"
-            fi
+#            if [ -f "$OUTPUT_FILE" ]; then
+#                local FOUND=$(grep -c "^http" "$OUTPUT_FILE" 2>/dev/null || echo 0)
+#                TOTAL_FOUND=$((${TOTAL_FOUND} + ${FOUND}))
+#                TOTAL_FOUND=$((${TOTAL_FOUND} + ${FOUND}))
+#                echo -e "${GREEN}        -> $FOUND endpoints encontrados${NC}"
+#            fi
             
         done < "$URLS_FILE"
 
@@ -166,10 +168,11 @@ process_target() {
         # PASSO 5: Gerar Markdown de Relatório
         # ──────────────────────────────────────────────────────────────────────
 
+
         local MD_FILE="$OBSIDIAN_DIR/feroxbuster.md"
         mkdir -p "$OBSIDIAN_DIR"
 
-
+	{
             echo "#  Feroxbuster Fuzzing - $TARGET"
             echo ""
             echo "**Data**: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -184,17 +187,18 @@ process_target() {
             echo "|---------|-------|"
             echo "| Endpoints Encontrados | $TOTAL_FOUND |"
             echo "| Endpoints Únicos | $UNIQUE_FOUND |"
-            echo "| Taxa de Sucesso | $(awk "BEGIN {printf \"%.1f%%\", ($UNIQUE_FOUND/$WL_SIZE)*100}") |"
+#            echo "| Taxa de Sucesso | $(awk "BEGIN {printf \"%.1f%%\", ($UNIQUE_FOUND/$WL_SIZE)*100}") |"
+#	    echo "| Taxa de Sucesso | $(awk -v unique="$UNIQUE_FOUND" -v wl="$WL_SIZE" 'BEGIN { if (wl > 0) printf "%.1f%%", (unique/wl)*100; else print "0.0%" }') |"
             echo ""
             echo "## Endpoints Descobertos"
             echo ""
             cat "$CONSOLIDATED" 2>/dev/null || echo "Nenhum endpoint descoberto"
             echo ""
             echo "---"
-} > "$MD_FILE"
+	} > "$MD_FILE"
 
-echo -e "${CYAN}    -> Markdown: $MD_FILE${NC}"
-
+	echo -e "${CYAN}    -> Markdown: $MD_FILE ${NC}"
+}
 
 # ════════════════════════════════════════════════════════════════════════════
 # MAIN
@@ -221,11 +225,11 @@ for TARGET_NAME in "${TARGETS_ARRAY[@]}"; do
     
     echo -e "${YELLOW}════════════════════════════════════════${NC}"
     
-    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME/Web" ]; then
+#    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME/Web" ]; then
         process_target "$TARGET_NAME" || echo -e "${RED}[FAIL] Erro em $TARGET_NAME${NC}"
-    else
-        echo -e "${RED}[!] Web dir não encontrado para $TARGET_NAME${NC}"
-    fi
+#    else
+#        echo -e "${RED}[!] Web dir não encontrado para $TARGET_NAME${NC}"
+#    fi
 done
 fi
 
