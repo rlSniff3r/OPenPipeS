@@ -177,7 +177,7 @@ install_golang() {
 # Instalar ferramenta Go com retry
 install_go_tool() {
     local pkg=$1
-    local name=$(basename "$pkg" | cut -d'@' -f1)
+    local name=$(basename "$pkg")
     local retries=3
     
     log INFO "Instalando $name..."
