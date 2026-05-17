@@ -13,15 +13,14 @@ source ~/colorCodes.sh
 
 cat <<Banner
 ${YELLOW}
-██████╗ ██████╗ ███╗   ██╗████████╗███████╗██╗  ██╗████████╗    ██╗    ██╗ ██████╗ ██████╗ ██████╗ ██╗     ██╗███████╗████████╗
+ ██████╗ ██████╗ ███╗   ██╗████████╗███████╗██╗  ██╗████████╗    ██╗    ██╗ ██████╗ ██████╗ ██████╗ ██╗     ██╗███████╗████████╗
 ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██╔════╝╚██╗██╔╝╚══██╔══╝    ██║    ██║██╔═══██╗██╔══██╗██╔══██╗██║     ██║██╔════╝╚══██╔══╝
 ██║     ██║   ██║██╔██╗ ██║   ██║   █████╗   ╚███╔╝    ██║       ██║ █╗ ██║██║   ██║██████╔╝██║  ██║██║     ██║███████╗   ██║
 ██║     ██║   ██║██║╚██╗██║   ██║   ██╔══╝   ██╔██╗    ██║       ██║███╗██║██║   ██║██╔══██╗██║  ██║██║     ██║╚════██║   ██║
 ╚██████╗╚██████╔╝██║ ╚████║   ██║   ███████╗██╔╝ ██╗   ██║       ╚███╔███╔╝╚██████╔╝██║  ██║██████╔╝███████╗██║███████║   ██║
-╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝        ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝╚══════╝   ╚═╝
+ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝        ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝╚══════╝   ╚═╝
 ${NC}
-${BLUE}                                   易 Wordlist Inteligente Tech-Aware
-v1.0 - Python Powered${NC}
+${BLUE}                            易 Wordlist Inteligente Tech-Aware v1.0 - Python Powered${NC}
 Banner
 
 
@@ -37,8 +36,7 @@ FILTERS_SCRIPT="$HOME/.openpipes/scripts/filters.py"
 
 check_tool() {
     if ! command -v "$1" &> /dev/null; then
-        echo -e "{RED}[ERROR] '$1' não encontrado!
-{NC}"
+        echo -e "{RED}[ERROR] '$1' não encontrado! ${NC}"
         return 1
     fi
     return 0
@@ -73,7 +71,7 @@ process_target() {
         # PASSO 1: Validar inputs
         # ──────────────────────────────────────────────────────────────────────
 
-        local URLS_FILE="$WORK_DIR/all_discovered_urls.txt"
+        local URLS_FILE="$obsdir/$proj_name/Pentest/Alvos/$TARGET/endpoints.md"
         local TECH_FILE="$WORK_DIR/technologies.json"
         local OUTPUT_WL="$WORK_DIR/context_wordlist.txt"
 
@@ -200,11 +198,11 @@ for TARGET_NAME in "${TARGETS_ARRAY[@]}"; do
     
     echo -e "${YELLOW}────────────────────────────────────────${NC}"
     
-    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME/Web" ]; then
+#    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME/Web" ]; then
         process_target "$TARGET_NAME" || echo -e "${RED}[FAIL] Erro em $TARGET_NAME${NC}"
-    else
-        echo -e "${RED}[!] Web dir não encontrado para $TARGET_NAME${NC}"
-    fi
+#    else
+#        echo -e "${RED}[!] Web dir não encontrado para $TARGET_NAME${NC}"
+#    fi
 done
 fi
 echo -e "${GREEN}[★] Context Wordlist Builder finalizado! ${NC}"

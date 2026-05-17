@@ -15,7 +15,7 @@ for bin in gf awk grep cut sort uniq sed; do
 done
 
 # === LOOP EM TODOS OS ALVOS COM endpoints.md ===
-for endpoint_file in "$obsdir"/Pentest/Alvos/*/endpoints.md; do
+for endpoint_file in "$obsdir/$proj_name"/Pentest/Alvos/*/endpoints.md; do
   [[ ! -f "$endpoint_file" ]] && continue
 
   target_dir=$(dirname "$endpoint_file")

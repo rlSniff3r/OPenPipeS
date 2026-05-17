@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# 
+
+
 # screenshot-runner.sh - Visual Reconnaissance Module
-# 
+#
 # Descrição: Captura screenshots de URLs vivas usando gowitness
 # Input: results/httpx_live_probes.txt
 # Output: results/screenshots/ (HTML report + imagens)
 # Dependências: gowitness
-# 
+#
 
 set -euo pipefail
 
-# 
+#
 # CONFIGURAÇÃO E VALIDAÇÃO
-# 
+#
 
 # Carrega configuração central
 CONFIG_FILE="$HOME/.openpipes/config.sh"
@@ -37,16 +38,18 @@ else
     RESET="\033[0m"
 fi
 
-# 
+#
 # VARIÁVEIS GLOBAIS
-# 
+#
 
 SCRIPT_NAME="screenshot-runner"
-INPUT_FILE="${proj_dir}/$RECON_DIR/*/allsubs.httpx"
 OUTPUT_DIR="$SCREENSHOT_DIR"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 REPORT_FILE="${OUTPUT_DIR}/gowitness_${TIMESTAMP}.html"
 DB_FILE="${OUTPUT_DIR}/gowitness.sqlite3"
+
+# Definição do arquivo que o gowitness vai ler
+INPUT_FILE="${OUTPUT_DIR}/live_urls_extracted.txt"
 
 # 
 # FUNÇÕES AUXILIARES
@@ -84,23 +87,35 @@ check_dependencies() {
     log_msg INFO "Dependências OK: gowitness $(gowitness version 2>&1 | head -n1 || echo 'instalado')"
 }
 
-# Valida arquivo de entrada
+# Valida arquivo de entrada e extrai as URLs vivas
 validate_input() {
-    log_msg INFO "Validando arquivo de entrada: $INPUT_FILE"
-    
+    log_msg INFO "Buscando logs do httpx em: $RECON_DIR"
+
+    # Garante que o diretório de output existe antes de criar o arquivo temporário
+    mkdir -p "$OUTPUT_DIR"
+
+    # Procura pelos arquivos .httpx e extrai apenas as URLs com [SUCCESS]
+    # O 'cat' com wildcard foi unificado dentro do grep de forma mais limpa
+    if ! grep -h "SUCCESS" $RECON_DIR/*/allsubs.httpx 2>/dev/null | cut -d " " -f1 > "$INPUT_FILE"; then
+        log_msg ERROR "Nenhum arquivo 'allsubs.httpx' encontrado ou erro ao ler os diretórios."
+        exit 1
+    fi
+
+    # Agora sim, validamos se o arquivo gerado existe e tem conteúdo
     if [[ ! -f "$INPUT_FILE" ]]; then
-        log_msg ERROR "Arquivo de entrada não encontrado: $INPUT_FILE"
-        log_msg WARN "Execute httpx-runner.sh antes de rodar este módulo"
+        log_msg ERROR "Falha ao gerar o arquivo de entrada: $INPUT_FILE"
         exit 1
     fi
     
-    local line_count=$(wc -l &lt; "$INPUT_FILE" | tr -d ' ')
+    local line_count=$(wc -l < "$INPUT_FILE" | tr -d ' ')
     if [[ "$line_count" -eq 0 ]]; then
-        log_msg ERROR "Arquivo de entrada está vazio: $INPUT_FILE"
+        log_msg ERROR "Nenhuma URL com status [SUCCESS] foi encontrada nos arquivos do httpx."
+        log_msg WARN "Verifique os resultados em $RECON_DIR"
+        rm -f "$INPUT_FILE" # Remove o arquivo vazio
         exit 1
     fi
     
-    log_msg INFO "Arquivo válido: $line_count URLs encontradas"
+    log_msg INFO "Arquivo de entrada gerado com sucesso: $line_count URLs vivas encontradas."
 }
 
 # Cria estrutura de diretórios
@@ -156,10 +171,10 @@ run_gowitness() {
     
     cd "$OUTPUT_DIR" || exit 1
     
-    gowitness file \
-        --file "$INPUT_FILE" \
+    gowitness scan \
+        file -f "$INPUT_FILE" \
         --screenshot-path "$OUTPUT_DIR" \
-        --db-path "$DB_FILE" \
+#        --db-path "$DB_FILE" \
         --threads "$threads" \
         --timeout "${timeout}s" \
         --write-db \
@@ -224,7 +239,7 @@ Para visualizar o relatório interativo:
 gowitness report server --db-path "$DB_FILE" --addr 127.0.0.1:7171
 ```
 
-Acesse: [http://127.0.0.1:7171](http://127.0.0.1:7171)
+Acesse: [http://192.168.15.165:7171](http://192.168.15.165:7171)
 
 ---
 

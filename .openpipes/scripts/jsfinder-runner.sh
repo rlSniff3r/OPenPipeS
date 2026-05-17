@@ -6,7 +6,7 @@ set -euo pipefail
 
 source $HOME/.openpipes/config.sh
 venv="$HOME/.venv-jsfinder/bin/activate"
-varreduraDir="$PWD"
+varreduraDir="$proj_path/Varreduras"
 
 # Flag --force
 force=false
@@ -21,9 +21,18 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
     [ -d "$nmapFolder" ] || continue
 
     targetName="${nmapFolder##*/nmap-}"
-    targetDir="$obsdir/Pentest/Alvos/$targetName"
+    targetDir="$obsdir/$proj_name/Pentest/Alvos/$targetName"
     tmpDir="/tmp/jsfinder-$targetName"
     outputFile="$targetDir/js-endpoints.md"
+
+
+    nmap_file="$nmapFolder/nmap.gnmap"
+
+    if [[ ! -s "$nmap_file" ]]; then
+        echo "[!] Pulando $targetName: nmap.gnmap está vazio ou não existe."
+        continue
+    fi
+
 
     if [ -f "$outputFile" ] && [ "$force" = false ]; then
         echo "[!] $outputFile já existe. Use --force para sobrescrever. Pulando $targetName..."
