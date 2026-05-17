@@ -197,7 +197,7 @@ install_go_tool() {
     
     for i in $(seq 1 $retries); do
         # Força o GO111MODULE=on que o gowitness e outras ferramentas exigem
-        if GO111MODULE=on go install -v "$pkg" 2>/dev/null; then
+        if GO111MODULE=on go get -v "$pkg" 2>/dev/null; then
             log SUCCESS "$name instalado com sucesso"
             return 0
         else
