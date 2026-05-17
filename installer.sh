@@ -198,7 +198,7 @@ install_go_tool() {
     
     for i in $(seq 1 $retries); do
         # -p 1: Força o Go a usar apenas 1 thread de compilação, evitando travar máquinas com pouca RAM
-        if GO111MODULE=on go install -v -p 1 "$pkg" 2>/dev/null; then
+        if GO111MODULE=on go get "$pkg" 2>/dev/null; then
             log SUCCESS "$name instalado com sucesso"
             
             # Limpa o cache de compilação imediatamente para liberar espaço em disco/RAM na VPS
