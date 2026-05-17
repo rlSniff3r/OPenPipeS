@@ -160,36 +160,44 @@ install_golang() {
     local GO_TARBALL="go${GO_VERSION}.linux-amd64.tar.gz"
     local GO_URL="https://go.dev/dl/${GO_TARBALL}"
     
-    cd /tmp
+    cd /tmp || return 1
     wget -q "$GO_URL"
     
     sudo rm -rf /usr/local/go
     sudo tar -C /usr/local -xzf "$GO_TARBALL"
     rm "$GO_TARBALL"
     
+    # Define as variáveis para a sessão atual do script
     export PATH="$PATH:/usr/local/go/bin"
     export GOPATH="$HOME/go"
     export PATH="$PATH:$GOPATH/bin"
     
+    # Garante que o Go estará disponível permanentemente no sistema para o usuário
+    if ! grep -q "usr/local/go/bin" "$HOME/.bashrc"; then
+        echo 'export GOPATH="$HOME/go"' >> "$HOME/.bashrc"
+        echo 'export PATH="$PATH:/usr/local/go/bin:$GOPATH/bin"' >> "$HOME/.bashrc"
+    fi
+    
     log SUCCESS "Go instalado: $(go version)"
 }
 
-# Instalar ferramenta Go com retry
+# Instalar ferramenta Go com retry e suporte a variáveis de ambiente
 install_go_tool() {
     local pkg=$1
-    local name=$(basename "$pkg")
+    local name=$(basename "$pkg" | cut -d'@' -f1) # Remove o @latest do nome para checagem correta
     local retries=3
     
     log INFO "Instalando $name..."
     
-    # Verificar se já está instalado
-    if command -v "$name" &>/dev/null; then
+    # Verificar se já está instalado no PATH atual
+    if command -v "$name" &>/dev/null || [ -f "$HOME/go/bin/$name" ]; then
         log SUCCESS "$name já instalado"
         return 0
     fi
     
     for i in $(seq 1 $retries); do
-        if go install -v "$pkg" 2>/dev/null; then
+        # Força o GO111MODULE=on que o gowitness e outras ferramentas exigem
+        if GO111MODULE=on go install -v "$pkg" 2>/dev/null; then
             log SUCCESS "$name instalado com sucesso"
             return 0
         else
@@ -208,13 +216,16 @@ install_go_tools() {
     
     check_go_installation || install_golang
     
+    # Atualiza o PATH do script atual caso o Go tenha acabado de ser instalado
+    export PATH="$PATH:/usr/local/go/bin:$HOME/go/bin"
+    
     local GO_TOOLS=(
         "github.com/projectdiscovery/httpx/cmd/httpx@latest"
         "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
         "github.com/projectdiscovery/katana/cmd/katana@latest"
         "github.com/tomnomnom/gf@latest"
         "github.com/openrdap/rdap/cmd/rdap@latest"
-		"github.com/sensepost/gowitness@latest"
+        "github.com/sensepost/gowitness@latest" # Agora vai instalar via go install perfeitamente
     )
     
     local FAILED=0
