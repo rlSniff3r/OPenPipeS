@@ -182,9 +182,10 @@ install_golang() {
 }
 
 # Instalar ferramenta Go com retry e suporte a variáveis de ambiente
+# Instalar ferramenta Go com retry, suporte a variáveis de ambiente e limite de CPU para VPS pequenas
 install_go_tool() {
     local pkg=$1
-    local name=$(basename "$pkg" | cut -d'@' -f1) # Remove o @latest do nome para checagem correta
+    local name=$(basename "$pkg" | cut -d'@' -f1)
     local retries=3
     
     log INFO "Instalando $name..."
@@ -196,9 +197,12 @@ install_go_tool() {
     fi
     
     for i in $(seq 1 $retries); do
-        # Força o GO111MODULE=on que o gowitness e outras ferramentas exigem
-        if GO111MODULE=on go get "$pkg" 2>/dev/null; then
+        # -p 1: Força o Go a usar apenas 1 thread de compilação, evitando travar máquinas com pouca RAM
+        if GO111MODULE=on go install -v -p 1 "$pkg" 2>/dev/null; then
             log SUCCESS "$name instalado com sucesso"
+            
+            # Limpa o cache de compilação imediatamente para liberar espaço em disco/RAM na VPS
+            go clean -cache -modcache 2>/dev/null
             return 0
         else
             log WARNING "Tentativa $i/$retries falhou para $name"
