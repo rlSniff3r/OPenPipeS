@@ -109,7 +109,7 @@ install_apt_deps() {
     local DEPS=(
         nmap curl wget git jq python3 python3-pip python3-venv
         golang-go build-essential whois dnsutils libpcap-dev
-        libssl-dev pkg-config unzip gowitness
+        libssl-dev pkg-config unzip
     )
     
     for dep in "${DEPS[@]}"; do
