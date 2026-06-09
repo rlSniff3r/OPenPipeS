@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src=https://raw.githubusercontent.com/rlSniff3r/openPipes/refs/heads/master/Extras%20-%20Images/OPenPipeS_01.png>
+<img src=https://raw.githubusercontent.com/rlSniff3r/OPenPipeS/refs/heads/master/OPenPipeS_01.png>
 
 Automated Reconnaissance and Pentesting Pipeline
 
