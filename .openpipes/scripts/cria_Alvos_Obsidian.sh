@@ -81,8 +81,7 @@ for host in $(ls -d nmap-* 2>/dev/null); do
 
     # Atualiza o stub de vulnerabilidade com os dados reais
     sed -e "s/^targetName:.*/targetName: $targetName/" \
-        -e "s/^t_IP:.*/t_IP: $resolved_ip/" \
-        "$tpdir/vuln.stub.md" > "$vulnDir/VULN_$targetName.stub.md"
+        -e "s/^t_IP:.*/t_IP: $resolved_ip/"
 
     # Copia o nmap.nmap para a pasta do Alvo
     echo '```bash' > $tgtDir/nmap.md
@@ -90,3 +89,4 @@ for host in $(ls -d nmap-* 2>/dev/null); do
     echo '```' >> $tgtDir/nmap.md
 
 done 2>/dev/null
+

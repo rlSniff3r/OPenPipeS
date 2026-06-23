@@ -131,18 +131,61 @@ def run_bash_module(module_name):
         
     input("Pressione ENTER para voltar ao menu...")
 
+from rich.markdown import Markdown
+
+def show_help():
+    """Renderiza a documentação robusta de ajuda no terminal"""
+    console.clear()
+    help_text = """
+# 📚 Guia Rápido: OPenPipeS Core
+
+Bem-vindo ao orquestrador Python do **OPenPipeS**. 
+Este framework automatiza o pipeline de Reconhecimento e Pentest, integrando os resultados diretamente ao **Obsidian MD**.
+
+## 1. Configuração Inicial (`init-openpipes`)
+Antes de rodar qualquer módulo, você deve **sempre** inicializar o projeto:
+1. Saia deste menu e digite no terminal: `init-openpipes`
+2. Escolha o nome do seu cliente/projeto (ex: `cliente-xyz`).
+3. O framework criará as pastas estruturadas em `~/Projetos/cliente-xyz` e no seu Obsidian.
+
+## 2. Inserindo os Alvos (DOMÍNIOS)
+Os módulos (como o *Recon*) precisam saber o que atacar.
+Vá até a pasta do projeto (ex: `~/Projetos/cliente-xyz`) e edite o arquivo `domains.txt`.
+Coloque **um domínio por linha** (ex: `empresa.com`).
+
+## 3. Chaves de API e Segredos
+Para máxima eficiência (WHOIS, AI, Subdomínios), configure suas chaves em:
+`~/.openpipes/secrets.conf`
+
+## 4. Fluxo de Execução Recomendado (O Pipeline)
+No menu principal, execute os módulos nesta ordem lógica:
+1. **[1] Recon**: Encontra os subdomínios (Lê o `domains.txt`).
+2. **[2] Nmap**: Escaneia as portas dos subdomínios encontrados.
+3. **[3] Cria Alvos**: Gera os dashboards iniciais no Obsidian!
+4. **[4 a 7] Web Discovery**: (HTTPx, Katana, Feroxbuster) Analisa os serviços web vivos.
+5. **[8 a 11] Análise Profunda**: (JSFinder, GF, Screenshots) Extrai vulnerabilidades.
+6. **[12] Gerir Vulns**: Selecione o alvo no menu e documente a falha achada.
+
+*Pressione ENTER para voltar ao menu principal...*
+"""
+    console.print(Panel(Markdown(help_text), title="[bold cyan]Documentação Integrada[/bold cyan]", border_style="cyan"))
+    input()
+
+
 def interactive_menu():
+    """Dashboard Python renderizado no Terminal"""
     while True:
         console.clear()
         proj_name, _, _ = get_project_env()
         
         banner = """[bold blue]
-   ___  ____            ____  _             ____                 
-  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___ / ___|___  _ __ ___   
- | | | | |_) / _ | '_ \| |_) | | '_ \ / _ | |   / _ \| '__/ _ \  
- | |_| |  __/  __| | | |  __/| | |_) |  __| |__| (_) | | |  __/  
-  \___/|_|   \___|_| |_|_|   |_| .__/ \___|\____\___/|_|  \___|  
-                               |_|                               
+   ___  ____            ____  _             ____  
+  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___ / ___| 
+ | | | | |_) / _ | '_ \| |_) | | '_ \ / _ \\___ \ 
+ | |_| |  __/  __| | | |  __/| | |_) |  __/ ___) |
+  \___/|_|   \___|_| |_|_|   |_| .__/ \___||____/ 
+                               |_|                  
+                    Framework de Reconhecimento v2.0 
 [/bold blue]"""
         console.print(banner)
         console.print(Panel(f"Projeto Ativo: [bold yellow]{proj_name}[/bold yellow] | Motor: [bold green]Python Core[/bold green]", expand=False))
@@ -163,9 +206,10 @@ def interactive_menu():
             menu_table.add_row(f"[{k}]", v.replace("-", " ").title())
             
         menu_table.add_row("", "")
-        menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E BANCO DE DADOS[/bold cyan]")
+        menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
         menu_table.add_row("[13]", "[bold yellow]Pipeline Completo (Auto-Run)[/bold yellow]")
-        menu_table.add_row("[14]", "[bold magenta]Ver Histórico de Execuções (Testar SQLite)[/bold magenta]")
+        menu_table.add_row("[14]", "[bold magenta]Ver Histórico de Execuções[/bold magenta]")
+        menu_table.add_row("[99]", "[bold cyan]Ajuda / Documentação[/bold cyan]")
         menu_table.add_row("[0]", "[bold red]Sair[/bold red]")
         
         console.print(menu_table)
@@ -175,6 +219,8 @@ def interactive_menu():
         if escolha == "0":
             console.print("[bold blue]Saindo...[/bold blue]")
             break
+        elif escolha == "99":
+            show_help()
         elif escolha == "14":
             show_execution_history()
         elif escolha == "13":
@@ -184,6 +230,7 @@ def interactive_menu():
             run_bash_module(opcoes[escolha])
         else:
             console.print("[bold red]Opção inválida![/bold red]")
+            import time
             time.sleep(1)
 
 def main():

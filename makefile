@@ -26,12 +26,12 @@ help: ## Mostra esta ajuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-15s$(NC) %s\n", $$1, $$2}'
 	@echo ""
 
-install: ## Instala o OPenPipeS completamente
-	@echo "$(CYAN)[*] Iniciando instalação...$(NC)"
-	@chmod +x installer.sh
-	@./installer.sh
+install: ## Instala o OPenPipeS completamente (Motor Python)
+	@echo "$(CYAN)[*] Iniciando instalação do Core (Python)...$(NC)"
+	@chmod +x bootstrap.sh
+	@./bootstrap.sh
 	@echo "$(GREEN)[+] Instalação concluída!$(NC)"
-	@echo "$(YELLOW)[!] Execute: source ~/.bashrc$(NC)"
+	@echo "$(YELLOW)[!] Se houveram atualizações de PATH, execute: source ~/.bashrc$(NC)"
 
 uninstall: ## Remove o OPenPipeS
 	@echo "$(RED)[!] Removendo OPenPipeS...$(NC)"
