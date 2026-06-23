@@ -145,8 +145,9 @@ def setup_isolated_venvs():
     linkfinder_dir = f"{VENV_JSFINDER}/LinkFinder"
     if not os.path.exists(linkfinder_dir):
         run_cmd(f"git clone https://github.com/GerbenJavado/LinkFinder.git {linkfinder_dir}")
+        run_cmd(f"{VENV_JSFINDER}/bin/pip install --upgrade pip setuptools wheel -q")
         run_cmd(f"{VENV_JSFINDER}/bin/pip install -r {linkfinder_dir}/requirements.txt -q")
-        run_cmd(f"cd {linkfinder_dir} && {VENV_JSFINDER}/bin/python setup.py install")
+        run_cmd(f"{VENV_JSFINDER}/bin/pip install {linkfinder_dir} -q")
 
     wrapper_code = f'#!/bin/bash\nsource "{VENV_JSFINDER}/bin/activate"\npython -m linkfinder "$@"\ndeactivate\n'
     with open(f"{OPENPIPES_BIN}/linkfinder.py", "w") as f: f.write(wrapper_code)
