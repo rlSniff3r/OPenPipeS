@@ -56,31 +56,40 @@ def setup_directories():
         os.makedirs(d, exist_ok=True)
 
 def setup_framework_files():
-    """Copia os scripts do repositório para o diretório de instalação do usuário"""
+    """Copia os scripts do repositório para o diretório de instalação do usuário de forma blindada (shutil)"""
     cwd = os.getcwd()
     
-    # 1. Copia e dá permissão aos scripts
-    if os.path.exists(f"{cwd}/.openpipes/scripts"):
-        run_cmd(f"cp -r {cwd}/.openpipes/scripts/* {OPENPIPES_SCRIPTS}/", check=False)
+    # 1. Copia Scripts
+    scripts_src = os.path.join(cwd, ".openpipes", "scripts")
+    if os.path.exists(scripts_src):
+        shutil.copytree(scripts_src, OPENPIPES_SCRIPTS, dirs_exist_ok=True)
         run_cmd(f"chmod +x {OPENPIPES_SCRIPTS}/*.sh {OPENPIPES_SCRIPTS}/*.py", check=False)
     
-    # 2. Copia templates e cache
-    if os.path.exists(f"{cwd}/.openpipes/.templates"):
-        run_cmd(f"cp -r {cwd}/.openpipes/.templates/* {OPENPIPES_DIR}/.templates/", check=False)
-    if os.path.exists(f"{cwd}/.openpipes_cache"):
-        run_cmd(f"cp -r {cwd}/.openpipes_cache/* {HOME}/.openpipes_cache/", check=False)
+    # 2. Copia Templates e Cache
+    templates_src = os.path.join(cwd, ".openpipes", ".templates")
+    if os.path.exists(templates_src):
+        shutil.copytree(templates_src, f"{OPENPIPES_DIR}/.templates", dirs_exist_ok=True)
         
-    # 3. [NOVO] Copia o Cérebro Python (Core)
-    if os.path.exists(f"{cwd}/.openpipes/openpipes_core"):
-        run_cmd(f"cp -r {cwd}/.openpipes/openpipes_core {OPENPIPES_DIR}/", check=False)
+    cache_src = os.path.join(cwd, ".openpipes_cache")
+    if os.path.exists(cache_src):
+        shutil.copytree(cache_src, f"{HOME}/.openpipes_cache", dirs_exist_ok=True)
         
-    # 4. Cria configurações padrão
+    # 3. Copia o Cérebro Python (Core)
+    core_src = os.path.join(cwd, ".openpipes", "openpipes_core")
+    if os.path.exists(core_src):
+        shutil.copytree(core_src, f"{OPENPIPES_DIR}/openpipes_core", dirs_exist_ok=True)
+        
+    # 4. Configurações padrão
     config_dest = f"{OPENPIPES_DIR}/config.sh"
     secrets_dest = f"{OPENPIPES_DIR}/secrets.conf"
-    if not os.path.exists(config_dest) and os.path.exists(f"{cwd}/.openpipes/config.sh"):
-        run_cmd(f"cp {cwd}/.openpipes/config.sh {config_dest}")
-    if not os.path.exists(secrets_dest) and os.path.exists(f"{cwd}/.openpipes/secrets.conf.example"):
-        run_cmd(f"cp {cwd}/.openpipes/secrets.conf.example {secrets_dest}")
+    
+    config_src = os.path.join(cwd, ".openpipes", "config.sh")
+    secrets_src = os.path.join(cwd, ".openpipes", "secrets.conf.example")
+    
+    if not os.path.exists(config_dest) and os.path.exists(config_src):
+        shutil.copy2(config_src, config_dest)
+    if not os.path.exists(secrets_dest) and os.path.exists(secrets_src):
+        shutil.copy2(secrets_src, secrets_dest)
 
 def install_apt_deps():
     deps = "nmap curl wget git jq python3 python3-pip python3-venv golang-go build-essential whois dnsutils libpcap-dev libssl-dev pkg-config unzip"
@@ -162,45 +171,45 @@ deactivate
             run_cmd(f"{main_venv}/bin/pip install -r {req_file} -q")
 
 def configure_environment():
-    """Cria os atalhos (symlinks) e insere as variáveis de ambiente no .bashrc / .zshrc"""
-    # 1. Configurar o PATH no RC File correspondente
-    shell = os.environ.get("SHELL", "")
-    rc_file = f"{HOME}/.zshrc" if "zsh" in shell else f"{HOME}/.bashrc"
+    """Garante a injeção segura no PATH (Atende Bash e ZSH ao mesmo tempo)"""
+    rc_files = [f"{HOME}/.bashrc", f"{HOME}/.zshrc"]
     
     config_block = f"""
 # ========== OpenPipeS Configuration ==========
-export OPENPIPES_DIR="$HOME/.openpipes"
+export OPENPIPES_DIR="{HOME}/.openpipes"
 export OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
 export OPENPIPES_BIN="$OPENPIPES_DIR/bin"
 export OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
 export OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
 export OPENPIPES_TOOLS="$OPENPIPES_DIR/tools"
-export OPENPIPES_CACHE="$HOME/.openpipes_cache"
+export OPENPIPES_CACHE="{HOME}/.openpipes_cache"
 export PATH="$OPENPIPES_BIN:$PATH"
 export CONFIG_FILE="$OPENPIPES_CONFIG"
 export SECRETS_OPENPIPES="$OPENPIPES_DIR/secrets.conf"
 
 # Go & Rust configuration
-export GOPATH="$HOME/go"
-export PATH="$PATH:$GOPATH/bin:$HOME/.cargo/bin"
+export GOPATH="{HOME}/go"
+export PATH="$PATH:$GOPATH/bin:{HOME}/.cargo/bin"
 # ============================================
 
 # Loads Config.sh
-if [ -f "$HOME/.openpipes/config.sh" ]; then
-    source "$HOME/.openpipes/config.sh"
+if [ -f "{HOME}/.openpipes/config.sh" ]; then
+    source "{HOME}/.openpipes/config.sh"
 fi
 """
-    try:
-        with open(rc_file, "r") as f:
-            content = f.read()
-    except FileNotFoundError:
-        content = ""
+    for rc_file in rc_files:
+        try:
+            with open(rc_file, "r") as f:
+                content = f.read()
+        except FileNotFoundError:
+            content = ""
 
-    if "OPENPIPES_DIR" not in content:
-        with open(rc_file, "a") as f:
-            f.write("\n" + config_block)
+        # Escreve apenas se o bloco ainda não existir
+        if "OPENPIPES_DIR" not in content:
+            with open(rc_file, "a") as f:
+                f.write("\n" + config_block)
 
-    # 2. Criar os Symlinks dos comandos principais
+    # Criação garantida de Symlinks (Puxa os arquivos REAIS do diretório)
     symlinks = {
         "init-openpipes.sh": "init-openpipes",
         "openpipes_orchestrator.sh": "openpipes",
@@ -215,26 +224,18 @@ fi
         "whois-enricher.sh": "whois-enricher",
         "cria_Vulnerabilidades.sh": "cria-vulnerabilidades",
         "vuln-enricher.sh": "vuln-enricher",
-        "osint-runner-people.sh": "osint-people",
         "screenshot-runner.sh": "screenshot-runner",
-        "identities_manager.sh": "id-manager",
-        "katana-runner.sh": "katana-runner",
-        "context-wordlist-builder.sh": "context-builder",
         "feroxbuster-runner.sh": "feroxbuster-runner",
-        "osint_people_collector.py": "osint-collector",
-        "osint_doc_finder.py": "osint-doc-finder",
-        "osint_people_parser.py": "osint-parser",
-        "osint_people_enricher_v1.0.py": "osint-enricher"
+        "katana-runner.sh": "katana-runner"
     }
     
-    # ... (código existente dos symlinks) ...
     for src, link in symlinks.items():
         src_path = f"{OPENPIPES_SCRIPTS}/{src}"
         link_path = f"{OPENPIPES_BIN}/{link}"
         if os.path.exists(src_path):
-            run_cmd(f"ln -sf {src_path} {link_path}")
+            run_cmd(f"ln -sf '{src_path}' '{link_path}'")
 
-    # [NOVO] 3. Criar wrapper executável para o Cérebro Python (CLI)
+    # Atalho para o Novo Motor (Python)
     core_wrapper = f"""#!/bin/bash
 source "{HOME}/.openpipes/.venv-core/bin/activate"
 python "{OPENPIPES_DIR}/openpipes_core/cli.py" "$@"
@@ -282,14 +283,14 @@ def main():
                     func()
                     progress.update(step_task, completed=100, description=f"[green]✔ {desc}")
                 except Exception as e:
-                    progress.update(step_task, description=f"[red]✖ Falha: {desc}")
+                    progress.update(step_task, description=f"[red]✖ Falha: {desc}[/red]")
                     console.print(f"\n[red]Erro crítico abortando instalação: {str(e)}[/red]")
                     sys.exit(1)
                 progress.advance(main_task)
 
         console.print("\n[bold green]✅ Instalação concluída com sucesso![/bold green]")
-        console.print("[yellow]Para usar o framework imediatamente no terminal atual, execute:[/yellow]")
-        console.print(f"[cyan]source {HOME}/.bashrc[/cyan]  (ou ~/.zshrc)")
+        console.print("[yellow]Para usar o framework imediatamente, atualize seu shell:[/yellow]")
+        console.print(f"[cyan]source {HOME}/.bashrc[/cyan] ou [cyan]source {HOME}/.zshrc[/cyan]")
         
     finally:
         sudo_stop_event.set()
