@@ -4,7 +4,6 @@ import subprocess
 import sys
 import shutil
 import threading
-import time
 from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -34,14 +33,9 @@ def check_sudo():
     console.print("[green]✔ Autenticação sudo validada![/green]\n")
 
 def keep_sudo_alive(stop_event):
-    """
-    Thread em background que renova o token do sudo a cada 60 segundos.
-    Isso impede que compilações demoradas causem timeout de permissão.
-    """
+    """Renova o token do sudo a cada 60 segundos em background."""
     while not stop_event.is_set():
-        # Pinga o sudo silenciosamente
         subprocess.run(["sudo", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        # Aguarda 60 segundos ou até o evento de parada ser acionado
         stop_event.wait(60)
 
 def run_cmd(cmd, shell=True, sudo=False, check=True):
@@ -61,6 +55,29 @@ def setup_directories():
     for d in dirs:
         os.makedirs(d, exist_ok=True)
 
+def setup_framework_files():
+    """Copia os scripts do repositório para o diretório de instalação do usuário"""
+    cwd = os.getcwd()
+    
+    # 1. Copia e dá permissão aos scripts
+    if os.path.exists(f"{cwd}/.openpipes/scripts"):
+        run_cmd(f"cp -r {cwd}/.openpipes/scripts/* {OPENPIPES_SCRIPTS}/", check=False)
+        run_cmd(f"chmod +x {OPENPIPES_SCRIPTS}/*.sh {OPENPIPES_SCRIPTS}/*.py", check=False)
+    
+    # 2. Copia templates e cache
+    if os.path.exists(f"{cwd}/.openpipes/.templates"):
+        run_cmd(f"cp -r {cwd}/.openpipes/.templates/* {OPENPIPES_DIR}/.templates/", check=False)
+    if os.path.exists(f"{cwd}/.openpipes_cache"):
+        run_cmd(f"cp -r {cwd}/.openpipes_cache/* {HOME}/.openpipes_cache/", check=False)
+        
+    # 3. Cria configurações padrão (Apenas se não existirem, para não apagar as API keys do usuário)
+    config_dest = f"{OPENPIPES_DIR}/config.sh"
+    secrets_dest = f"{OPENPIPES_DIR}/secrets.conf"
+    if not os.path.exists(config_dest) and os.path.exists(f"{cwd}/.openpipes/config.sh"):
+        run_cmd(f"cp {cwd}/.openpipes/config.sh {config_dest}")
+    if not os.path.exists(secrets_dest) and os.path.exists(f"{cwd}/.openpipes/secrets.conf.example"):
+        run_cmd(f"cp {cwd}/.openpipes/secrets.conf.example {secrets_dest}")
+
 def install_apt_deps():
     deps = "nmap curl wget git jq python3 python3-pip python3-venv golang-go build-essential whois dnsutils libpcap-dev libssl-dev pkg-config unzip"
     run_cmd("apt-get update -qq", sudo=True)
@@ -71,14 +88,12 @@ def install_golang():
         version_out = run_cmd("go version", check=False)
         if GO_VERSION in version_out:
             return
-    
     run_cmd(f"wget -q https://go.dev/dl/go{GO_VERSION}.linux-amd64.tar.gz -O /tmp/go.tar.gz")
     run_cmd("rm -rf /usr/local/go", sudo=True)
     run_cmd(f"tar -C /usr/local -xzf /tmp/go.tar.gz", sudo=True)
     run_cmd("rm /tmp/go.tar.gz")
 
 def install_go_and_rust_tools():
-    # Go Tools
     go_path = "/usr/local/go/bin/go" if os.path.exists("/usr/local/go/bin/go") else "go"
     go_env = os.environ.copy()
     go_env["GOPATH"] = f"{HOME}/go"
@@ -95,26 +110,21 @@ def install_go_and_rust_tools():
     for tool in tools:
         subprocess.run([go_path, "install", tool], env=go_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    # Rust & Feroxbuster
     if not shutil.which("cargo"):
         run_cmd("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q", check=False)
-    
     cargo_path = f"{HOME}/.cargo/bin/cargo"
     if not shutil.which("feroxbuster"):
         run_cmd(f"{cargo_path} install feroxbuster", check=False)
 
 def install_strict_versions():
-    # Amass v3.20.0
     if not os.path.exists(f"{OPENPIPES_BIN}/amass-{AMASS_VERSION}"):
         run_cmd(f"wget -q https://github.com/owasp-amass/amass/releases/download/v{AMASS_VERSION}/amass_linux_amd64.zip -O /tmp/amass.zip")
         run_cmd(f"unzip -q /tmp/amass.zip -d {OPENPIPES_BIN}")
         run_cmd(f"mv {OPENPIPES_BIN}/amass_linux_amd64 {OPENPIPES_BIN}/amass-{AMASS_VERSION}")
         run_cmd("rm /tmp/amass.zip")
     run_cmd(f"ln -sf {OPENPIPES_BIN}/amass-{AMASS_VERSION}/amass {OPENPIPES_BIN}/amass")
-    # Aqui o Sudo agora não travará mais, mesmo horas depois!
     run_cmd(f"ln -sf {OPENPIPES_BIN}/amass /usr/local/bin/amass", sudo=True)
 
-    # Dnsrecon v1.1.3
     if not os.path.exists(f"{OPENPIPES_BIN}/dnsrecon-{DNSRECON_VERSION}"):
         run_cmd(f"wget -q https://github.com/darkoperator/dnsrecon/archive/refs/tags/{DNSRECON_VERSION}.tar.gz -O /tmp/dnsrecon.tar.gz")
         run_cmd(f"tar -xzf /tmp/dnsrecon.tar.gz -C {OPENPIPES_BIN}")
@@ -122,7 +132,6 @@ def install_strict_versions():
     run_cmd(f"ln -sf {OPENPIPES_BIN}/dnsrecon-{DNSRECON_VERSION}/dnsrecon.py {OPENPIPES_BIN}/dnsrecon")
 
 def setup_isolated_venvs():
-    # LinkFinder / JS-Finder VENV
     if not os.path.exists(VENV_JSFINDER):
         run_cmd(f"python3 -m venv {VENV_JSFINDER}")
     
@@ -132,7 +141,6 @@ def setup_isolated_venvs():
         run_cmd(f"{VENV_JSFINDER}/bin/pip install -r {linkfinder_dir}/requirements.txt -q")
         run_cmd(f"cd {linkfinder_dir} && {VENV_JSFINDER}/bin/python setup.py install", check=False)
 
-    # Criação do Wrapper do LinkFinder
     wrapper_code = f"""#!/bin/bash
 source "{VENV_JSFINDER}/bin/activate"
 python -m linkfinder "$@"
@@ -142,7 +150,6 @@ deactivate
         f.write(wrapper_code)
     run_cmd(f"chmod +x {OPENPIPES_BIN}/linkfinder.py")
 
-    # Main Project VENV
     main_venv = f"{OPENPIPES_DIR}/.venv"
     if not os.path.exists(main_venv):
         run_cmd(f"python3 -m venv {main_venv}")
@@ -150,13 +157,83 @@ deactivate
         if os.path.exists(req_file):
             run_cmd(f"{main_venv}/bin/pip install -r {req_file} -q")
 
+def configure_environment():
+    """Cria os atalhos (symlinks) e insere as variáveis de ambiente no .bashrc / .zshrc"""
+    # 1. Configurar o PATH no RC File correspondente
+    shell = os.environ.get("SHELL", "")
+    rc_file = f"{HOME}/.zshrc" if "zsh" in shell else f"{HOME}/.bashrc"
+    
+    config_block = f"""
+# ========== OpenPipeS Configuration ==========
+export OPENPIPES_DIR="$HOME/.openpipes"
+export OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
+export OPENPIPES_BIN="$OPENPIPES_DIR/bin"
+export OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
+export OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
+export OPENPIPES_TOOLS="$OPENPIPES_DIR/tools"
+export OPENPIPES_CACHE="$HOME/.openpipes_cache"
+export PATH="$OPENPIPES_BIN:$PATH"
+export CONFIG_FILE="$OPENPIPES_CONFIG"
+export SECRETS_OPENPIPES="$OPENPIPES_DIR/secrets.conf"
+
+# Go & Rust configuration
+export GOPATH="$HOME/go"
+export PATH="$PATH:$GOPATH/bin:$HOME/.cargo/bin"
+# ============================================
+
+# Loads Config.sh
+if [ -f "$HOME/.openpipes/config.sh" ]; then
+    source "$HOME/.openpipes/config.sh"
+fi
+"""
+    try:
+        with open(rc_file, "r") as f:
+            content = f.read()
+    except FileNotFoundError:
+        content = ""
+
+    if "OPENPIPES_DIR" not in content:
+        with open(rc_file, "a") as f:
+            f.write("\n" + config_block)
+
+    # 2. Criar os Symlinks dos comandos principais
+    symlinks = {
+        "init-openpipes.sh": "init-openpipes",
+        "openpipes_orchestrator.sh": "openpipes",
+        "recon.sh": "recon",
+        "nwrapper.sh": "nwrapper",
+        "cria_Alvos_Obsidian.sh": "cria-alvos",
+        "httpx-runner.sh": "httpx-runner",
+        "katana-buster.sh": "katana-buster",
+        "jsfinder-runner.sh": "jsfinder-runner",
+        "nuclei-runner.sh": "nuclei-runner",
+        "gf-summary.sh": "gf-summary",
+        "whois-enricher.sh": "whois-enricher",
+        "cria_Vulnerabilidades.sh": "cria-vulnerabilidades",
+        "vuln-enricher.sh": "vuln-enricher",
+        "osint-runner-people.sh": "osint-people",
+        "screenshot-runner.sh": "screenshot-runner",
+        "identities_manager.sh": "id-manager",
+        "katana-runner.sh": "katana-runner",
+        "context-wordlist-builder.sh": "context-builder",
+        "feroxbuster-runner.sh": "feroxbuster-runner",
+        "osint_people_collector.py": "osint-collector",
+        "osint_doc_finder.py": "osint-doc-finder",
+        "osint_people_parser.py": "osint-parser",
+        "osint_people_enricher_v1.0.py": "osint-enricher"
+    }
+    
+    for src, link in symlinks.items():
+        src_path = f"{OPENPIPES_SCRIPTS}/{src}"
+        link_path = f"{OPENPIPES_BIN}/{link}"
+        if os.path.exists(src_path):
+            run_cmd(f"ln -sf {src_path} {link_path}")
+
 def main():
     console.print("[bold blue]🚀 OPenPipeS Python Installer (Core Engine)[/bold blue]\n")
     
-    # 1. Valida credenciais SUDO
     check_sudo()
     
-    # 2. Inicia o Keep-Alive do Sudo em uma thread de fundo
     sudo_stop_event = threading.Event()
     sudo_thread = threading.Thread(target=keep_sudo_alive, args=(sudo_stop_event,))
     sudo_thread.daemon = True
@@ -164,11 +241,13 @@ def main():
     
     tasks = [
         ("Criando estrutura de diretórios...", setup_directories),
-        ("Instalando dependências APT (requer sudo)...", install_apt_deps),
+        ("Copiando scripts, templates e cache...", setup_framework_files),
+        ("Instalando dependências APT...", install_apt_deps),
         ("Instalando Golang 1.21.5...", install_golang),
         ("Compilando ferramentas Go e Rust...", install_go_and_rust_tools),
-        ("Instalando versões estritas (Amass 3.20.0, Dnsrecon 1.1.3)...", install_strict_versions),
-        ("Configurando VENVs isolados (JS-Finder/LinkFinder)...", setup_isolated_venvs)
+        ("Instalando versões estritas (Amass, Dnsrecon)...", install_strict_versions),
+        ("Configurando VENVs isolados...", setup_isolated_venvs),
+        ("Configurando variáveis de ambiente e symlinks (openpipes)...", configure_environment)
     ]
 
     try:
@@ -193,11 +272,11 @@ def main():
                     sys.exit(1)
                 progress.advance(main_task)
 
-        console.print("\n[bold green]✅ OPenPipeS Core Modules instalados com sucesso![/bold green]")
-        console.print("[cyan]A estrutura Bash original não foi alterada. Você já pode rodar o orquestrador atual.[/cyan]")
+        console.print("\n[bold green]✅ Instalação concluída com sucesso![/bold green]")
+        console.print("[yellow]Para usar o framework imediatamente no terminal atual, execute:[/yellow]")
+        console.print(f"[cyan]source {HOME}/.bashrc[/cyan]  (ou ~/.zshrc)")
         
     finally:
-        # Garante que a thread do sudo morra elegantemente se algo falhar ou terminar
         sudo_stop_event.set()
         sudo_thread.join(timeout=2)
 
