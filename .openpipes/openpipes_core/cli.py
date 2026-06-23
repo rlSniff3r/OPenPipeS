@@ -12,8 +12,17 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich import box
 
+# Garante que o diretório do módulo está no sys.path,
+# independente de onde o script é chamado (wrapper bash, cwd, etc.)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 # Importa o gerenciador de banco de dados
 import db
+
+# Caminho para o módulo de enriquecimento OSINT de pessoas.
+# Import lazy (dentro da função) para não exigir as dependências
+# opcionais (pdfminer, pikepdf…) no venv-core.
+ENRICHER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "osint_people_enricher_v1.0.py")
 
 console = Console()
 HOME = str(Path.home())
@@ -172,6 +181,249 @@ No menu principal, execute os módulos nesta ordem lógica:
     input()
 
 
+def run_osint_people_enricher():
+    """
+    Coleta e enriquece dados de pessoas via OSINT (Wayback, GitHub, S3).
+    Não depende de nenhum módulo bash — faz HTTP direto.
+    Registra a execução no SQLite como qualquer outro módulo.
+    """
+    proj_name, proj_path, _ = get_project_env()
+
+    if proj_name == "DESCONHECIDO" or not proj_path:
+        console.print("\n[bold red]✖ Erro: Projeto não configurado. Rode init-openpipes primeiro.[/bold red]")
+        input("Pressione ENTER para continuar...")
+        return
+
+    if not os.path.exists(ENRICHER_PATH):
+        console.print(f"\n[bold red]✖ osint_people_enricher_v1.0.py não encontrado em:[/bold red]\n  {ENRICHER_PATH}")
+        input("Pressione ENTER para continuar...")
+        return
+
+    console.print(f"\n[bold cyan]OSINT People Enricher[/bold cyan]")
+    console.print(f"[dim]Projeto ativo: {proj_name}[/dim]\n")
+
+    target = Prompt.ask("[bold cyan]Alvo (domínio)[/bold cyan]", default=proj_name)
+
+    # auth stub: o enricher só verifica .exists(), não lê o conteúdo
+    obsdir = os.path.join(str(Path.home()), ".obsidianFixedMount")
+    auth_path = os.path.join(str(Path.home()), ".openpipes", "auth.txt")
+    if not os.path.exists(auth_path):
+        with open(auth_path, "w") as fh:
+            fh.write(f"authorized_by=openpipes-core\ntarget={target}\n")
+        console.print(f"[dim]Auth stub criado em {auth_path}[/dim]")
+
+    db.init_db()
+    exec_id = db.log_module_start(proj_name, "osint-people-enricher")
+
+    console.print(f"\n[bold cyan]▶ Iniciando:[/bold cyan] osint-people-enricher → {target}")
+    console.print("=" * 50)
+
+    try:
+        result = subprocess.run(
+            [
+                sys.executable, ENRICHER_PATH,
+                "--target", target,
+                "--obsdir", obsdir,
+                "--auth",   auth_path,
+            ],
+            cwd=os.path.dirname(ENRICHER_PATH),
+        )
+        exit_code = result.returncode
+    except KeyboardInterrupt:
+        console.print("\n[bold red][!] Execução abortada pelo usuário.[/bold red]")
+        exit_code = 130
+
+    console.print("=" * 50)
+    db.log_module_finish(exec_id, exit_code)
+
+    if exit_code == 0:
+        console.print("[bold green]✔ OSINT People Enricher concluído com sucesso![/bold green]")
+        output_json = os.path.join(obsdir, "Pentest", "Alvos", target, "OSINT", "osint_people.json")
+        if os.path.exists(output_json):
+            console.print(f"[dim]Output: {output_json}[/dim]")
+    else:
+        console.print(f"[bold red]✖ Falhou (Exit Code: {exit_code}).[/bold red]")
+
+    input("\nPressione ENTER para voltar ao menu...")
+
+
+def run_full_pipeline():
+    """
+    Executa o pipeline completo de reconhecimento e análise em sequência.
+
+    Ordem derivada das dependências reais entre os módulos:
+      1. recon            → descobre subdomínios (requer domains.txt)
+      2. nwrapper         → port scan (requer targets.txt)
+      3. cria-alvos       → cria estrutura Obsidian (requer nmap-*)
+      4. httpx-runner     → identifica serviços HTTP vivos
+      5. katana-runner    → crawling de URLs e JS
+      6. feroxbuster-runner → fuzzing de diretórios
+      7. katana-buster    → combina endpoints
+      8. jsfinder-runner  → analisa JS em busca de endpoints ocultos
+      9. screenshot-runner → captura screenshots dos alvos vivos
+     10. gf-summary       → agrupa endpoints por padrão de vulnerabilidade
+     11. whois-enricher   → enriquece dashboards com dados WHOIS
+     12. nuclei-runner    → varredura de vulnerabilidades
+     13. osint-people-enricher → enriquecimento OSINT de pessoas
+
+    cria-vulnerabilidades é excluído por ser interativo (fzf).
+    Cada módulo registra execução no SQLite. Falhas são logadas mas
+    não interrompem o pipeline — o operador revisa ao final.
+    """
+    proj_name, proj_path, nmap_dir = get_project_env()
+
+    if proj_name == "DESCONHECIDO" or not proj_path:
+        console.print("\n[bold red]✖ Projeto não configurado. Rode init-openpipes primeiro.[/bold red]")
+        input("Pressione ENTER para continuar...")
+        return
+
+    # Validação antecipada: domains.txt é o pré-requisito de tudo
+    if not os.path.exists(os.path.join(proj_path, "domains.txt")):
+        console.print(f"\n[bold red]✖ domains.txt não encontrado em {proj_path}[/bold red]")
+        console.print("[dim]Crie o arquivo com um domínio por linha antes de rodar o pipeline.[/dim]")
+        input("Pressione ENTER para continuar...")
+        return
+
+    PIPELINE = [
+        ("recon",               proj_path,  ""),
+        ("nwrapper",            nmap_dir,   "-f targets.txt"),
+        ("cria-alvos",          nmap_dir,   ""),
+        ("httpx-runner",        proj_path,  ""),
+        ("katana-runner",       proj_path,  ""),
+        ("feroxbuster-runner",  proj_path,  ""),
+        ("katana-buster",       proj_path,  ""),
+        ("jsfinder-runner",     proj_path,  ""),
+        ("screenshot-runner",   proj_path,  ""),
+        ("gf-summary",          proj_path,  ""),
+        ("whois-enricher",      proj_path,  ""),
+        ("nuclei-runner",       proj_path,  ""),
+    ]
+
+    console.clear()
+    console.print(Panel(
+        f"[bold yellow]Pipeline Completo[/bold yellow]\n"
+        f"Projeto: [cyan]{proj_name}[/cyan] | "
+        f"{len(PIPELINE) + 1} módulos (+ OSINT People)",
+        border_style="yellow"
+    ))
+    console.print(
+        "\n[dim]Módulos com falha serão registrados mas o pipeline continuará.\n"
+        "Revise o histórico ao final com a opção [14].[/dim]\n"
+    )
+
+    escolha = Prompt.ask(
+        "[bold cyan]Confirma execução do pipeline completo?[/bold cyan]",
+        choices=["s", "n"],
+        default="n"
+    )
+    if escolha != "s":
+        console.print("[yellow]Cancelado.[/yellow]")
+        input("Pressione ENTER...")
+        return
+
+    db.init_db()
+
+    results = []  # [(module_name, exit_code)]
+
+    # ── Etapas 1–12: módulos bash ────────────────────────────────────────
+    for module_name, run_cwd, cmd_args in PIPELINE:
+        script_path = os.path.join(BIN_DIR, module_name)
+
+        if not os.path.exists(script_path):
+            console.print(f"\n[bold yellow]⚠ Módulo '{module_name}' não encontrado em {BIN_DIR} — pulando.[/bold yellow]")
+            results.append((module_name, -1))
+            continue
+
+        if module_name == "nwrapper":
+            os.makedirs(run_cwd, exist_ok=True)
+
+        exec_id = db.log_module_start(proj_name, module_name)
+        console.print(f"\n[bold cyan]▶ [{len(results)+1}/{len(PIPELINE)+1}][/bold cyan] {module_name}")
+
+        try:
+            cmd_exec = f"source {CONFIG_FILE} && {script_path} {cmd_args}"
+            result = subprocess.run(
+                cmd_exec,
+                shell=True,
+                cwd=run_cwd,
+                executable="/bin/bash"
+            )
+            exit_code = result.returncode
+        except KeyboardInterrupt:
+            console.print("\n[bold red][!] Pipeline interrompido pelo usuário.[/bold red]")
+            db.log_module_finish(exec_id, 130)
+            results.append((module_name, 130))
+            break
+
+        db.log_module_finish(exec_id, exit_code)
+        results.append((module_name, exit_code))
+
+        status = "[bold green]✔[/bold green]" if exit_code == 0 else f"[bold red]✖ (exit {exit_code})[/bold red]"
+        console.print(f"  {status} {module_name}")
+
+    # ── Etapa 13: OSINT People Enricher (Python direto, sem bash) ────────
+    if os.path.exists(ENRICHER_PATH):
+        console.print(f"\n[bold cyan]▶ [{len(PIPELINE)+1}/{len(PIPELINE)+1}][/bold cyan] osint-people-enricher")
+
+        # Usa proj_name como alvo padrão para o pipeline automático
+        obsdir = os.path.join(str(Path.home()), ".obsidianFixedMount")
+        auth_path = os.path.join(str(Path.home()), ".openpipes", "auth.txt")
+        if not os.path.exists(auth_path):
+            with open(auth_path, "w") as fh:
+                fh.write(f"authorized_by=openpipes-core\ntarget={proj_name}\n")
+
+        exec_id = db.log_module_start(proj_name, "osint-people-enricher")
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable, ENRICHER_PATH,
+                    "--target", proj_name,
+                    "--obsdir", obsdir,
+                    "--auth",   auth_path,
+                ],
+                cwd=os.path.dirname(ENRICHER_PATH),
+            )
+            exit_code = result.returncode
+        except KeyboardInterrupt:
+            exit_code = 130
+
+        db.log_module_finish(exec_id, exit_code)
+        results.append(("osint-people-enricher", exit_code))
+        status = "[bold green]✔[/bold green]" if exit_code == 0 else f"[bold red]✖ (exit {exit_code})[/bold red]"
+        console.print(f"  {status} osint-people-enricher")
+    else:
+        console.print(f"\n[yellow]⚠ osint_people_enricher_v1.0.py não encontrado — pulando.[/yellow]")
+
+    # ── Sumário final ─────────────────────────────────────────────────────
+    console.print("\n" + "=" * 50)
+    console.print("[bold]Sumário do Pipeline[/bold]")
+
+    total   = len(results)
+    success = sum(1 for _, c in results if c == 0)
+    failed  = total - success
+
+    summary_table = Table(box=box.SIMPLE_HEAVY, show_lines=True)
+    summary_table.add_column("Módulo",    style="white")
+    summary_table.add_column("Status",    justify="center")
+    summary_table.add_column("Exit Code", justify="center")
+
+    for mod, code in results:
+        if code == 0:
+            s, color = "SUCCESS", "green"
+        elif code == -1:
+            s, color = "NÃO ENCONTRADO", "yellow"
+        elif code == 130:
+            s, color = "ABORTADO", "yellow"
+        else:
+            s, color = "FAILED", "red"
+        summary_table.add_row(mod, f"[{color}]{s}[/{color}]", str(code) if code >= 0 else "-")
+
+    console.print(summary_table)
+    console.print(f"\n[bold green]{success} OK[/bold green]  [bold red]{failed} com problema[/bold red]  de {total} módulos")
+    console.print("[dim]Use a opção [14] para ver o histórico detalhado no SQLite.[/dim]")
+    input("\nPressione ENTER para voltar ao menu...")
+
+
 def interactive_menu():
     """Dashboard Python renderizado no Terminal"""
     while True:
@@ -206,6 +458,9 @@ def interactive_menu():
             menu_table.add_row(f"[{k}]", v.replace("-", " ").title())
             
         menu_table.add_row("", "")
+        menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]OSINT[/bold cyan]")
+        menu_table.add_row("[15]", "[bold blue]OSINT People Enricher[/bold blue]")
+        menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
         menu_table.add_row("[13]", "[bold yellow]Pipeline Completo (Auto-Run)[/bold yellow]")
         menu_table.add_row("[14]", "[bold magenta]Ver Histórico de Execuções[/bold magenta]")
@@ -224,8 +479,9 @@ def interactive_menu():
         elif escolha == "14":
             show_execution_history()
         elif escolha == "13":
-            console.print("[yellow]Pipeline completo será implementado na Fase 3...[/yellow]")
-            input("Pressione ENTER...")
+            run_full_pipeline()
+        elif escolha == "15":
+            run_osint_people_enricher()
         elif escolha in opcoes:
             run_bash_module(opcoes[escolha])
         else:

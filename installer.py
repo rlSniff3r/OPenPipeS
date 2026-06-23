@@ -14,7 +14,7 @@ HOME = str(Path.home())
 OPENPIPES_DIR = f"{HOME}/.openpipes"
 OPENPIPES_BIN = f"{OPENPIPES_DIR}/bin"
 OPENPIPES_SCRIPTS = f"{OPENPIPES_DIR}/scripts"
-VENV_JSFINDER = f"{HOME}/.venv-jsfinder"
+VENV_JSFINDER = f"{HOME}/.venv-linkfinder"  # alinhado com bash installer
 ERROR_LOG = f"{OPENPIPES_DIR}/install_error.log"
 
 GO_VERSION = "1.21.5"
@@ -29,17 +29,35 @@ def check_sudo():
         console.print("[bold red]✖ Falha na autenticação sudo. Abortando.[/bold red]")
         sys.exit(1)
 
+def check_root():
+    """Bloqueia execução como root — quebra HOME, VENVs e permissões de arquivo."""
+    if os.getuid() == 0:
+        console.print("[bold red]✖ Não execute o installer como root![/bold red]")
+        console.print("[dim]Use seu usuário normal. sudo será solicitado quando necessário.[/dim]")
+        sys.exit(1)
+
+def check_os():
+    """Avisa e pede confirmação se o OS não for Debian/Kali/Ubuntu."""
+    if not os.path.exists("/etc/debian_version"):
+        console.print("[bold yellow]⚠ Este installer foi testado apenas em Kali/Debian/Ubuntu.[/bold yellow]")
+        resp = input("Deseja continuar mesmo assim? [s/N]: ").strip().lower()
+        if resp != "s":
+            console.print("[dim]Instalação cancelada.[/dim]")
+            sys.exit(0)
+
 def keep_sudo_alive(stop_event):
     while not stop_event.is_set():
         subprocess.run(["sudo", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         stop_event.wait(60)
 
-def run_cmd(cmd, shell=True, sudo=False):
+def run_cmd(cmd, shell=True, sudo=False, check=True):
     """Executa comando. Se falhar, levanta exceção com o erro para o log."""
     if sudo:
         cmd = f"sudo {cmd}"
     result = subprocess.run(cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
+        if not check:
+            return result.stdout  # Falha silenciosa quando check=False
         error_msg = f"Comando falhou: {cmd}\nSaída de Erro:\n{result.stderr}\n"
         raise RuntimeError(error_msg)
     return result.stdout
@@ -72,7 +90,7 @@ def setup_framework_files():
         shutil.copy2(secrets_src, f"{OPENPIPES_DIR}/secrets.conf")
 
 def install_apt_deps():
-    deps = "nmap curl wget git jq fzf python3 python3-pip python3-venv golang-go build-essential whois dnsutils libpcap-dev libssl-dev pkg-config unzip"
+    deps = "nmap curl wget git jq fzf yq exiftool python3 python3-pip python3-venv golang-go build-essential whois dnsutils libpcap-dev libssl-dev pkg-config unzip"
     run_cmd("apt-get update -qq", sudo=True)
     run_cmd(f"apt-get install -y -qq {deps}", sudo=True)
 
@@ -141,6 +159,23 @@ def setup_isolated_venvs():
         if os.path.exists(req_file):
             run_cmd(f"{main_venv}/bin/pip install -r {req_file} -q")
 
+def install_wordlists():
+    """Instala SecLists e prepara big-parsed.txt para feroxbuster/katana-buster."""
+    seclists_path = "/usr/share/wordlists/seclists"
+    if not os.path.exists(seclists_path):
+        run_cmd(
+            f"git clone --depth 1 https://github.com/danielmiessler/SecLists.git {seclists_path}",
+            sudo=True
+        )
+
+    # big-parsed.txt: remove linhas com % que quebram o feroxbuster
+    big_txt = "/usr/share/wordlists/dirb/big.txt"
+    big_parsed = "/usr/share/wordlists/dirb/big-parsed.txt"
+    if os.path.exists(big_txt) and not os.path.exists(big_parsed):
+        run_cmd(f"grep -v '%' {big_txt} > /tmp/big-parsed.txt")
+        run_cmd(f"mv /tmp/big-parsed.txt {big_parsed}", sudo=True)
+
+
 def configure_environment():
     rc_files = [f"{HOME}/.bashrc", f"{HOME}/.zshrc"]
     config_block = f"""
@@ -186,6 +221,8 @@ if [ -f "{HOME}/.openpipes/config.sh" ]; then source "{HOME}/.openpipes/config.s
 
 def main():
     console.print("[bold blue]🚀 OPenPipeS Python Installer (Core Engine)[/bold blue]\n")
+    check_root()
+    check_os()
     check_sudo()
     
     sudo_stop_event = threading.Event()
@@ -208,6 +245,7 @@ def main():
         ("Instalando Amass 3.20.0...", install_amass),
         ("Instalando Dnsrecon 1.1.3...", install_dnsrecon),
         ("Configurando VENVs isolados...", setup_isolated_venvs),
+        ("Instalando Wordlists (SecLists + big-parsed)...", install_wordlists),
         ("Configurando variáveis de ambiente...", configure_environment)
     ]
 
