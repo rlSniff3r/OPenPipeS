@@ -70,7 +70,11 @@ def setup_framework_files():
     if os.path.exists(f"{cwd}/.openpipes_cache"):
         run_cmd(f"cp -r {cwd}/.openpipes_cache/* {HOME}/.openpipes_cache/", check=False)
         
-    # 3. Cria configurações padrão (Apenas se não existirem, para não apagar as API keys do usuário)
+    # 3. [NOVO] Copia o Cérebro Python (Core)
+    if os.path.exists(f"{cwd}/.openpipes/openpipes_core"):
+        run_cmd(f"cp -r {cwd}/.openpipes/openpipes_core {OPENPIPES_DIR}/", check=False)
+        
+    # 4. Cria configurações padrão
     config_dest = f"{OPENPIPES_DIR}/config.sh"
     secrets_dest = f"{OPENPIPES_DIR}/secrets.conf"
     if not os.path.exists(config_dest) and os.path.exists(f"{cwd}/.openpipes/config.sh"):
@@ -223,11 +227,22 @@ fi
         "osint_people_enricher_v1.0.py": "osint-enricher"
     }
     
+    # ... (código existente dos symlinks) ...
     for src, link in symlinks.items():
         src_path = f"{OPENPIPES_SCRIPTS}/{src}"
         link_path = f"{OPENPIPES_BIN}/{link}"
         if os.path.exists(src_path):
             run_cmd(f"ln -sf {src_path} {link_path}")
+
+    # [NOVO] 3. Criar wrapper executável para o Cérebro Python (CLI)
+    core_wrapper = f"""#!/bin/bash
+source "{HOME}/.openpipes/.venv-core/bin/activate"
+python "{OPENPIPES_DIR}/openpipes_core/cli.py" "$@"
+deactivate
+"""
+    with open(f"{OPENPIPES_BIN}/openpipes-core", "w") as f:
+        f.write(core_wrapper)
+    run_cmd(f"chmod +x {OPENPIPES_BIN}/openpipes-core")
 
 def main():
     console.print("[bold blue]🚀 OPenPipeS Python Installer (Core Engine)[/bold blue]\n")
