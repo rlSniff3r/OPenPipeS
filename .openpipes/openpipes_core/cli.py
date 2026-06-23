@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 import argparse
+import time
 from pathlib import Path
 
 from rich.console import Console
@@ -19,18 +20,22 @@ HOME = str(Path.home())
 CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 BIN_DIR = os.path.join(HOME, ".openpipes", "bin")
 
-def get_active_project():
-    """Lê o projeto ativo diretamente do config.sh"""
+def get_project_env():
+    """Extrai as variáveis de ambiente essenciais do bash config"""
     if not os.path.exists(CONFIG_FILE):
-        return "NENHUM PROJETO (Rode init-openpipes)"
+        return "DESCONHECIDO", "", ""
         
-    cmd = f"source {CONFIG_FILE} && echo $proj_name"
+    # Pega as 3 variáveis vitais
+    cmd = f"source {CONFIG_FILE} && echo -n \"$proj_name|$proj_path|$NMAP_DIR\""
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
-    proj_name = result.stdout.strip()
-    return proj_name if proj_name else "DESCONHECIDO"
+    
+    parts = result.stdout.split('|')
+    if len(parts) == 3:
+        return parts[0], parts[1], parts[2]
+    return "DESCONHECIDO", "", ""
 
 def show_execution_history():
-    """Consulta o SQLite e renderiza uma tabela incrível usando Rich"""
+    """Consulta o SQLite e renderiza a tabela"""
     console.clear()
     console.print(Panel("[bold cyan]Histórico de Execuções (SQLite Database)[/bold cyan]"))
     
@@ -64,23 +69,53 @@ def show_execution_history():
     input("\nPressione ENTER para voltar ao menu...")
 
 def run_bash_module(module_name):
-    """Executa o script bash original envolvido pela telemetria do Python"""
-    project_name = get_active_project()
-    script_path = os.path.join(BIN_DIR, module_name)
+    """Executa o script bash garantindo o diretório correto e TTY para o fzf"""
+    proj_name, proj_path, nmap_dir = get_project_env()
     
+    if proj_name == "DESCONHECIDO" or not proj_path:
+        console.print("\n[bold red]✖ Erro: Projeto não configurado. Rode init-openpipes primeiro.[/bold red]")
+        input("Pressione ENTER para continuar...")
+        return
+        
+    script_path = os.path.join(BIN_DIR, module_name)
     if not os.path.exists(script_path):
         console.print(f"\n[bold red]✖ Erro: Módulo Bash '{module_name}' não encontrado.[/bold red]")
         input("Pressione ENTER para continuar...")
         return
+        
+    # --- PREPARAÇÃO DO AMBIENTE E DIRETÓRIO (CWD) ---
+    run_cwd = proj_path
+    cmd_args = ""
+    
+    # Validações específicas herdadas do orchestrator bash
+    if module_name == "recon":
+        if not os.path.exists(os.path.join(proj_path, "domains.txt")):
+            console.print(f"\n[bold red]✖ Erro: domains.txt não encontrado em {proj_path}[/bold red]")
+            input("Pressione ENTER para continuar...")
+            return
+    elif module_name == "nwrapper":
+        run_cwd = nmap_dir
+        os.makedirs(run_cwd, exist_ok=True)
+        cmd_args = "-f targets.txt"  # O nwrapper exige este argumento!
 
     db.init_db()
-    exec_id = db.log_module_start(project_name, module_name)
+    exec_id = db.log_module_start(proj_name, module_name)
     
     console.print(f"\n[bold cyan]▶ Iniciando módulo:[/bold cyan] {module_name}")
+    console.print(f"[dim]CWD (Diretório Alvo): {run_cwd}[/dim]")
     console.print("=" * 50)
     
     try:
-        result = subprocess.run([script_path])
+        # MAGIA AQUI: Rodamos o "source config.sh" DENTRO do subprocesso para que 
+        # as variáveis globais sejam repassadas para os scripts, ativando o fzf corretamente!
+        cmd_exec = f"source {CONFIG_FILE} && {script_path} {cmd_args}"
+        
+        result = subprocess.run(
+            cmd_exec, 
+            shell=True, 
+            cwd=run_cwd, 
+            executable="/bin/bash"
+        )
         exit_code = result.returncode
     except KeyboardInterrupt:
         console.print("\n[bold red][!] Execução abortada pelo usuário.[/bold red]")
@@ -97,12 +132,10 @@ def run_bash_module(module_name):
     input("Pressione ENTER para voltar ao menu...")
 
 def interactive_menu():
-    """O Novo Dashboard Python renderizado no Terminal"""
     while True:
         console.clear()
-        project = get_active_project()
+        proj_name, _, _ = get_project_env()
         
-        # Banner e Cabeçalho
         banner = """[bold blue]
    ___  ____            ____  _             ____                 
   / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___ / ___|___  _ __ ___   
@@ -112,9 +145,8 @@ def interactive_menu():
                                |_|                               
 [/bold blue]"""
         console.print(banner)
-        console.print(Panel(f"Projeto Ativo: [bold yellow]{project}[/bold yellow] | Motor: [bold green]Python Core[/bold green]", expand=False))
+        console.print(Panel(f"Projeto Ativo: [bold yellow]{proj_name}[/bold yellow] | Motor: [bold green]Python Core[/bold green]", expand=False))
         
-        # Tabela de Opções
         menu_table = Table(box=box.MINIMAL_DOUBLE_HEAD, show_header=False)
         menu_table.add_column("ID", style="bold green", justify="right")
         menu_table.add_column("Módulo/Ação", style="bold white")
@@ -138,7 +170,6 @@ def interactive_menu():
         
         console.print(menu_table)
         
-        # Coleta a opção do usuário
         escolha = Prompt.ask("\n[bold cyan]Escolha uma opção[/bold cyan]")
         
         if escolha == "0":
@@ -162,7 +193,6 @@ def main():
     run_parser = subparsers.add_parser("run", help="Executa um módulo bash e rastreia o estado")
     run_parser.add_argument("module", help="Nome do módulo")
 
-    # Se nenhum argumento for passado, abre o menu interativo
     if len(sys.argv) == 1:
         interactive_menu()
     else:
@@ -171,5 +201,4 @@ def main():
             run_bash_module(args.module)
 
 if __name__ == "__main__":
-    import time
     main()
