@@ -3,6 +3,8 @@ import os
 import subprocess
 import sys
 import shutil
+import threading
+import time
 from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -25,18 +27,27 @@ def check_sudo():
     """Valida as credenciais sudo antes de iniciar as tarefas invisíveis"""
     console.print("[yellow][!] Algumas dependências (como APT e Golang) exigem privilégios de administrador.[/yellow]")
     console.print("[yellow][!] Por favor, insira sua senha se solicitado:[/yellow]")
-    # Roda 'sudo -v' (validate) sem capturar a saída, permitindo que o usuário veja o prompt
     result = subprocess.run(["sudo", "-v"])
     if result.returncode != 0:
         console.print("[bold red]✖ Falha na autenticação. Privilégios sudo são obrigatórios.[/bold red]")
         sys.exit(1)
     console.print("[green]✔ Autenticação sudo validada![/green]\n")
 
+def keep_sudo_alive(stop_event):
+    """
+    Thread em background que renova o token do sudo a cada 60 segundos.
+    Isso impede que compilações demoradas causem timeout de permissão.
+    """
+    while not stop_event.is_set():
+        # Pinga o sudo silenciosamente
+        subprocess.run(["sudo", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Aguarda 60 segundos ou até o evento de parada ser acionado
+        stop_event.wait(60)
+
 def run_cmd(cmd, shell=True, sudo=False, check=True):
     """Executa comandos shell de forma segura"""
     if sudo:
         cmd = f"sudo {cmd}"
-    # Executa o comando silenciando a saída para não quebrar o layout do rich
     result = subprocess.run(cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if check and result.returncode != 0:
         console.print(f"[red]Erro executando: {cmd}[/red]\n{result.stderr}")
@@ -100,6 +111,7 @@ def install_strict_versions():
         run_cmd(f"mv {OPENPIPES_BIN}/amass_linux_amd64 {OPENPIPES_BIN}/amass-{AMASS_VERSION}")
         run_cmd("rm /tmp/amass.zip")
     run_cmd(f"ln -sf {OPENPIPES_BIN}/amass-{AMASS_VERSION}/amass {OPENPIPES_BIN}/amass")
+    # Aqui o Sudo agora não travará mais, mesmo horas depois!
     run_cmd(f"ln -sf {OPENPIPES_BIN}/amass /usr/local/bin/amass", sudo=True)
 
     # Dnsrecon v1.1.3
@@ -141,8 +153,14 @@ deactivate
 def main():
     console.print("[bold blue]🚀 OPenPipeS Python Installer (Core Engine)[/bold blue]\n")
     
-    # Valida credenciais SUDO no início do script para evitar travamentos silenciosos
+    # 1. Valida credenciais SUDO
     check_sudo()
+    
+    # 2. Inicia o Keep-Alive do Sudo em uma thread de fundo
+    sudo_stop_event = threading.Event()
+    sudo_thread = threading.Thread(target=keep_sudo_alive, args=(sudo_stop_event,))
+    sudo_thread.daemon = True
+    sudo_thread.start()
     
     tasks = [
         ("Criando estrutura de diretórios...", setup_directories),
@@ -153,29 +171,35 @@ def main():
         ("Configurando VENVs isolados (JS-Finder/LinkFinder)...", setup_isolated_venvs)
     ]
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
-        console=console,
-    ) as progress:
-        
-        main_task = progress.add_task("[cyan]Progresso Geral...", total=len(tasks))
-        
-        for desc, func in tasks:
-            step_task = progress.add_task(f"[yellow]{desc}", total=None)
-            try:
-                func()
-                progress.update(step_task, completed=100, description=f"[green]✔ {desc}")
-            except Exception as e:
-                progress.update(step_task, description=f"[red]✖ Falha: {desc}")
-                console.print(f"\n[red]Erro crítico abortando instalação: {str(e)}[/red]")
-                sys.exit(1)
-            progress.advance(main_task)
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            console=console,
+        ) as progress:
+            
+            main_task = progress.add_task("[cyan]Progresso Geral...", total=len(tasks))
+            
+            for desc, func in tasks:
+                step_task = progress.add_task(f"[yellow]{desc}", total=None)
+                try:
+                    func()
+                    progress.update(step_task, completed=100, description=f"[green]✔ {desc}")
+                except Exception as e:
+                    progress.update(step_task, description=f"[red]✖ Falha: {desc}")
+                    console.print(f"\n[red]Erro crítico abortando instalação: {str(e)}[/red]")
+                    sys.exit(1)
+                progress.advance(main_task)
 
-    console.print("\n[bold green]✅ OPenPipeS Core Modules instalados com sucesso![/bold green]")
-    console.print("[cyan]A estrutura Bash original não foi alterada. Você já pode rodar o orquestrador atual.[/cyan]")
+        console.print("\n[bold green]✅ OPenPipeS Core Modules instalados com sucesso![/bold green]")
+        console.print("[cyan]A estrutura Bash original não foi alterada. Você já pode rodar o orquestrador atual.[/cyan]")
+        
+    finally:
+        # Garante que a thread do sudo morra elegantemente se algo falhar ou terminar
+        sudo_stop_event.set()
+        sudo_thread.join(timeout=2)
 
 if __name__ == "__main__":
     main()
