@@ -21,10 +21,22 @@ GO_VERSION = "1.21.5"
 AMASS_VERSION = "3.20.0"
 DNSRECON_VERSION = "1.1.3"
 
+def check_sudo():
+    """Valida as credenciais sudo antes de iniciar as tarefas invisíveis"""
+    console.print("[yellow][!] Algumas dependências (como APT e Golang) exigem privilégios de administrador.[/yellow]")
+    console.print("[yellow][!] Por favor, insira sua senha se solicitado:[/yellow]")
+    # Roda 'sudo -v' (validate) sem capturar a saída, permitindo que o usuário veja o prompt
+    result = subprocess.run(["sudo", "-v"])
+    if result.returncode != 0:
+        console.print("[bold red]✖ Falha na autenticação. Privilégios sudo são obrigatórios.[/bold red]")
+        sys.exit(1)
+    console.print("[green]✔ Autenticação sudo validada![/green]\n")
+
 def run_cmd(cmd, shell=True, sudo=False, check=True):
     """Executa comandos shell de forma segura"""
     if sudo:
         cmd = f"sudo {cmd}"
+    # Executa o comando silenciando a saída para não quebrar o layout do rich
     result = subprocess.run(cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if check and result.returncode != 0:
         console.print(f"[red]Erro executando: {cmd}[/red]\n{result.stderr}")
@@ -118,15 +130,19 @@ deactivate
         f.write(wrapper_code)
     run_cmd(f"chmod +x {OPENPIPES_BIN}/linkfinder.py")
 
-    # Main Project VENV (para ferramentas antigas que dependem dele)
+    # Main Project VENV
     main_venv = f"{OPENPIPES_DIR}/.venv"
     if not os.path.exists(main_venv):
         run_cmd(f"python3 -m venv {main_venv}")
-        if os.path.exists(f"{os.getcwd()}/.openpipes/scripts/requirements.txt"):
-            run_cmd(f"{main_venv}/bin/pip install -r {os.getcwd()}/.openpipes/scripts/requirements.txt -q")
+        req_file = f"{os.getcwd()}/.openpipes/scripts/requirements.txt"
+        if os.path.exists(req_file):
+            run_cmd(f"{main_venv}/bin/pip install -r {req_file} -q")
 
 def main():
     console.print("[bold blue]🚀 OPenPipeS Python Installer (Core Engine)[/bold blue]\n")
+    
+    # Valida credenciais SUDO no início do script para evitar travamentos silenciosos
+    check_sudo()
     
     tasks = [
         ("Criando estrutura de diretórios...", setup_directories),
