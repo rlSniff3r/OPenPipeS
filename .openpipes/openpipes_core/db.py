@@ -74,3 +74,18 @@ def log_module_finish(execution_id, exit_code):
     
     conn.commit()
     conn.close()
+
+# Adicione esta função no final do arquivo db.py
+
+def get_recent_executions(limit=10):
+    """Busca as últimas execuções no banco de dados para mostrar no painel"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, module_name, status, exit_code, start_time, end_time
+        FROM module_executions
+        ORDER BY start_time DESC LIMIT ?
+    ''', (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
