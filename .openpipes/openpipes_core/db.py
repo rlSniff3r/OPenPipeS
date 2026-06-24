@@ -13,16 +13,16 @@ def init_db(proj_path):
     conn = get_connection(proj_path)
     cursor = conn.cursor()
     
-    # 1. ENTIDADE FORTE: Hosts
+    # Adicionado o campo 'cnames'
     cursor.execute('''CREATE TABLE IF NOT EXISTS hosts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host TEXT UNIQUE,
-        ips TEXT DEFAULT '[]', -- Array JSON de IPs [\"10.0.0.1\", \"10.0.0.2\"]
+        ips TEXT DEFAULT '[]', 
+        cnames TEXT DEFAULT '[]', 
         is_alive BOOLEAN DEFAULT 0,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # 2. ENTIDADE FRACA: Portas (Relação 1:N com Hosts)
     cursor.execute('''CREATE TABLE IF NOT EXISTS ports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host_id INTEGER,
@@ -32,10 +32,9 @@ def init_db(proj_path):
         service TEXT,
         version TEXT,
         FOREIGN KEY(host_id) REFERENCES hosts(id),
-        UNIQUE(host_id, port, protocol) -- Evita duplicar a mesma porta para o mesmo host
+        UNIQUE(host_id, port, protocol)
     )''')
     
-    # 3. ENTIDADE FRACA: Endpoints e Tecnologias
     cursor.execute('''CREATE TABLE IF NOT EXISTS endpoints (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host_id INTEGER,
@@ -51,7 +50,6 @@ def init_db(proj_path):
         FOREIGN KEY(host_id) REFERENCES hosts(id)
     )''')
     
-    # (A tabela de vulnerabilidades fica intacta pro futuro)
     cursor.execute('''CREATE TABLE IF NOT EXISTS vulnerabilities (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host_id INTEGER,
