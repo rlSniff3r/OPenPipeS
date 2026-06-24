@@ -17,20 +17,35 @@ def is_ipv4(string):
     return bool(re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', string))
 
 def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None):
-    """Garante a existência do Host. BLINDADO contra inserção de IPs."""
+    """Garante a existência do Host e implementa Correlação Reversa para IPs"""
     if not host_target: return None
     clean_host = host_target.split(':')[0].strip().lower()
     
-    # 🛡️ BLINDAGEM MÁXIMA: Aborta se tentarem cadastrar um IP como Host principal
-    if is_ipv4(clean_host):
-        return None
-        
     ips_to_add = ips_to_add if ips_to_add else []
     cnames_to_add = cnames_to_add if cnames_to_add else []
     
     if not isinstance(ips_to_add, list): ips_to_add = [ips_to_add]
     if not isinstance(cnames_to_add, list): cnames_to_add = [cnames_to_add]
-    
+
+    # 🛡️ MÁGICA: CORRELAÇÃO REVERSA DE IPs
+    # Se a ferramenta nos enviou um IP puro como alvo (Ex: Nmap escaneando IPs)
+    if is_ipv4(clean_host):
+        # Ignora IPs de resolvers conhecidos na raiz
+        if clean_host in ['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4']: return None
+        
+        # Procura no banco se algum domínio já é dono desse IP
+        cursor.execute("SELECT id FROM hosts WHERE ips LIKE ?", (f'%"{clean_host}"%',))
+        row = cursor.fetchone()
+        
+        if row:
+            # SUCESSO! Esse IP não é órfão. Retornamos o ID do domínio "pai" dele.
+            # Tudo que o Nmap/HTTPx achou nesse IP será atrelado ao domínio automaticamente!
+            return row['id']
+            
+        # Se chegou aqui, é porque a query falhou: É UM IP ÓRFÃO!
+        # Ele seguirá o fluxo abaixo e se tornará uma Entidade Forte na coluna 'host'
+
+    # Fluxo Normal (Domínios ou IPs Órfãos)
     cursor.execute('SELECT id, ips, cnames FROM hosts WHERE host = ?', (clean_host,))
     row = cursor.fetchone()
     
@@ -43,7 +58,8 @@ def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None)
         
         needs_update = False
         for ip in ips_to_add:
-            if ip and ip not in current_ips and ip != clean_host:
+            # Só adiciona o IP no array se o alvo for um domínio (evita duplicar)
+            if ip and ip not in current_ips and ip != clean_host and not is_ipv4(clean_host):
                 current_ips.append(ip)
                 needs_update = True
                 
@@ -56,9 +72,11 @@ def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None)
             cursor.execute('UPDATE hosts SET ips = ?, cnames = ? WHERE id = ?', (json.dumps(current_ips), json.dumps(current_cnames), host_id))
         return host_id
     else:
-        initial_ips = json.dumps([ip for ip in ips_to_add if ip and ip != clean_host])
+        # Se for um Host novo, cria ele!
+        initial_ips = json.dumps([ip for ip in ips_to_add if ip and ip != clean_host and not is_ipv4(clean_host)])
         initial_cnames = json.dumps([c for c in cnames_to_add if c and c != clean_host])
         cursor.execute('INSERT INTO hosts (host, ips, cnames) VALUES (?, ?, ?)', (clean_host, initial_ips, initial_cnames))
+        return cursor.lastrowid
         return cursor.lastrowid
 
 def resolve_domain(domain):
