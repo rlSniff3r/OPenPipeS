@@ -5,6 +5,8 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 import db
 from rich.console import Console
+import socket
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 console = Console()
 
@@ -52,15 +54,28 @@ def extract_urls_from_file(file_path):
 
 # --- PARSERS DOS MÓDULOS ---
 
+def resolve_domain(domain):
+    """Função auxiliar para a ThreadPool: Tenta resolver o domínio para IPs"""
+    try:
+        # gethostbyname_ex retorna (hostname, aliaslist, ipaddrlist)
+        _, _, ip_list = socket.gethostbyname_ex(domain)
+        return domain, ip_list
+    except Exception:
+        return domain, []
+
 def parse_recon(proj_path, recon_dir):
-    """Regex cirúrgico para subdomínios válidos e IPs"""
+    """Lê subdomínios, resolve IPs via Multi-threading e popula o banco"""
     conn = db.get_connection(proj_path)
     cursor = conn.cursor()
-    count = 0
+    count_domains = 0
+    count_ips = 0
+    
     domain_pattern = re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b')
     ip_pattern = re.compile(r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b')
+    
     unique_hosts = set() 
     
+    # 1. Extração Cirúrgica (Lê os arquivos e extrai os alvos)
     for root, dirs, files in os.walk(recon_dir):
         for file in files:
             if file.endswith('.txt') or 'subs' in file:
@@ -69,21 +84,52 @@ def parse_recon(proj_path, recon_dir):
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line in f:
                             clean_line = re.sub(r'https?://', '', line)
-                            domains = domain_pattern.findall(clean_line)
-                            ips = ip_pattern.findall(clean_line)
-                            for h in domains + ips:
+                            for h in domain_pattern.findall(clean_line) + ip_pattern.findall(clean_line):
                                 h = h.strip().lower()
                                 if h and not h.startswith('.') and len(h) > 3:
                                     unique_hosts.add(h)
                 except Exception: pass
 
-    for host in unique_hosts:
-        cursor.execute('INSERT INTO hosts (host) VALUES (?) ON CONFLICT(host) DO NOTHING', (host,))
-        if cursor.rowcount > 0: count += 1
-                            
+    # 2. Separa o que é IP direto do que é Domínio
+    pure_ips = [h for h in unique_hosts if re.match(r'^\d+\.\d+\.\d+\.\d+$', h)]
+    domains = [h for h in unique_hosts if not re.match(r'^\d+\.\d+\.\d+\.\d+$', h)]
+    
+    resolved_data = {}
+    
+    # 3. Resolução Multi-Thread DNS (A Mágica da Velocidade!)
+    console.print(f"   [dim]↳ Resolvendo DNS para {len(domains)} domínios com 50 threads...[/dim]")
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        future_to_domain = {executor.submit(resolve_domain, dom): dom for dom in domains}
+        for future in as_completed(future_to_domain):
+            dom, ips = future.result()
+            resolved_data[dom] = ips
+
+    # 4. Inserção no Banco de Dados
+    # Inserindo Domínios com seus IPs resolvidos
+    for dom, ips in resolved_data.items():
+        ips_json = json.dumps(ips)
+        cursor.execute('''
+            INSERT INTO hosts (host, ips) VALUES (?, ?)
+            ON CONFLICT(host) DO UPDATE SET ips=excluded.ips
+        ''', (dom, ips_json))
+        count_domains += 1
+        
+        # Opcional: Inserir também os IPs descobertos como hosts isolados
+        # para garantir que o Nmap não deixe passar nada.
+        for ip in ips:
+            pure_ips.append(ip)
+            
+    # Inserindo os IPs puros
+    for ip in set(pure_ips):
+        cursor.execute('''
+            INSERT INTO hosts (host, ips) VALUES (?, ?)
+            ON CONFLICT(host) DO NOTHING
+        ''', (ip, '[]'))
+        count_ips += 1
+
     conn.commit()
     conn.close()
-    console.print(f"   [dim]↳ Parser Recon: Extraiu {count} novos hosts/IPs puros.[/dim]")
+    console.print(f"   [dim]↳ Parser Recon: Mapeou {count_domains} Domínios (com IPs) e {count_ips} IPs puros.[/dim]")
 
 def parse_nmap(proj_path, nmap_dir):
     """Varre XMLs do Nmap. Alimenta a tabela de Hosts e Portas"""
