@@ -12,14 +12,22 @@ console = Console()
 
 # --- FUNÇÕES AUXILIARES MÁGICAS ---
 
+def is_ipv4(string):
+    """Verifica cirurgicamente se a string é apenas um IP"""
+    return bool(re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', string))
+
 def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None):
+    """Garante a existência do Host. BLINDADO contra inserção de IPs."""
     if not host_target: return None
-    clean_host = host_target.split(':')[0]
+    clean_host = host_target.split(':')[0].strip().lower()
     
+    # 🛡️ BLINDAGEM MÁXIMA: Aborta se tentarem cadastrar um IP como Host principal
+    if is_ipv4(clean_host):
+        return None
+        
     ips_to_add = ips_to_add if ips_to_add else []
     cnames_to_add = cnames_to_add if cnames_to_add else []
     
-    # Converte string em lista se necessário para o Nmap
     if not isinstance(ips_to_add, list): ips_to_add = [ips_to_add]
     if not isinstance(cnames_to_add, list): cnames_to_add = [cnames_to_add]
     
@@ -80,20 +88,17 @@ def process_httpx_json(cursor, json_file, source_name="httpx"):
                 data = json.loads(line.strip())
                 host_str = data.get('host', data.get('input', '')).split(':')[0]
                 
-                # Extração cirúrgica de IPs (Evita os Resolvers!)
                 ips = data.get('a', []) + data.get('aaaa', [])
-                if not ips and data.get('host_ip'):
-                    ips = [data.get('host_ip')]
-                
-                # Extração de CNAMEs
+                if not ips and data.get('host_ip'): ips = [data.get('host_ip')]
                 cnames = data.get('cname', [])
                 
-                if host_str and ips:
+                if host_str and ips and not is_ipv4(host_str):
                     resolved_in_httpx[host_str] = ips
                 
                 host_id = get_or_create_host(cursor, host_str, ips, cnames)
                 
-                if not data.get('failed', False):
+                # Só insere o Endpoint se o host_id for válido (Ou seja, não era um IP rejeitado)
+                if host_id and not data.get('failed', False):
                     cursor.execute('UPDATE hosts SET is_alive = 1 WHERE id = ?', (host_id,))
                     
                     url = data.get('url', '')
@@ -123,50 +128,33 @@ def parse_recon(proj_path, recon_dir):
     conn = db.get_connection(proj_path)
     cursor = conn.cursor()
     
-    # 1. SHIFT-LEFT: Extrai os dados do HTTPx gerados no Recon PRIMEIRO!
     httpx_endpoints_total = 0
     httpx_already_resolved = {}
     for root, dirs, files in os.walk(recon_dir):
         for file in files:
             if file.endswith('.httpx.json'):
-                file_path = os.path.join(root, file)
-                e_count, resolved = process_httpx_json(cursor, file_path, source_name="recon_httpx")
+                e_count, resolved = process_httpx_json(cursor, os.path.join(root, file), source_name="recon_httpx")
                 httpx_endpoints_total += e_count
                 httpx_already_resolved.update(resolved)
 
-    # REGEX REFINADA: Pega apenas domínios válidos (Exige TLD com letras, ex: .com, .br). Ignora IPs.
     domain_pattern = re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b')
     unique_hosts = set() 
     
-    # 2. Varredura inteligente de arquivos TXT
     for root, dirs, files in os.walk(recon_dir):
         for file in files:
             if (file.endswith('.txt') or 'subs' in file) and not file.endswith('.json'):
-                file_path = os.path.join(root, file)
                 try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(os.path.join(root, file), 'r', encoding='utf-8', errors='ignore') as f:
                         for line in f:
-                            clean_line = line.strip()
-                            clean_line_no_http = re.sub(r'^https?://', '', clean_line)
-                            
-                            # Se a linha INTEIRA for exatamente um IP (Alvo inserido manualmente pelo usuário)
-                            if re.match(r'^\d+\.\d+\.\d+\.\d+$', clean_line_no_http):
-                                if clean_line_no_http not in ['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4']:
-                                    unique_hosts.add(clean_line_no_http)
-                            else:
-                                # Caso contrário, extrai APENAS subdomínios, ignorando qualquer IP perdido no meio do texto
-                                for h in domain_pattern.findall(clean_line_no_http):
-                                    h = h.strip().lower()
-                                    if h and not h.startswith('.') and len(h) > 3:
-                                        unique_hosts.add(h)
+                            clean_line = re.sub(r'https?://', '', line).strip()
+                            for h in domain_pattern.findall(clean_line):
+                                h = h.strip().lower()
+                                # Filtro Duplo: Garante que IPs soltos não entrem na lista de domínios
+                                if h and not h.startswith('.') and len(h) > 3 and not is_ipv4(h):
+                                    unique_hosts.add(h)
                 except Exception: pass
 
-    # Separação limpa
-    pure_ips = [h for h in unique_hosts if re.match(r'^\d+\.\d+\.\d+\.\d+$', h)]
-    domains = [h for h in unique_hosts if not re.match(r'^\d+\.\d+\.\d+\.\d+$', h)]
-    
-    # 3. Filtro de Resolução DNS
-    domains_to_resolve = [dom for dom in domains if dom not in httpx_already_resolved]
+    domains_to_resolve = [dom for dom in unique_hosts if dom not in httpx_already_resolved]
     resolved_data = {}
     
     if domains_to_resolve:
@@ -177,22 +165,14 @@ def parse_recon(proj_path, recon_dir):
                 dom, ips = future.result()
                 resolved_data[dom] = ips
 
-    # 4. Inserção Relacional Segura
     for dom, ips in resolved_data.items():
-        ips_json = json.dumps(ips)
-        cursor.execute('INSERT INTO hosts (host, ips) VALUES (?, ?) ON CONFLICT(host) DO UPDATE SET ips=excluded.ips', (dom, ips_json))
-        for ip in ips: pure_ips.append(ip)
-            
-    # Insere apenas IPs isolados que realmente são alvos (e não lixo de regex)
-    for ip in set(pure_ips):
-        if ip in ['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4']: continue
-        cursor.execute("INSERT INTO hosts (host, ips) VALUES (?, '[]') ON CONFLICT(host) DO NOTHING", (ip,))
+        cursor.execute('INSERT INTO hosts (host, ips) VALUES (?, ?) ON CONFLICT(host) DO UPDATE SET ips=excluded.ips', (dom, json.dumps(ips)))
 
     conn.commit()
     conn.close()
     
     if httpx_endpoints_total > 0: console.print(f"   [dim]↳ Parser Recon: Extraiu {httpx_endpoints_total} endpoints iniciais via HTTPx.[/dim]")
-    console.print(f"   [dim]↳ Parser Recon: Mapeou {len(domains)} Domínios e {len(set(pure_ips))} IPs atrelados (Sem lixo!).[/dim]")
+    console.print(f"   [dim]↳ Parser Recon: Mapeou {len(unique_hosts)} Domínios (Zero IPs na coluna host).[/dim]")
 
 def parse_nmap(proj_path, nmap_dir):
     conn = db.get_connection(proj_path)
@@ -216,27 +196,28 @@ def parse_nmap(proj_path, nmap_dir):
                         if not target: continue
                         
                         host_id = get_or_create_host(cursor, target, [ip])
-                        cursor.execute('UPDATE hosts SET is_alive = 1 WHERE id = ?', (host_id,))
-                        
-                        ports_node = host_node.find('ports')
-                        if ports_node is not None:
-                            for port in ports_node.findall('port'):
-                                portid = port.get('portid')
-                                protocol = port.get('protocol')
-                                state = port.find('state').get('state') if port.find('state') is not None else 'unknown'
-                                srv_node = port.find('service')
-                                service_name = srv_node.get('name') if srv_node is not None else ''
-                                product = srv_node.get('product') if srv_node is not None else ''
-                                version = srv_node.get('version') if srv_node is not None else ''
-                                service_version = f"{product} {version}".strip()
-                                
-                                cursor.execute('''
-                                    INSERT INTO ports (host_id, port, protocol, state, service, version) 
-                                    VALUES (?, ?, ?, ?, ?, ?)
-                                    ON CONFLICT(host_id, port, protocol) DO UPDATE SET 
-                                        state=excluded.state, service=excluded.service, version=excluded.version
-                                ''', (host_id, portid, protocol, state, service_name, service_version))
-                                count_ports += 1
+                        if host_id:
+                            cursor.execute('UPDATE hosts SET is_alive = 1 WHERE id = ?', (host_id,))
+                            
+                            ports_node = host_node.find('ports')
+                            if ports_node is not None:
+                                for port in ports_node.findall('port'):
+                                    portid = port.get('portid')
+                                    protocol = port.get('protocol')
+                                    state = port.find('state').get('state') if port.find('state') is not None else 'unknown'
+                                    srv_node = port.find('service')
+                                    service_name = srv_node.get('name') if srv_node is not None else ''
+                                    product = srv_node.get('product') if srv_node is not None else ''
+                                    version = srv_node.get('version') if srv_node is not None else ''
+                                    service_version = f"{product} {version}".strip()
+                                    
+                                    cursor.execute('''
+                                        INSERT INTO ports (host_id, port, protocol, state, service, version) 
+                                        VALUES (?, ?, ?, ?, ?, ?)
+                                        ON CONFLICT(host_id, port, protocol) DO UPDATE SET 
+                                            state=excluded.state, service=excluded.service, version=excluded.version
+                                    ''', (host_id, portid, protocol, state, service_name, service_version))
+                                    count_ports += 1
                 except Exception: pass
     conn.commit()
     conn.close()
@@ -267,8 +248,9 @@ def parse_url_discovery(proj_path, nmap_dir, tool_name):
             host_str = urlparse(url).hostname
             if host_str:
                 host_id = get_or_create_host(cursor, host_str)
-                cursor.execute('INSERT INTO endpoints (host_id, url, source_tool) VALUES (?, ?, ?) ON CONFLICT(url) DO NOTHING', (host_id, url, tool_name))
-                if cursor.rowcount > 0: count += 1
+                if host_id:
+                    cursor.execute('INSERT INTO endpoints (host_id, url, source_tool) VALUES (?, ?, ?) ON CONFLICT(url) DO NOTHING', (host_id, url, tool_name))
+                    if cursor.rowcount > 0: count += 1
         except Exception: pass
     conn.commit()
     conn.close()
