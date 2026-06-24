@@ -123,6 +123,7 @@ def parse_recon(proj_path, recon_dir):
     conn = db.get_connection(proj_path)
     cursor = conn.cursor()
     
+    # 1. SHIFT-LEFT: Extrai os dados do HTTPx gerados no Recon PRIMEIRO!
     httpx_endpoints_total = 0
     httpx_already_resolved = {}
     for root, dirs, files in os.walk(recon_dir):
@@ -133,48 +134,57 @@ def parse_recon(proj_path, recon_dir):
                 httpx_endpoints_total += e_count
                 httpx_already_resolved.update(resolved)
 
+    # REGEX REFINADA: Pega apenas domínios válidos (Exige TLD com letras, ex: .com, .br). Ignora IPs.
     domain_pattern = re.compile(r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b')
-    ip_pattern = re.compile(r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b')
     unique_hosts = set() 
     
+    # 2. Varredura inteligente de arquivos TXT
     for root, dirs, files in os.walk(recon_dir):
         for file in files:
-            # MAGIA AQUI: Garante que os arquivos .json NÃO entrem na regex que pega lixo!
             if (file.endswith('.txt') or 'subs' in file) and not file.endswith('.json'):
                 file_path = os.path.join(root, file)
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         for line in f:
-                            clean_line = re.sub(r'https?://', '', line)
-                            for h in domain_pattern.findall(clean_line) + ip_pattern.findall(clean_line):
-                                h = h.strip().lower()
-                                if h and not h.startswith('.') and len(h) > 3:
-                                    unique_hosts.add(h)
+                            clean_line = line.strip()
+                            clean_line_no_http = re.sub(r'^https?://', '', clean_line)
+                            
+                            # Se a linha INTEIRA for exatamente um IP (Alvo inserido manualmente pelo usuário)
+                            if re.match(r'^\d+\.\d+\.\d+\.\d+$', clean_line_no_http):
+                                if clean_line_no_http not in ['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4']:
+                                    unique_hosts.add(clean_line_no_http)
+                            else:
+                                # Caso contrário, extrai APENAS subdomínios, ignorando qualquer IP perdido no meio do texto
+                                for h in domain_pattern.findall(clean_line_no_http):
+                                    h = h.strip().lower()
+                                    if h and not h.startswith('.') and len(h) > 3:
+                                        unique_hosts.add(h)
                 except Exception: pass
 
+    # Separação limpa
     pure_ips = [h for h in unique_hosts if re.match(r'^\d+\.\d+\.\d+\.\d+$', h)]
     domains = [h for h in unique_hosts if not re.match(r'^\d+\.\d+\.\d+\.\d+$', h)]
     
+    # 3. Filtro de Resolução DNS
     domains_to_resolve = [dom for dom in domains if dom not in httpx_already_resolved]
     resolved_data = {}
     
-    console.print(f"   [dim]↳ Resolvendo DNS pendente para {len(domains_to_resolve)} domínios...[/dim]")
     if domains_to_resolve:
+        console.print(f"   [dim]↳ Resolvendo DNS pendente para {len(domains_to_resolve)} domínios...[/dim]")
         with ThreadPoolExecutor(max_workers=50) as executor:
             future_to_domain = {executor.submit(resolve_domain, dom): dom for dom in domains_to_resolve}
             for future in as_completed(future_to_domain):
                 dom, ips = future.result()
                 resolved_data[dom] = ips
 
-    count_domains = 0
+    # 4. Inserção Relacional Segura
     for dom, ips in resolved_data.items():
         ips_json = json.dumps(ips)
         cursor.execute('INSERT INTO hosts (host, ips) VALUES (?, ?) ON CONFLICT(host) DO UPDATE SET ips=excluded.ips', (dom, ips_json))
-        count_domains += 1
         for ip in ips: pure_ips.append(ip)
             
+    # Insere apenas IPs isolados que realmente são alvos (e não lixo de regex)
     for ip in set(pure_ips):
-        # Proteção contra resolvers conhecidos no momento de inserir IP isolado
         if ip in ['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4']: continue
         cursor.execute("INSERT INTO hosts (host, ips) VALUES (?, '[]') ON CONFLICT(host) DO NOTHING", (ip,))
 
@@ -182,7 +192,7 @@ def parse_recon(proj_path, recon_dir):
     conn.close()
     
     if httpx_endpoints_total > 0: console.print(f"   [dim]↳ Parser Recon: Extraiu {httpx_endpoints_total} endpoints iniciais via HTTPx.[/dim]")
-    console.print(f"   [dim]↳ Parser Recon: Mapeou {len(domains)} Domínios e {len(set(pure_ips))} IPs puros (Ignorou Resolvers).[/dim]")
+    console.print(f"   [dim]↳ Parser Recon: Mapeou {len(domains)} Domínios e {len(set(pure_ips))} IPs atrelados (Sem lixo!).[/dim]")
 
 def parse_nmap(proj_path, nmap_dir):
     conn = db.get_connection(proj_path)
