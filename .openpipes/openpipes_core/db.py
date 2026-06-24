@@ -2,32 +2,40 @@ import sqlite3
 import os
 
 def get_connection(proj_path):
-    """Cria/Conecta ao banco SQLite DENTRO da pasta do projeto com Modo WAL ativo"""
     db_path = os.path.join(proj_path, ".openpipes.db")
-    conn = sqlite3.connect(db_path, timeout=15.0) # Timeout alto para concorrência
+    conn = sqlite3.connect(db_path, timeout=15.0)
     conn.row_factory = sqlite3.Row
-    # Habilita o modo de alta performance do SQLite
     conn.execute('PRAGMA journal_mode=WAL;')
     conn.execute('PRAGMA synchronous=NORMAL;')
     return conn
 
 def init_db(proj_path):
-    """Cria a estrutura relacional do pentest se não existir"""
     conn = get_connection(proj_path)
     cursor = conn.cursor()
     
+    # 1. ENTIDADE FORTE: Hosts
     cursor.execute('''CREATE TABLE IF NOT EXISTS hosts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host TEXT UNIQUE,
-        ip TEXT,
-        is_alive BOOLEAN,
-        ports TEXT,
-        web_server TEXT,
-        tech_stack TEXT,
-        page_title TEXT,
+        ips TEXT DEFAULT '[]', -- Array JSON de IPs [\"10.0.0.1\", \"10.0.0.2\"]
+        is_alive BOOLEAN DEFAULT 0,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # 2. ENTIDADE FRACA: Portas (Relação 1:N com Hosts)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS ports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        host_id INTEGER,
+        port INTEGER,
+        protocol TEXT,
+        state TEXT,
+        service TEXT,
+        version TEXT,
+        FOREIGN KEY(host_id) REFERENCES hosts(id),
+        UNIQUE(host_id, port, protocol) -- Evita duplicar a mesma porta para o mesmo host
+    )''')
+    
+    # 3. ENTIDADE FRACA: Endpoints e Tecnologias
     cursor.execute('''CREATE TABLE IF NOT EXISTS endpoints (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host_id INTEGER,
@@ -35,11 +43,15 @@ def init_db(proj_path):
         status_code INTEGER,
         content_length INTEGER,
         content_type TEXT,
+        title TEXT,
+        web_server TEXT,
+        tech_stack TEXT,
         source_tool TEXT,
         discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(host_id) REFERENCES hosts(id)
     )''')
     
+    # (A tabela de vulnerabilidades fica intacta pro futuro)
     cursor.execute('''CREATE TABLE IF NOT EXISTS vulnerabilities (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host_id INTEGER,
@@ -51,8 +63,7 @@ def init_db(proj_path):
         curl_command TEXT,
         source_tool TEXT,
         FOREIGN KEY(host_id) REFERENCES hosts(id),
-        FOREIGN KEY(endpoint_id) REFERENCES endpoints(id),
-        UNIQUE(vuln_name, matched_at) -- Evita duplicar a mesma vuln na mesma URL
+        UNIQUE(vuln_name, matched_at)
     )''')
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS execution_logs (
@@ -67,7 +78,6 @@ def init_db(proj_path):
     conn.commit()
     conn.close()
 
-# --- Funções de Telemetria (Agora usando proj_path) ---
 def log_module_start(proj_path, module_name):
     conn = get_connection(proj_path)
     cursor = conn.cursor()
