@@ -13,12 +13,13 @@ def init_db(proj_path):
     conn = get_connection(proj_path)
     cursor = conn.cursor()
     
-    # Adicionado o campo 'cnames'
+    # Adicionado whois_data
     cursor.execute('''CREATE TABLE IF NOT EXISTS hosts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host TEXT UNIQUE,
         ips TEXT DEFAULT '[]', 
         cnames TEXT DEFAULT '[]', 
+        whois_data TEXT,
         is_alive BOOLEAN DEFAULT 0,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
@@ -35,6 +36,7 @@ def init_db(proj_path):
         UNIQUE(host_id, port, protocol)
     )''')
     
+    # Adicionado vulnerability_patterns para o GF Summary
     cursor.execute('''CREATE TABLE IF NOT EXISTS endpoints (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host_id INTEGER,
@@ -46,10 +48,30 @@ def init_db(proj_path):
         web_server TEXT,
         tech_stack TEXT,
         source_tool TEXT,
+        vulnerability_patterns TEXT DEFAULT '[]',
         discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(host_id) REFERENCES hosts(id)
     )''')
     
+    # Tabela para os Screenshots (Gowitness)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS screenshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        host_id INTEGER,
+        file_path TEXT UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(host_id) REFERENCES hosts(id)
+    )''')
+    
+    # Tabela para os segredos encontrados no JS (JS Finder)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS js_discoveries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        host_id INTEGER,
+        source_js_url TEXT,
+        discovered_route TEXT,
+        FOREIGN KEY(host_id) REFERENCES hosts(id),
+        UNIQUE(source_js_url, discovered_route)
+    )''')
+
     cursor.execute('''CREATE TABLE IF NOT EXISTS vulnerabilities (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         host_id INTEGER,

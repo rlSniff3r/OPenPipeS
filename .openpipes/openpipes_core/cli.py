@@ -433,13 +433,13 @@ def interactive_menu():
         proj_name, _, _ = get_project_env()
         
         banner = """[bold blue]
-   ___  ____            ____  _             ____  
-  / _ \|  _ \ ___ _ __ |  _ \(_)_ __   ___ / ___| 
- | | | | |_) / _ | '_ \| |_) | | '_ \ / _ \\___ \ 
- | |_| |  __/  __| | | |  __/| | |_) |  __/ ___) |
-  \___/|_|   \___|_| |_|_|   |_| .__/ \___||____/ 
-                               |_|                  
-                    Framework de Reconhecimento v2.0 
+   ___   ____               ____   _               ____  
+  / _ \ |  _ \  ___  _ __  |  _ \ (_) _ __    ___ / ___| 
+ | | | || |_) )/ _ || '_ \ | |_) )| || '_ \  / _ |\___ \ 
+ | |_| ||  __/(  __|| | | ||  __/ | || |_) |(  __| ___) )
+  \___/ |_|    \___)|_| |_||_|    |_|| .__/  \___)|____/ 
+                                     |_|                  
+                        Framework de Reconhecimento v2.0 
 [/bold blue]"""
         console.print(banner)
         console.print(Panel(f"Projeto Ativo: [bold yellow]{proj_name}[/bold yellow] | Motor: [bold green]Python Core[/bold green]", expand=False))
