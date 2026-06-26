@@ -124,6 +124,8 @@ process_target() {
                 -t "$FEROX_THREADS" \
                 -d "$FEROX_DEPTH" \
                 --time-limit "$FEROX_TIMEOUT" \
+                --auto-tune \
+                --filter-status 400,401,404,405,500,502,503 \
                 --no-state \
                 -o "$OUTPUT_FILE" \
                 --silent 2>/dev/null || true

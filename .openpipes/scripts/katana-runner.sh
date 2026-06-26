@@ -86,6 +86,7 @@ process_target() {
         -c "$KATANA_CONCURRENCY" \
         -jc \
         -kf all \
+        -fsc 400,401,404,500,501,502,503 \
         -silent \
         -o "$CRAWLED_FILE"
 
