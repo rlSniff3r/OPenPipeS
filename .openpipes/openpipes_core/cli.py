@@ -366,7 +366,11 @@ def interactive_menu():
 Framework de Reconhecimento v2.0
 [/bold blue]"""
         console.print(banner)
-        console.print(Panel(f"Projeto Ativo: [bold yellow]{proj_name}[/bold yellow] | Motor: [bold green]Python Core[/bold green]", expand=False))
+        console.print(Panel(
+            f"Projeto Ativo: [bold yellow]{proj_name}[/bold yellow] | "
+            f"Motor: [bold green]Python Core[/bold green]",
+            expand=False
+        ))
 
         menu_table = Table(box=box.MINIMAL_DOUBLE_HEAD, show_header=False)
         menu_table.add_column("ID", style="bold green", justify="right")
@@ -386,6 +390,11 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]OSINT[/bold cyan]")
         menu_table.add_row("[15]", "[bold blue]OSINT People Enricher[/bold blue]")
+
+        menu_table.add_row("", "")
+        menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]BANCO DE DADOS[/bold cyan]")
+        menu_table.add_row("[16]", "[bold cyan]Reparse All (Recria DB dos outputs)[/bold cyan]")
+        menu_table.add_row("[17]", "[bold cyan]Ver Dados do Banco[/bold cyan]")
 
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
@@ -408,12 +417,144 @@ Framework de Reconhecimento v2.0
             run_full_pipeline()
         elif escolha == "15":
             run_osint_people_enricher()
+        elif escolha == "16":
+            run_reparse_all()
+        elif escolha == "17":
+            show_database_viewer()
         elif escolha in opcoes:
             run_bash_module(opcoes[escolha])
         else:
             console.print("[bold red]Opção inválida![/bold red]")
             time.sleep(1)
 
+def run_reparse_all():
+    """
+    Option 16: Walk all tool output directories and re-run every parser.
+    Useful after schema migration or adding a new parser.
+    """
+    proj_name, proj_path, nmap_dir = get_project_env()
+    if proj_name == "DESCONHECIDO" or not proj_path:
+        console.print("\n[bold red]✖ Erro: Projeto não configurado.[/bold red]")
+        input("Pressione ENTER para continuar...")
+        return
+
+    console.clear()
+    console.print(Panel("[bold cyan]Reparse All — Repopulando banco de dados[/bold cyan]"))
+    console.print(f"[dim]Projeto: {proj_name}[/dim]")
+    console.print("[yellow]Isso irá re-processar todos os outputs das ferramentas nos diretórios Recon/ e Varreduras/[/yellow]\n")
+
+    escolha = Prompt.ask("[bold cyan]Confirmar?[/bold cyan]", choices=["s", "n"], default="n")
+    if escolha != "s":
+        console.print("[yellow]Cancelado.[/yellow]")
+        input("Pressione ENTER...")
+        return
+
+    # Auto-migrate schema first
+    db.init_db(proj_path)
+
+    recon_dir = os.path.join(proj_path, "Recon")
+    nmap_dir_path = nmap_dir
+
+    modules = [
+        ("recon",      lambda: parsers.parse_recon(proj_path, recon_dir)),
+        ("nmap",       lambda: parsers.parse_nmap(proj_path, nmap_dir_path)),
+        ("httpx",      lambda: parsers.parse_httpx(proj_path, nmap_dir_path)),
+        ("feroxbuster", lambda: parsers.parse_url_discovery(proj_path, nmap_dir_path, "ferox")),
+        ("katana",     lambda: parsers.parse_url_discovery(proj_path, nmap_dir_path, "crawled")),
+        ("screenshots", lambda: parsers.parse_screenshot(proj_path)),
+        ("nuclei",     lambda: parsers.parse_nuclei(proj_path, nmap_dir_path)),
+        ("whois",      lambda: parsers.parse_whois_enrichment(proj_path, nmap_dir_path)),
+    ]
+
+    for name, fn in modules:
+        try:
+            fn()
+            console.print(f"  [bold green]✔[/bold green] {name}")
+        except Exception as e:
+            console.print(f"  [bold red]✖[/bold red] {name}: {e}")
+
+    console.print("\n[bold green]Reparse concluído![/bold green]")
+    input("Pressione ENTER para voltar ao menu...")
+
+
+def show_database_viewer():
+    """
+    Option 17: Quick-read stats from SQLite without leaving the menu.
+    """
+    proj_name, proj_path, _ = get_project_env()
+    if not proj_path:
+        console.print("[red]Erro: Projeto não configurado.[/red]")
+        input("Pressione ENTER...")
+        return
+
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+
+            stats = {}
+            for table in ["hosts", "ports", "endpoints", "screenshots",
+                          "js_discoveries", "vulnerabilities", "execution_logs"]:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                stats[table] = cursor.fetchone()[0]
+
+            # Severity breakdown
+            severity_counts = {"Crítica": 0, "Alta": 0, "Média": 0, "Baixa": 0, "Info": 0}
+            try:
+                cursor.execute(
+                    "SELECT severity, COUNT(*) as cnt FROM vulnerabilities GROUP BY severity"
+                )
+                for row in cursor.fetchall():
+                    sev = row["severity"]
+                    if sev in severity_counts:
+                        severity_counts[sev] = row["cnt"]
+            except Exception:
+                pass
+
+            # Last execution
+            cursor.execute(
+                "SELECT module_name, status, start_time FROM execution_logs ORDER BY start_time DESC LIMIT 5"
+            )
+            recent = cursor.fetchall()
+
+    except Exception as e:
+        console.print(f"[red]Erro ao ler banco de dados: {e}[/red]")
+        input("Pressione ENTER...")
+        return
+
+    console.clear()
+    console.print(Panel("[bold cyan]📊 Dados do Banco de Dados[/bold cyan]"))
+
+    table = Table(box=box.SIMPLE_HEAVY)
+    table.add_column("Tabela", style="cyan")
+    table.add_column("Registros", justify="right")
+    table.add_row("Hosts",           str(stats.get("hosts", 0)))
+    table.add_row("Portas",          str(stats.get("ports", 0)))
+    table.add_row("Endpoints URL",   str(stats.get("endpoints", 0)))
+    table.add_row("Screenshots",     str(stats.get("screenshots", 0)))
+    table.add_row("JS Discoveries",  str(stats.get("js_discoveries", 0)))
+    table.add_row("Vulnerabilidades", str(stats.get("vulnerabilities", 0)))
+    table.add_row("Execuções",       str(stats.get("execution_logs", 0)))
+    console.print(table)
+
+    if stats.get("vulnerabilities", 0) > 0:
+        sev_table = Table(box=box.SIMPLE_HEAVY)
+        sev_table.add_column("Severidade", style="cyan")
+        sev_table.add_column("Quantidade", justify="right")
+        for sev, count in severity_counts.items():
+            color = {"Crítica": "red", "Alta": "yellow", "Média": "blue",
+                     "Baixa": "green", "Info": "dim"}.get(sev, "white")
+            sev_table.add_row(f"[{color}]{sev}[/{color}]", str(count))
+        console.print("\n[bold]Vulnerabilidades por Severidade:[/bold]")
+        console.print(sev_table)
+
+    if recent:
+        console.print("\n[bold]Últimas execuções:[/bold]")
+        for row in recent:
+            color = "green" if row["status"] == "SUCCESS" else "red"
+            console.print(f"  [{color}]{row['module_name']}[/{color}] "
+                          f"({row['status']}) — {row['start_time']}")
+
+    input("\nPressione ENTER para voltar ao menu...")
 
 def main():
     parser = argparse.ArgumentParser(description="OPenPipeS Core Engine")
