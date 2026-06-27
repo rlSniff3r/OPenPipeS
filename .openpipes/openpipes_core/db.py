@@ -6,6 +6,30 @@ from contextlib import contextmanager
 DB_FILENAME = ".openpipes.db"
 
 
+def _list_columns(conn, table):
+    """Return set of existing column names for a table, or empty set if table doesn't exist."""
+    try:
+        cursor = conn.execute(f"PRAGMA table_info({table})")
+        return {row[1] for row in cursor.fetchall()}
+    except sqlite3.OperationalError:
+        return set()
+
+
+def _add_missing_columns(conn, table, columns):
+    """
+    Add columns to *table* that don't already exist.
+    *columns* is a dict of {col_name: "col_name TYPE CONSTRAINTS"}.
+    Safe to call repeatedly — only missing columns are added.
+    """
+    existing = _list_columns(conn, table)
+    for col_name, col_def in columns.items():
+        if col_name not in existing:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
+            except sqlite3.OperationalError:
+                pass  # ignore if another process added it simultaneously
+
+
 @contextmanager
 def get_connection(proj_path):
     """Context manager that provides a connection and commits/rolls back on exit."""
@@ -27,7 +51,7 @@ def get_connection(proj_path):
 
 @contextmanager
 def transaction(conn):
-    """Explicit transaction context for a single parser call."""
+    """Explicit transaction context for atomic parser writes."""
     conn.execute("BEGIN")
     try:
         yield conn
@@ -38,7 +62,10 @@ def transaction(conn):
 
 
 def init_db(proj_path):
-    """Create all tables, indexes, and migrations."""
+    """
+    Create tables if missing and migrate existing tables with new columns.
+    Safe to call on every module execution — no-op once schema is up-to-date.
+    """
     with get_connection(proj_path) as conn:
         cursor = conn.cursor()
 
@@ -54,7 +81,7 @@ def init_db(proj_path):
             )
         """)
 
-        # ── Hosts (domains + resolved IPs) ──────────────────────────────
+        # ── Hosts ───────────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS hosts (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,8 +94,11 @@ def init_db(proj_path):
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        _add_missing_columns(conn, "hosts", {
+            "project_id": "project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE"
+        })
 
-        # ── Ports ────────────────────────────────────────────────────────
+        # ── Ports ───────────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ports (
                 id       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,7 +112,7 @@ def init_db(proj_path):
             )
         """)
 
-        # ── Endpoints ────────────────────────────────────────────────────
+        # ── Endpoints ───────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS endpoints (
                 id                    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +130,7 @@ def init_db(proj_path):
             )
         """)
 
-        # ── Screenshots ──────────────────────────────────────────────────
+        # ── Screenshots ─────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS screenshots (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,7 +140,7 @@ def init_db(proj_path):
             )
         """)
 
-        # ── JS Discoveries ───────────────────────────────────────────────
+        # ── JS Discoveries ──────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS js_discoveries (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,32 +151,51 @@ def init_db(proj_path):
             )
         """)
 
-        # ── Vulnerabilities (expanded schema) ────────────────────────────
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS vulnerabilities (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                host_id      INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
-                endpoint_id  INTEGER REFERENCES endpoints(id) ON DELETE SET NULL,
-                title        TEXT,
-                severity     TEXT,
-                cvss_score   REAL,
-                cvss_vector  TEXT,
-                cve_id       TEXT,
-                vuln_name    TEXT,
-                description  TEXT,
-                matched_at   TEXT,
-                curl_command TEXT,
-                remediation  TEXT,
-                impact       TEXT,
-                references   TEXT DEFAULT '[]',
-                source_tool  TEXT,
-                enriched_by  TEXT,
-                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(vuln_name, matched_at, host_id)
-            )
-        """)
+        # ── Vulnerabilities (expanded) ──────────────────────────────────
+        # If table doesn't exist, create it with full schema.
+        # If it exists, add any missing columns.
+        existing_vuln_cols = _list_columns(conn, "vulnerabilities")
 
-        # ── Execution Logs ───────────────────────────────────────────────
+        if not existing_vuln_cols:
+            cursor.execute("""
+                CREATE TABLE vulnerabilities (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    host_id         INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+                    endpoint_id     INTEGER REFERENCES endpoints(id) ON DELETE SET NULL,
+                    title           TEXT,
+                    severity        TEXT,
+                    cvss_score      REAL,
+                    cvss_vector     TEXT,
+                    cve_id          TEXT,
+                    vuln_name       TEXT,
+                    description     TEXT,
+                    matched_at      TEXT,
+                    curl_command    TEXT,
+                    remediation     TEXT,
+                    impact          TEXT,
+                    reference_urls  TEXT DEFAULT '[]',
+                    source_tool     TEXT,
+                    enriched_by     TEXT,
+                    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(vuln_name, matched_at, host_id)
+                )
+            """)
+        else:
+            # Add new columns to existing table
+            new_cols = {
+                "title":          "title TEXT",
+                "cvss_score":     "cvss_score REAL",
+                "cvss_vector":    "cvss_vector TEXT",
+                "cve_id":         "cve_id TEXT",
+                "remediation":    "remediation TEXT",
+                "impact":         "impact TEXT",
+                "reference_urls": "reference_urls TEXT DEFAULT '[]'",
+                "enriched_by":    "enriched_by TEXT",
+                "created_at":     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            }
+            _add_missing_columns(conn, "vulnerabilities", new_cols)
+
+        # ── Execution Logs ──────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS execution_logs (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,24 +207,29 @@ def init_db(proj_path):
                 end_time    TIMESTAMP
             )
         """)
+        _add_missing_columns(conn, "execution_logs", {
+            "project_id": "project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL"
+        })
 
         # ═══════════════════════════════════════════════════════════════
-        # INDEXES
+        # INDEXES (idempotent)
         # ═══════════════════════════════════════════════════════════════
         indexes = [
-            "CREATE INDEX IF NOT EXISTS idx_hosts_project ON hosts(project_id)",
-            "CREATE INDEX IF NOT EXISTS idx_ports_host    ON ports(host_id)",
-            "CREATE INDEX IF NOT EXISTS idx_endpoints_host ON endpoints(host_id)",
-            "CREATE INDEX IF NOT EXISTS idx_endpoints_url  ON endpoints(url)",
-            "CREATE INDEX IF NOT EXISTS idx_screenshots_host ON screenshots(host_id)",
+            "CREATE INDEX IF NOT EXISTS idx_hosts_project       ON hosts(project_id)",
+            "CREATE INDEX IF NOT EXISTS idx_ports_host          ON ports(host_id)",
+            "CREATE INDEX IF NOT EXISTS idx_endpoints_host      ON endpoints(host_id)",
+            "CREATE INDEX IF NOT EXISTS idx_endpoints_url       ON endpoints(url)",
+            "CREATE INDEX IF NOT EXISTS idx_screenshots_host    ON screenshots(host_id)",
             "CREATE INDEX IF NOT EXISTS idx_js_discoveries_host ON js_discoveries(host_id)",
-            "CREATE INDEX IF NOT EXISTS idx_vulns_host     ON vulnerabilities(host_id)",
-            "CREATE INDEX IF NOT EXISTS idx_vulns_severity ON vulnerabilities(severity)",
-            "CREATE INDEX IF NOT EXISTS idx_exec_logs_project ON execution_logs(project_id)",
-            "CREATE INDEX IF NOT EXISTS idx_exec_logs_module ON execution_logs(module_name)",
+            "CREATE INDEX IF NOT EXISTS idx_vulns_host          ON vulnerabilities(host_id)",
+            "CREATE INDEX IF NOT EXISTS idx_vulns_severity      ON vulnerabilities(severity)",
+            "CREATE INDEX IF NOT EXISTS idx_exec_logs_project   ON execution_logs(project_id)",
+            "CREATE INDEX IF NOT EXISTS idx_exec_logs_module    ON execution_logs(module_name)",
         ]
         for idx in indexes:
             cursor.execute(idx)
+
+    return True
 
 
 # ── Execution log helpers ──────────────────────────────────────────────
