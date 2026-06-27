@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import sqlite3
 import db
-from rich.console import Console
+from rich.console import Console # type: ignore
 
 console = Console()
 CONFIG_FILE = os.path.expanduser("~/.openpipes/config.sh")
@@ -232,6 +232,55 @@ def parse_nmap(proj_path, nmap_dir):
     conn.close()
     console.print(f"   [dim]↳ Parser Nmap: Inseriu {count_ports} portas abertas e extraiu {count_whois} dados de WHOIS.[/dim]")
 
+def parse_whois_enrichment(proj_path, nmap_dir):
+    """
+    Parse only WHOIS data from nmap XML files without re-inserting all ports.
+    This is a lighter version of parse_nmap() used by the whois-enricher phase.
+    """
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            count = 0
+
+            for root, dirs, files in os.walk(nmap_dir):
+                for file in files:
+                    if not file.endswith(".xml"):
+                        continue
+                    try:
+                        tree = ET.parse(os.path.join(root, file))
+                    except Exception:
+                        continue
+
+                    for host_node in tree.getroot().findall("host"):
+                        # Identify the target
+                        ip = ""
+                        hostname = ""
+                        for address in host_node.findall("address"):
+                            if address.get("addrtype") == "ipv4":
+                                ip = address.get("addr")
+                        for hostnames in host_node.findall("hostnames"):
+                            for hname in hostnames.findall("hostname"):
+                                hostname = hname.get("name")
+                        target = hostname if hostname else ip
+                        if not target:
+                            continue
+
+                        # Extract WHOIS data only
+                        whois_data = ""
+                        for script in host_node.findall(".//script"):
+                            if script.get("id") in ("whois-ip", "whois-domain"):
+                                whois_data = script.get("output", "")
+                        if whois_data:
+                            host_id = get_or_create_host(cursor, target, [ip] if ip else [])
+                            if host_id:
+                                cursor.execute(
+                                    "UPDATE hosts SET whois_data = ? WHERE id = ?",
+                                    (whois_data.strip(), host_id),
+                                )
+                                count += 1
+
+    console.print(f" [dim]↳ Parser WHOIS: Atualizou WHOIS de {count} hosts.[/dim]")
+
 def parse_httpx(proj_path, nmap_dir):
     json_file = os.path.join(nmap_dir, "httpx_output.json")
     if not os.path.exists(json_file): return
@@ -368,23 +417,31 @@ def parse_jsfinder(proj_path, obs_dir):
 def dispatch(module_name, proj_path, nmap_dir):
     recon_dir = os.path.join(proj_path, "Recon")
     obs_proj_dir = get_obsdir()
-    
-    if module_name == 'recon':
+
+    if module_name == "recon":
         parse_recon(proj_path, recon_dir)
-    elif module_name == 'nwrapper':
+    elif module_name == "nwrapper":
         parse_nmap(proj_path, nmap_dir)
-    elif module_name == 'httpx-runner':
+    elif module_name == "httpx-runner":
         parse_httpx(proj_path, nmap_dir)
-    elif module_name == 'feroxbuster-runner':
-        parse_url_discovery(proj_path, nmap_dir, 'ferox')
-    elif module_name in ['katana-runner', 'katana-buster']:
-        parse_url_discovery(proj_path, nmap_dir, 'crawled')
-    elif module_name == 'screenshot-runner':
+    elif module_name == "feroxbuster-runner":
+        parse_url_discovery(proj_path, nmap_dir, "ferox")
+    elif module_name in ("katana-runner", "katana-buster"):
+        parse_url_discovery(proj_path, nmap_dir, "crawled")
+    elif module_name == "screenshot-runner":
         parse_screenshot(proj_path)
-    elif module_name == 'gf-summary':
-        if obs_proj_dir: parse_gf(proj_path, obs_proj_dir)
-    elif module_name == 'jsfinder-runner':
-        parse_url_discovery(proj_path, nmap_dir, 'js_files')
-        if obs_proj_dir: parse_jsfinder(proj_path, obs_proj_dir)
-    elif module_name == 'whois-enricher':
-        parse_nmap(proj_path, nmap_dir) # Atualiza re-lendo os XMLs do Nmap
+    elif module_name == "gf-summary":
+        parse_url_discovery(proj_path, nmap_dir, "crawled")
+        if obs_proj_dir:
+            parse_gf(proj_path, obs_proj_dir)
+    elif module_name == "jsfinder-runner":
+        parse_url_discovery(proj_path, nmap_dir, "js_files")
+        if obs_proj_dir:
+            parse_jsfinder(proj_path, obs_proj_dir)
+    elif module_name == "whois-enricher":
+        # Use the dedicated WHOIS parser instead of re-parsing all nmap data
+        parse_whois_enrichment(proj_path, nmap_dir)
+    elif module_name == "nuclei-runner":
+        parse_nuclei(proj_path, nmap_dir)
+    else:
+        console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")
