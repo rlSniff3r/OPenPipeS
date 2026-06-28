@@ -86,7 +86,7 @@ process_target() {
         -c "$KATANA_CONCURRENCY" \
         -jc \
         -kf all \
-        -fsc 400,401,404,500,501,502,503 \
+        -fdc "status_code == 400 || status_code == 401 || status_code == 404 || status_code == 500 || status_code == 501 || status_code == 502 || status_code == 503" \
         -silent \
         -o "$CRAWLED_FILE"
 
