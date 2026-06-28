@@ -203,6 +203,54 @@ def get_targets_list(proj_path: str) -> list[dict]:
     return targets
 
 
+def _get_important_endpoints(proj_path: str, limit: int = 30) -> list[dict]:
+    """
+    Return endpoints whose title suggests login, admin, dashboard, or other
+    high-value pages. Only returns endpoints for alive, in-scope hosts.
+    """
+    scope_domains = _get_scope_domains(proj_path)
+    keywords = [
+        "login", "signin", "sign-in", "logon", "log-in",
+        "admin", "administrativo", "administracao", "painel",
+        "dashboard", "console", "manager", "management",
+        "portal", "intranet", "sso", "saml", "oauth",
+        "gestao", "controle", "backup", "monitor",
+    ]
+
+    important = []
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
+               FROM endpoints e
+               JOIN hosts h ON h.id = e.host_id
+               WHERE h.is_alive = 1
+                 AND e.title IS NOT NULL
+                 AND e.title != ''
+               ORDER BY e.title"""
+        )
+        for row in cursor.fetchall():
+            host_name = row["host"]
+            if not _is_in_scope(host_name, scope_domains):
+                continue
+
+            title = (row["title"] or "").lower()
+            if any(kw in title for kw in keywords):
+                important.append({
+                    "url": row["url"],
+                    "title": row["title"],
+                    "status": row["status_code"],
+                    "server": row["web_server"] or "",
+                    "target": host_name,
+                    "ip": json.loads(row["ips"])[0] if row["ips"] else "",
+                })
+
+                if len(important) >= limit:
+                    break
+
+    return important
+
+
 def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
     """
     Fetch ALL data for a single target from the DB.
@@ -459,12 +507,21 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
     summary = get_project_summary(proj_path)
     targets = get_targets_list(proj_path)
 
-    # Attach extra info to each target
+    # Attach actual port numbers and all IPs to each target
     for t in targets:
         report = get_target_report(proj_path, t["name"])
-        t["vuln_count"] = report["vuln_count"] if report else 0
-        t["open_ports_count"] = report["open_ports_count"] if report else 0
-        t["endpoint_count"] = report["endpoint_count"] if report else 0
+        if report:
+            t["all_ips_str"] = ", ".join(report["all_ips"])
+            t["ports_str"] = ", ".join(
+                str(p["port"]) for p in report["all_ports"]
+            )
+            t["vuln_count"] = report["vuln_count"]
+        else:
+            t["all_ips_str"] = "—"
+            t["ports_str"] = "—"
+            t["vuln_count"] = 0
+
+    important = _get_important_endpoints(proj_path)
 
     env = _get_jinja_env()
     dashboard_template = env.get_template("dashboard.j2")
@@ -472,6 +529,7 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
         project_name=proj_name,
         summary=summary,
         targets=targets,
+        important_endpoints=important,
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
 
@@ -484,7 +542,7 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
     with open(dashboard_path, "w", encoding="utf-8") as f:
         f.write(dashboard_md)
 
-    console.print(f" [dim]↳ Render: Dashboard Global[/dim]")
+    console.print(f" [dim]↳ Render: Dashboard Global ({len(important)} endpoints importantes)[/dim]")
 
 
 def render_index(proj_path: str, obsdir: str, proj_name: str):

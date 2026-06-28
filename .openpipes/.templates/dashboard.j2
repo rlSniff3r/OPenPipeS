@@ -10,12 +10,11 @@ gerado_em: {{ generated_at }}
 
 | Métrica | Valor |
 |---------|-------|
-| 🖥️ Hosts identificados | {{ summary.total_hosts }} |
+| 🖥️ Hosts em escopo | {{ summary.total_hosts }} |
 | 🔌 Portas abertas | {{ summary.total_ports }} |
-| 🌐 Endpoints HTTP | {{ summary.total_endpoints }} |
 | 🛡️ Vulnerabilidades | {{ summary.total_vulns }} |
-| 🪡 Rotas em JS | {{ summary.total_js_routes }} |
 | 📸 Screenshots | {{ summary.total_screenshots }} |
+| 🪡 Rotas em JS | {{ summary.total_js_routes }} |
 | Última atualização | {{ summary.last_updated }} |
 
 ---
@@ -32,7 +31,6 @@ gerado_em: {{ generated_at }}
 | 🟢 Baixa | {{ summary.severity_breakdown.Baixa }} | {{ "%.1f"|format(summary.severity_breakdown.Baixa / total * 100) if total > 0 else 0 }}% |
 | 🔵 Info | {{ summary.severity_breakdown.Info }} | {{ "%.1f"|format(summary.severity_breakdown.Info / total * 100) if total > 0 else 0 }}% |
 {%- else %}
-
 *Nenhuma vulnerabilidade registrada.*
 {%- endif %}
 
@@ -40,13 +38,27 @@ gerado_em: {{ generated_at }}
 
 ## 🖥️ Alvos
 
-| Alvo | IP | Portas | Endpoints | Vulnerabilidades |
-|------|----|--------|-----------|-----------------|
+| Alvo | IPs | Portas | Vulns |
+|------|-----|--------|-------|
 {%- for t in targets %}
-| [[{{ t.name }}/Sync/{{ t.name }}.md\|{{ t.name }}]] | {{ t.ips[0] if t.ips else "—" }} | {{ t.open_ports_count }} | {{ t.endpoint_count }} | {{ t.vuln_count }} |
+| [[{{ t.name }}/Sync/{{ t.name }}.md\|{{ t.name }}]] | `{{ t.all_ips_str }}` | `{{ t.ports_str }}` | {{ t.vuln_count }} |
 {%- else %}
-| *Nenhum alvo configurado* | | | | |
+| *Nenhum alvo configurado* | | | |
 {%- endfor %}
+
+---
+
+## 🔑 Endpoints Importantes
+{%- if important_endpoints %}
+
+| URL | Título | Status | Servidor | Alvo |
+|-----|--------|--------|----------|------|
+{%- for ep in important_endpoints %}
+| `{{ ep.url }}` | {{ ep.title }} | {{ ep.status }} | {{ ep.server }} | {{ ep.target }} |
+{%- endfor %}
+{%- else %}
+*Nenhum endpoint importante identificado.*
+{%- endif %}
 
 ---
 
