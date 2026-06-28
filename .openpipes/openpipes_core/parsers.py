@@ -89,15 +89,36 @@ def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None)
                 (json.dumps(current_ips), json.dumps(current_cnames), host_id),
             )
         return host_id
-    else:
-        initial_ips = json.dumps([ip for ip in ips_to_add if ip and ip != clean_host and not is_ipv4(clean_host)])
-        initial_cnames = json.dumps([c for c in cnames_to_add if c and c != clean_host])
-        cursor.execute(
-            'INSERT INTO hosts (host, ips, cnames) VALUES (?, ?, ?)',
-            (clean_host, initial_ips, initial_cnames),
-        )
-        return cursor.lastrowid
 
+    # ── NEW: Before creating a brand new host, check if any of its IPs ──
+    # ── already belong to an existing host in the database.             ──
+    for ip in ips_to_add:
+        if is_ipv4(ip):
+            cursor.execute("SELECT id, host, ips FROM hosts WHERE ips LIKE ?", (f'%"{ip}"%',))
+            existing = cursor.fetchone()
+            if existing:
+                host_id = existing['id']
+                # Add the new hostname as an alias/CNAME to the existing host
+                try:
+                    current_ips = json.loads(existing['ips']) if existing['ips'] else []
+                except Exception:
+                    current_ips = []
+                # Ensure all unique IPs are merged
+                merged_ips = list(set(current_ips + [ip for ip in ips_to_add if is_ipv4(ip)]))
+                cursor.execute(
+                    'UPDATE hosts SET ips = ? WHERE id = ?',
+                    (json.dumps(merged_ips), host_id),
+                )
+                return host_id
+
+    # ── Create new host ─────────────────────────────────────────────────
+    initial_ips = json.dumps([ip for ip in ips_to_add if ip and ip != clean_host and not is_ipv4(clean_host)])
+    initial_cnames = json.dumps([c for c in cnames_to_add if c and c != clean_host])
+    cursor.execute(
+        'INSERT INTO hosts (host, ips, cnames) VALUES (?, ?, ?)',
+        (clean_host, initial_ips, initial_cnames),
+    )
+    return cursor.lastrowid
 
 def resolve_domain(domain):
     try:

@@ -1,4 +1,3 @@
-```jinja2
 ---
 tipo: dashboard
 projeto: {{ project_name }}
@@ -22,9 +21,9 @@ gerado_em: {{ generated_at }}
 ---
 
 ## 🔴 Vulnerabilidades por Severidade
+{%- set total = summary.severity_breakdown.Crítica + summary.severity_breakdown.Alta + summary.severity_breakdown.Média + summary.severity_breakdown.Baixa + summary.severity_breakdown.Info %}
+{%- if total > 0 %}
 
-{% set total = summary.severity_breakdown.Crítica + summary.severity_breakdown.Alta + summary.severity_breakdown.Média + summary.severity_breakdown.Baixa + summary.severity_breakdown.Info %}
-{% if total > 0 %}
 | Severidade | Quantidade | % |
 |------------|-----------|----|
 | 🔴 Crítica | {{ summary.severity_breakdown.Crítica }} | {{ "%.1f"|format(summary.severity_breakdown.Crítica / total * 100) if total > 0 else 0 }}% |
@@ -32,9 +31,10 @@ gerado_em: {{ generated_at }}
 | 🟡 Média | {{ summary.severity_breakdown.Média }} | {{ "%.1f"|format(summary.severity_breakdown.Média / total * 100) if total > 0 else 0 }}% |
 | 🟢 Baixa | {{ summary.severity_breakdown.Baixa }} | {{ "%.1f"|format(summary.severity_breakdown.Baixa / total * 100) if total > 0 else 0 }}% |
 | 🔵 Info | {{ summary.severity_breakdown.Info }} | {{ "%.1f"|format(summary.severity_breakdown.Info / total * 100) if total > 0 else 0 }}% |
-{% else %}
+{%- else %}
+
 *Nenhuma vulnerabilidade registrada.*
-{% endif %}
+{%- endif %}
 
 ---
 
@@ -42,11 +42,11 @@ gerado_em: {{ generated_at }}
 
 | Alvo | IP | Portas | Endpoints | Vulnerabilidades |
 |------|----|--------|-----------|-----------------|
-{% for t in targets %}
+{%- for t in targets %}
 | [[{{ t.name }}/Sync/{{ t.name }}.md\|{{ t.name }}]] | {{ t.ips[0] if t.ips else "—" }} | {{ t.open_ports_count }} | {{ t.endpoint_count }} | {{ t.vuln_count }} |
-{% else %}
+{%- else %}
 | *Nenhum alvo configurado* | | | | |
-{% endfor %}
+{%- endfor %}
 
 ---
 

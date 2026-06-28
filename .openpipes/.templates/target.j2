@@ -11,36 +11,35 @@ last_updated: {{ target.last_updated }}
 ---
 
 # {{ target.name }}
+{%- if target.is_alive %}
 
-{% if target.is_alive %}
 _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualização: {{ target.last_updated }}_
-{% else %}
-_Status: ⚪ Não verificado_
-{% endif %}
+{%- endif %}
 
 ---
 
 ## 💥 Vulnerabilidades
+{%- if target.vulnerabilities %}
 
-{% if target.vulnerabilities %}
 | Severidade | Título | CVSS | CVE |
 |------------|--------|------|-----|
-{% for vuln in target.vulnerabilities %}
+{%- for vuln in target.vulnerabilities %}
 | {{ vuln.severity_emoji }} {{ vuln.severity }} | [[{{ vuln.filename }}|{{ vuln.title }}]] | {{ vuln.cvss_score or "N/A" }} | {{ vuln.cve_id or "—" }} |
-{% endfor %}
-{% else %}
+{%- endfor %}
+{%- else %}
+
 *Nenhuma vulnerabilidade encontrada ainda.*
-{% endif %}
+{%- endif %}
 
 ---
 
 ## 📘 Narrativa Técnica
 
 {{ target.tech_summary }}
+{%- if target.whois %}
 
-{% if target.whois %}
 **WHOIS:** `{{ target.whois[:200] }}{% if target.whois|length > 200 %}...{% endif %}`
-{% endif %}
+{%- endif %}
 
 ---
 
@@ -57,12 +56,13 @@ _Status: ⚪ Não verificado_
 ---
 
 ## 🚩 Progresso
+{%- for task in target.pending_tasks %}
 
-{% for task in target.pending_tasks %}
 - [ ] {{ task }}
-{% else %}
+{%- else %}
+
 - [x] Todas as tarefas concluídas
-{% endfor %}
+{%- endfor %}
 
 ---
 
@@ -70,18 +70,19 @@ _Status: ⚪ Não verificado_
 
 | Porta | Protocolo | Serviço | Versão | Estado |
 |-------|-----------|---------|--------|--------|
-{% for port in target.all_ports %}
+{%- for port in target.all_ports %}
 | {{ port.port }} | {{ port.protocol }} | {{ port.service }} | {{ port.version or "-" }} | {{ port.state }} |
-{% else %}
+{%- else %}
 | *Nenhuma porta identificada* | | | | |
-{% endfor %}
+{%- endfor %}
+{%- if target.tech_stack %}
 
-{% if target.tech_stack %}
 ### 🛠️ Stack de Tecnologias
+{%- for tech in target.tech_stack %}
 
-{% for tech in target.tech_stack %}- {{ tech }}
-{% endfor %}
-{% endif %}
+- {{ tech }}
+{%- endfor %}
+{%- endif %}
 
 ---
 

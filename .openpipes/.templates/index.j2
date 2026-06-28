@@ -9,11 +9,11 @@ gerado_em: {{ generated_at }}
 ## Navegação Rápida
 
 - [[Sync/Dashboard_Global.md|📊 Dashboard Global]]
-{% for t in targets %}
+{%- for t in targets %}
 - [[Sync/{{ t.name }}.md|🖥️ {{ t.name }}]] — {{ t.ips[0] if t.ips else "—" }} ({{ t.vuln_count }} vulns, {{ t.open_ports_count }} portas)
-{% else %}
+{%- else %}
 - *Nenhum alvo registrado*
-{% endfor %}
+{%- endfor %}
 
 ---
 
@@ -21,11 +21,11 @@ gerado_em: {{ generated_at }}
 
 | # | Alvo | IP | Portas | Endpoints | Vulns |
 |---|------|----|--------|-----------|-------|
-{% for t in targets %}
+{%- for t in targets %}
 | {{ loop.index }} | [[Sync/{{ t.name }}.md\|{{ t.name }}]] | {{ t.ips[0] if t.ips else "—" }} | {{ t.open_ports_count }} | {{ t.endpoint_count }} | {{ t.vuln_count }} |
-{% else %}
+{%- else %}
 | — | *Nenhum alvo* | — | — | — | — |
-{% endfor %}
+{%- endfor %}
 
 ---
 

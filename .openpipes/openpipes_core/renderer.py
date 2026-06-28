@@ -1,11 +1,12 @@
 import os
 import json
+import re
 import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-from jinja2 import Environment, FileSystemLoader, BaseLoader
+from jinja2 import Environment, FileSystemLoader
 from rich.console import Console
 
 import db
@@ -16,9 +17,13 @@ HOME = str(Path.home())
 CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 TEMPLATE_DIR = os.path.join(HOME, ".openpipes", ".templates")
 
-# ── Safe mode: write to Sync/ subfolder instead of overwriting bash output
+# Safe mode: write to Sync/ subfolder instead of overwriting bash output
 SYNC_MODE = "parallel"  # "parallel" → Sync/ subfolder | "replace" → direct (future)
 
+
+# ═════════════════════════════════════════════════════════════════════
+# CONFIG HELPERS
+# ═════════════════════════════════════════════════════════════════════
 
 def _get_env_from_config():
     """Read project paths from config.sh (same pattern as cli.py)."""
@@ -39,17 +44,50 @@ def _get_env_from_config():
     return None, None, None
 
 
+def _get_scope_domains(proj_path: str) -> list[str]:
+    """
+    Read domains.txt from the project root and return a list of
+    second-level domains that define the scope.
+
+    Example: if domains.txt has "empresa.com.br", returns ["empresa.com.br"].
+    Any host ending with ".empresa.com.br" or equal to "empresa.com.br" is in scope.
+    """
+    domains_file = os.path.join(proj_path, "domains.txt")
+    if not os.path.exists(domains_file):
+        return []
+
+    scope = []
+    with open(domains_file, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            domain = line.strip().lower()
+            # Skip empty lines, comments, IPs
+            if not domain or domain.startswith("#") or re.match(r"^\d+\.", domain):
+                continue
+            scope.append(domain)
+
+    return scope
+
+
+def _is_in_scope(host: str, scope_domains: list[str]) -> bool:
+    """Check if a hostname is within the defined scope."""
+    if not scope_domains:
+        return True  # No scope defined = everything allowed
+
+    host = host.lower()
+    for domain in scope_domains:
+        if host == domain or host.endswith("." + domain):
+            return True
+    return False
+
+
 # ═════════════════════════════════════════════════════════════════════
 # DB QUERY HELPERS
 # ═════════════════════════════════════════════════════════════════════
 
-def _dict_from_row(row):
-    """Convert sqlite3.Row to plain dict."""
-    return dict(row) if row else {}
-
-
 def get_project_summary(proj_path: str) -> dict:
-    """Aggregate stats across all targets in the project."""
+    """Aggregate stats across all alive, in-scope targets in the project."""
+    scope_domains = _get_scope_domains(proj_path)
+
     summary = {
         "total_hosts": 0,
         "total_ports": 0,
@@ -60,64 +98,108 @@ def get_project_summary(proj_path: str) -> dict:
         "severity_breakdown": {"Crítica": 0, "Alta": 0, "Média": 0, "Baixa": 0, "Info": 0},
         "last_updated": None,
     }
+
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT COUNT(*) FROM hosts")
-        summary["total_hosts"] = cursor.fetchone()[0]
+        # Count only in-scope, alive hosts
+        cursor.execute("SELECT id, host FROM hosts WHERE is_alive = 1")
+        alive_hosts = []
+        for row in cursor.fetchall():
+            if _is_in_scope(row["host"], scope_domains):
+                alive_hosts.append(row["id"])
 
-        cursor.execute("SELECT COUNT(*) FROM ports")
-        summary["total_ports"] = cursor.fetchone()[0]
+        summary["total_hosts"] = len(alive_hosts)
 
-        cursor.execute("SELECT COUNT(*) FROM endpoints")
-        summary["total_endpoints"] = cursor.fetchone()[0]
+        if alive_hosts:
+            placeholders = ",".join("?" for _ in alive_hosts)
 
-        cursor.execute("SELECT COUNT(*) FROM vulnerabilities")
-        summary["total_vulns"] = cursor.fetchone()[0]
-
-        cursor.execute("SELECT COUNT(*) FROM js_discoveries")
-        summary["total_js_routes"] = cursor.fetchone()[0]
-
-        cursor.execute("SELECT COUNT(*) FROM screenshots")
-        summary["total_screenshots"] = cursor.fetchone()[0]
-
-        try:
             cursor.execute(
-                "SELECT severity, COUNT(*) as cnt FROM vulnerabilities GROUP BY severity"
+                f"SELECT COUNT(*) FROM ports WHERE host_id IN ({placeholders})",
+                alive_hosts,
             )
-            for row in cursor.fetchall():
-                sev = row["severity"]
-                if sev in summary["severity_breakdown"]:
-                    summary["severity_breakdown"][sev] = row["cnt"]
-        except Exception:
-            pass
+            summary["total_ports"] = cursor.fetchone()[0]
 
-        cursor.execute(
-            "SELECT MAX(last_updated) FROM hosts"
-        )
-        val = cursor.fetchone()[0]
-        summary["last_updated"] = val or "Nunca"
+            cursor.execute(
+                f"SELECT COUNT(*) FROM endpoints WHERE host_id IN ({placeholders})",
+                alive_hosts,
+            )
+            summary["total_endpoints"] = cursor.fetchone()[0]
+
+            cursor.execute(
+                f"SELECT COUNT(*) FROM vulnerabilities WHERE host_id IN ({placeholders})",
+                alive_hosts,
+            )
+            summary["total_vulns"] = cursor.fetchone()[0]
+
+            cursor.execute(
+                f"SELECT COUNT(*) FROM js_discoveries WHERE host_id IN ({placeholders})",
+                alive_hosts,
+            )
+            summary["total_js_routes"] = cursor.fetchone()[0]
+
+            cursor.execute(
+                f"SELECT COUNT(*) FROM screenshots WHERE host_id IN ({placeholders})",
+                alive_hosts,
+            )
+            summary["total_screenshots"] = cursor.fetchone()[0]
+
+            try:
+                cursor.execute(
+                    f"""SELECT severity, COUNT(*) as cnt
+                        FROM vulnerabilities
+                        WHERE host_id IN ({placeholders})
+                        GROUP BY severity""",
+                    alive_hosts,
+                )
+                for row in cursor.fetchall():
+                    sev = row["severity"]
+                    if sev in summary["severity_breakdown"]:
+                        summary["severity_breakdown"][sev] = row["cnt"]
+            except Exception:
+                pass
+
+            cursor.execute(
+                f"SELECT MAX(last_updated) FROM hosts WHERE id IN ({placeholders})",
+                alive_hosts,
+            )
+            val = cursor.fetchone()[0]
+            summary["last_updated"] = val or "Nunca"
 
     return summary
 
 
 def get_targets_list(proj_path: str) -> list[dict]:
-    """Return a list of all targets with basic info."""
+    """Return all alive, in-scope targets with basic info."""
+    scope_domains = _get_scope_domains(proj_path)
+
     targets = []
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute(
             """SELECT id, host, ips, is_alive, last_updated
-               FROM hosts ORDER BY host"""
+               FROM hosts
+               WHERE is_alive = 1
+               ORDER BY host"""
         )
         for row in cursor.fetchall():
+            host_name = row["host"]
+            if not _is_in_scope(host_name, scope_domains):
+                continue
+
             targets.append({
                 "id": row["id"],
-                "name": row["host"],
+                "name": host_name,
                 "ips": json.loads(row["ips"]) if row["ips"] else [],
                 "is_alive": bool(row["is_alive"]),
                 "last_updated": row["last_updated"],
             })
+
+    if not scope_domains:
+        console.print(" [yellow]⚠ Nenhum domains.txt encontrado — todos os hosts vivos serão incluídos.[/yellow]")
+    else:
+        console.print(f" [dim]↳ Scope: {len(scope_domains)} domínio(s) — {len(targets)} alvo(s) dentro do escopo.[/dim]")
+
     return targets
 
 
@@ -126,12 +208,19 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
     Fetch ALL data for a single target from the DB.
     Returns a nested dict ready for Jinja2.
     """
+    scope_domains = _get_scope_domains(proj_path)
+
+    # Reject out-of-scope hosts
+    if not _is_in_scope(host_name, scope_domains):
+        return None
+
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
 
-        # ── Host ────────────────────────────────────────────────────────
+        # No is_alive filter here — already filtered upstream by get_targets_list()
         cursor.execute(
-            "SELECT * FROM hosts WHERE host = ?", (host_name,)
+            "SELECT * FROM hosts WHERE host = ?",
+            (host_name,),
         )
         host_row = cursor.fetchone()
         if not host_row:
@@ -361,10 +450,7 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
             f.write(vuln_md)
         vuln_count += 1
 
-    console.print(
-        f" [dim]↳ Render: {host_name} → {target_path}"
-        f" ({vuln_count} vulns)[/dim]"
-    )
+    console.print(f" [dim]↳ Render: {host_name} — {vuln_count} vulns[/dim]")
     return True
 
 
@@ -373,7 +459,7 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
     summary = get_project_summary(proj_path)
     targets = get_targets_list(proj_path)
 
-    # Attach vuln counts to each target
+    # Attach extra info to each target
     for t in targets:
         report = get_target_report(proj_path, t["name"])
         t["vuln_count"] = report["vuln_count"] if report else 0
@@ -398,7 +484,7 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
     with open(dashboard_path, "w", encoding="utf-8") as f:
         f.write(dashboard_md)
 
-    console.print(f" [dim]↳ Render: Dashboard Global → {dashboard_path}[/dim]")
+    console.print(f" [dim]↳ Render: Dashboard Global[/dim]")
 
 
 def render_index(proj_path: str, obsdir: str, proj_name: str):
@@ -427,7 +513,7 @@ def render_index(proj_path: str, obsdir: str, proj_name: str):
     with open(index_path, "w", encoding="utf-8") as f:
         f.write(index_md)
 
-    console.print(f" [dim]↳ Render: Project Index → {index_path}[/dim]")
+    console.print(f" [dim]↳ Render: Project Index[/dim]")
 
 
 def render_all(proj_path: str, obsdir: str, proj_name: str, target_name: str = None):
@@ -440,10 +526,8 @@ def render_all(proj_path: str, obsdir: str, proj_name: str, target_name: str = N
     console.print(f" [dim]Modo: {'Parallel (Sync/)' if SYNC_MODE == 'parallel' else 'Direct'}[/dim]")
 
     if target_name:
-        # Single target
         render_target(proj_path, obsdir, proj_name, target_name)
     else:
-        # All targets
         targets = get_targets_list(proj_path)
         if not targets:
             console.print(" [yellow]⚠ Nenhum alvo encontrado no banco de dados.[/yellow]")

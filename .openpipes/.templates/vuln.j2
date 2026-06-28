@@ -21,25 +21,21 @@ tags: [vulnerabilidade, {{ vuln.severity.lower() }}]
 
 > [!note] Descrição
 {{ vuln.description or "*Nenhuma descrição fornecida.*" }}
+{%- if vuln.matched_at %}
 
-{% if vuln.matched_at %}
 > [!example] Evidência
 **Match:** `{{ vuln.matched_at }}`
-{% if vuln.curl_command %}
+{%- if vuln.curl_command %}
 **cURL:**
-
 ```bash
 {{ vuln.curl_command }}
-{% endif %} {% endif %}
+{%- endif %} {%- endif %}
 
 [!danger] Impacto {{ vuln.impact or "Impacto não especificado." }}
 
 [!success] Recomendação {{ vuln.remediation or "Nenhuma recomendação fornecida." }}
 
-[!tldr] Referências {% if vuln.reference_urls %} {% for ref in vuln.reference_urls %}
+[!tldr] Referências {%- if vuln.reference_urls %} {%- for ref in vuln.reference_urls %}
 
-{{ ref }} {% endfor %} {% else %} Nenhuma referência. {% endif %}
-{% if vuln.cve_id %}
-
-[!info] CVE {{ vuln.cve_id }} | CVSS {{ vuln.cvss_score }} ({{ vuln.severity }}) Vector: {{ vuln.cvss_vector or "N/A" }} {% endif %}
-```
+{{ ref }} {%- endfor %} {%- else %} Nenhuma referência. {%- endif %} {%- if vuln.cve_id %}
+[!info] CVE {{ vuln.cve_id }} | CVSS {{ vuln.cvss_score }} ({{ vuln.severity }}) Vector: {{ vuln.cvss_vector or "N/A" }} {%- endif %}
