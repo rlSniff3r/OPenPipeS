@@ -378,6 +378,81 @@ def parse_url_discovery(proj_path, nmap_dir, tool_name):
         console.print(f" [dim]↳ Parser {tool_name.capitalize()}: Mapeou {count} Endpoints.[/dim]")
 
 
+def parse_url_discovery_json(proj_path, nmap_dir, tool_name):
+    """
+    Parse JSON output from katana/feroxbuster that includes status_code
+    and content_length. Falls back to text parsing if no JSON file found.
+    """
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            count = 0
+            json_files = []
+
+            for root, dirs, files in os.walk(nmap_dir):
+                for file in files:
+                    if tool_name in file.lower() and file.endswith('.json'):
+                        json_files.append(os.path.join(root, file))
+
+            if not json_files:
+                # Fall back to text-based parsing
+                console.print(f" [dim]↳ Parser {tool_name}: JSON não encontrado, usando TXT.[/dim]")
+                parse_url_discovery(proj_path, nmap_dir, tool_name)
+                return
+
+            for json_file in json_files:
+                try:
+                    with open(json_file, 'r', encoding='utf-8', errors='ignore') as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                data = json.loads(line)
+                            except json.JSONDecodeError:
+                                continue
+
+                            url = data.get('url', '') or data.get('URL', '')
+                            if not url:
+                                continue
+
+                            host_str = urlparse(url).hostname
+                            if not host_str:
+                                continue
+
+                            host_id = get_or_create_host(cursor, host_str)
+                            if not host_id:
+                                continue
+
+                            # Extract metadata from JSON
+                            status_code = data.get('status', data.get('status-code', data.get('status_code')))
+                            content_length = data.get('content-length', data.get('content_length', data.get('content_length')))
+                            title = data.get('title', '')
+
+                            cursor.execute("""
+                                INSERT INTO endpoints
+                                    (host_id, url, status_code, content_length, title, source_tool)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                                ON CONFLICT(url) DO UPDATE SET
+                                    status_code=excluded.status_code,
+                                    content_length=excluded.content_length,
+                                    title=excluded.title
+                            """, (host_id, url, status_code, content_length, title, tool_name))
+                            if cursor.rowcount > 0:
+                                count += 1
+
+                            # Ensure port record exists
+                            parsed = urlparse(url)
+                            ep_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+                            service_map = {80: "http", 443: "https", 8080: "http-proxy"}
+                            _ensure_port(cursor, host_id, ep_port, "tcp",
+                                         service_map.get(ep_port, "unknown"))
+                except Exception:
+                    continue
+
+    console.print(f" [dim]↳ Parser {tool_name}: Ingeriu {count} endpoints com metadados.[/dim]")
+
+
 def parse_screenshot(proj_path):
     """Lê o Banco do Gowitness e atrela imagens aos nossos hosts"""
     screenshot_dir = os.path.join(proj_path, "Varreduras", "screenshots")
@@ -694,5 +769,10 @@ def dispatch(module_name, proj_path, nmap_dir):
         parse_whois_enrichment(proj_path, nmap_dir)
     elif module_name == "nuclei-runner":
         parse_nuclei(proj_path, nmap_dir)
+    elif module_name == "feroxbuster-runner":
+        parse_url_discovery_json(proj_path, nmap_dir, "ferox")
+    elif module_name in ("katana-runner", "katana-buster"):
+        parse_url_discovery_json(proj_path, nmap_dir, "crawled")
+
     else:
         console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")

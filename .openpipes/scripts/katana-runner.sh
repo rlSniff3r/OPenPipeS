@@ -86,9 +86,14 @@ process_target() {
         -c "$KATANA_CONCURRENCY" \
         -jc \
         -kf all \
-        -fdc "status_code == 400 || status_code == 401 || status_code == 404 || status_code == 500 || status_code == 501 || status_code == 502 || status_code == 503" \
+        -fsc 400,401,404,500,501,502,503 \
+        -json \
         -silent \
-        -o "$CRAWLED_FILE"
+        -o "$WORK_DIR/crawled_all.json"
+
+    # Keep text version for backward compatibility
+    jq -r '.url' "$WORK_DIR/crawled_all.json" > "$WORK_DIR/crawled_all.txt" 2>/dev/null
+
 
     if [ ! -f "$CRAWLED_FILE" ]; then
         echo -e "${RED}[!] Katana não gerou saída${NC}"

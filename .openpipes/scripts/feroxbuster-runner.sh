@@ -127,8 +127,12 @@ process_target() {
                 --auto-tune \
                 --filter-status 400,401,404,405,500,502,503 \
                 --no-state \
-                -o "$OUTPUT_FILE" \
+                --json \
+                -o "$OUTPUT_FILE.json" \
                 --silent 2>/dev/null || true
+
+            # Keep text version for backward compatibility
+            jq -r '.url' "$OUTPUT_FILE.json" > "$OUTPUT_FILE" 2>/dev/null
 
             # Conta achados neste URL
 #            if [ -f "$OUTPUT_FILE" ]; then
