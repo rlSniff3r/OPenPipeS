@@ -112,4 +112,4 @@ done
 mkdir -p Varreduras
 # cat Recon/*/hosts-allsubs | grep "has address" | cut -d " " -f1,4 | egrep "$(cat $DOMAIN_FILE | sed -z 's/\n/|/g' | sed 's/.$//g')" | sed -z 's/ /\n/g' | sort -u > Varreduras/targets.txt
 
-cat Recon/*/allsubs | sort -u > Varreduras/targets.txt
+cat $RECON_DIR/*/allsubs | sort -u > Varreduras/targets.txt
