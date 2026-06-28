@@ -1,15 +1,13 @@
 #!/bin/bash
 
 # Diretórios
-source ~/.openpipes/config.sh
+source "$OPENPIPES_CONFIG"
 tpdir="$HOME/.openpipes/.templates/"
 obsdir="$HOME/.obsidianFixedMount/"
 
-cd "$proj_path/Varreduras"
-
-for host in $(ls -d nmap-* 2>/dev/null); do
+for host in $(ls $NMAP_DIR/ | grep nmap- 2>/dev/null); do
     # Verifica se há portas abertas
-    open_ports=$(grep "/tcp" "$host"/*.nmap | grep "open")
+    open_ports=$(grep "/tcp" "$NMAP_DIR/$host"/*.nmap | grep "open")
     if [ -z "$open_ports" ]; then
         continue
     fi
@@ -23,7 +21,7 @@ for host in $(ls -d nmap-* 2>/dev/null); do
     mkdir -p "$vulnDir"
 
     # Resolve IP via DNS
-    t_IP=$(echo -n "t_IP:" $(host -t a $targetName 2>/dev/null | awk '/has address/ {print $4}' | sort -u))
+    t_IP=$(echo -n "t_IP:" $(cat $RECON_DIR/*/hosts-allsubs | grep "has address" | grep "$targetName" | awk '/has address/ {print $4}' | sort -u))
 
     # Frontmatter YAML
     tipo="Tipo: target"
@@ -81,12 +79,14 @@ for host in $(ls -d nmap-* 2>/dev/null); do
 
     # Atualiza o stub de vulnerabilidade com os dados reais
     sed -e "s/^targetName:.*/targetName: $targetName/" \
-        -e "s/^t_IP:.*/t_IP: $resolved_ip/"
+        -e "s/^t_IP:.*/t_IP: $resolved_ip/" \
+        "$tpdir/vuln.stub.md" > "$vulnDir/VULN_$targetName.stub.md"
 
-    # Copia o nmap.nmap para a pasta do Alvo
-    echo '```bash' > $tgtDir/nmap.md
-    cat $host/nmap.nmap >> $tgtDir/nmap.md
-    echo '```' >> $tgtDir/nmap.md
+    # Copia o nmap.nmap para a pasta do Alvo e transforma em sintaxe MD
+    cat $NMAP_DIR/$host/nmap.nmap | sed '1 i\```bash wrap' | sed '$a\```' > $tgtDir/nmap.md
+
 
 done 2>/dev/null
 
+# Remove as vulnerabilidades STUB de todos os alvos
+rm -rf "$obsdir/$proj_name/Pentest/Alvos/*/Vulnerabilidades/*"
