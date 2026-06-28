@@ -1,0 +1,53 @@
+```jinja2
+---
+tipo: dashboard
+projeto: {{ project_name }}
+gerado_em: {{ generated_at }}
+---
+
+# 📊 Dashboard — {{ project_name }}
+
+## 🎯 Resumo do Projeto
+
+| Métrica | Valor |
+|---------|-------|
+| 🖥️ Hosts identificados | {{ summary.total_hosts }} |
+| 🔌 Portas abertas | {{ summary.total_ports }} |
+| 🌐 Endpoints HTTP | {{ summary.total_endpoints }} |
+| 🛡️ Vulnerabilidades | {{ summary.total_vulns }} |
+| 🪡 Rotas em JS | {{ summary.total_js_routes }} |
+| 📸 Screenshots | {{ summary.total_screenshots }} |
+| Última atualização | {{ summary.last_updated }} |
+
+---
+
+## 🔴 Vulnerabilidades por Severidade
+
+{% set total = summary.severity_breakdown.Crítica + summary.severity_breakdown.Alta + summary.severity_breakdown.Média + summary.severity_breakdown.Baixa + summary.severity_breakdown.Info %}
+{% if total > 0 %}
+| Severidade | Quantidade | % |
+|------------|-----------|----|
+| 🔴 Crítica | {{ summary.severity_breakdown.Crítica }} | {{ "%.1f"|format(summary.severity_breakdown.Crítica / total * 100) if total > 0 else 0 }}% |
+| 🟠 Alta | {{ summary.severity_breakdown.Alta }} | {{ "%.1f"|format(summary.severity_breakdown.Alta / total * 100) if total > 0 else 0 }}% |
+| 🟡 Média | {{ summary.severity_breakdown.Média }} | {{ "%.1f"|format(summary.severity_breakdown.Média / total * 100) if total > 0 else 0 }}% |
+| 🟢 Baixa | {{ summary.severity_breakdown.Baixa }} | {{ "%.1f"|format(summary.severity_breakdown.Baixa / total * 100) if total > 0 else 0 }}% |
+| 🔵 Info | {{ summary.severity_breakdown.Info }} | {{ "%.1f"|format(summary.severity_breakdown.Info / total * 100) if total > 0 else 0 }}% |
+{% else %}
+*Nenhuma vulnerabilidade registrada.*
+{% endif %}
+
+---
+
+## 🖥️ Alvos
+
+| Alvo | IP | Portas | Endpoints | Vulnerabilidades |
+|------|----|--------|-----------|-----------------|
+{% for t in targets %}
+| [[{{ t.name }}/Sync/{{ t.name }}.md\|{{ t.name }}]] | {{ t.ips[0] if t.ips else "—" }} | {{ t.open_ports_count }} | {{ t.endpoint_count }} | {{ t.vuln_count }} |
+{% else %}
+| *Nenhum alvo configurado* | | | | |
+{% endfor %}
+
+---
+
+*Última sincronização: {{ generated_at }}*

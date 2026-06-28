@@ -1,0 +1,88 @@
+---
+tipo: target
+targetName: {{ target.name }}
+t_IP: "{{ target.ip }}"
+t_openPorts: {{ target.ports | map(attribute='port') | list }}
+t_services: {{ target.ports | map(attribute='service') | list }}
+tags: [alvo, host]
+pipeline_status: {{ target.pipeline_status }}
+vuln_count: {{ target.vuln_count }}
+last_updated: {{ target.last_updated }}
+---
+
+# {{ target.name }}
+
+{% if target.is_alive %}
+_Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualização: {{ target.last_updated }}_
+{% else %}
+_Status: ⚪ Não verificado_
+{% endif %}
+
+---
+
+## 💥 Vulnerabilidades
+
+{% if target.vulnerabilities %}
+| Severidade | Título | CVSS | CVE |
+|------------|--------|------|-----|
+{% for vuln in target.vulnerabilities %}
+| {{ vuln.severity_emoji }} {{ vuln.severity }} | [[{{ vuln.filename }}|{{ vuln.title }}]] | {{ vuln.cvss_score or "N/A" }} | {{ vuln.cve_id or "—" }} |
+{% endfor %}
+{% else %}
+*Nenhuma vulnerabilidade encontrada ainda.*
+{% endif %}
+
+---
+
+## 📘 Narrativa Técnica
+
+{{ target.tech_summary }}
+
+{% if target.whois %}
+**WHOIS:** `{{ target.whois[:200] }}{% if target.whois|length > 200 %}...{% endif %}`
+{% endif %}
+
+---
+
+## 🔢 Enumeração
+
+🌐 - [[{{ target.name }}/Sync/endpoints.md|Endpoints encontrados ({{ target.endpoint_count }})]]
+🧹 - [[{{ target.name }}/Sync/nmap.md|Nmap results ({{ target.open_ports_count }} portas)]]
+🛜 - [[{{ target.name }}/Sync/httpx.md|HTTPX results ({{ target.httpx_count }})]]
+📦 - [[{{ target.name }}/Sync/nuclei.md|Nuclei results ({{ target.nuclei_count }})]]
+🧪 - [[{{ target.name }}/Sync/gf-summary.md|GF Summary]]
+🪡 - [[{{ target.name }}/Sync/js-endpoints.md|JS Endpoints ({{ target.js_endpoint_count }})]]
+📸 - [[{{ target.name }}/Sync/screenshots.md|Screenshots ({{ target.screenshot_count }})]]
+
+---
+
+## 🚩 Progresso
+
+{% for task in target.pending_tasks %}
+- [ ] {{ task }}
+{% else %}
+- [x] Todas as tarefas concluídas
+{% endfor %}
+
+---
+
+## 📊 Serviços Identificados
+
+| Porta | Protocolo | Serviço | Versão | Estado |
+|-------|-----------|---------|--------|--------|
+{% for port in target.all_ports %}
+| {{ port.port }} | {{ port.protocol }} | {{ port.service }} | {{ port.version or "-" }} | {{ port.state }} |
+{% else %}
+| *Nenhuma porta identificada* | | | | |
+{% endfor %}
+
+{% if target.tech_stack %}
+### 🛠️ Stack de Tecnologias
+
+{% for tech in target.tech_stack %}- {{ tech }}
+{% endfor %}
+{% endif %}
+
+---
+
+*Gerado pelo OPenPipeS Sync em {{ target.last_updated }}*
