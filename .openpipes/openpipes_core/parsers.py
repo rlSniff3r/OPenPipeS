@@ -2,7 +2,8 @@ import os
 import json
 import re
 import socket
-import subprocess  # FIXED: imported at module level, not inside try/except
+import subprocess
+import sqlite3
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -36,6 +37,20 @@ def get_obsdir():
 
 def is_ipv4(string):
     return bool(re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', string))
+
+
+def _ensure_port(cursor, host_id, port, protocol="tcp", service=None):
+    """Create a port record for a host if one doesn't exist yet."""
+    if not host_id or not port:
+        return
+    try:
+        cursor.execute("""
+            INSERT INTO ports (host_id, port, protocol, state, service, version)
+            VALUES (?, ?, ?, 'open', ?, '')
+            ON CONFLICT(host_id, port, protocol) DO NOTHING
+        """, (host_id, port, protocol, service or "unknown"))
+    except Exception:
+        pass
 
 
 def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None):
@@ -90,20 +105,18 @@ def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None)
             )
         return host_id
 
-    # ── NEW: Before creating a brand new host, check if any of its IPs ──
-    # ── already belong to an existing host in the database.             ──
+    # ── Before creating a new host, check if any IP already belongs to
+    # ── an existing host (e.g., CDN hostname from nmap reverse DNS).
     for ip in ips_to_add:
         if is_ipv4(ip):
-            cursor.execute("SELECT id, host, ips FROM hosts WHERE ips LIKE ?", (f'%"{ip}"%',))
+            cursor.execute("SELECT id, ips FROM hosts WHERE ips LIKE ?", (f'%"{ip}"%',))
             existing = cursor.fetchone()
             if existing:
                 host_id = existing['id']
-                # Add the new hostname as an alias/CNAME to the existing host
                 try:
                     current_ips = json.loads(existing['ips']) if existing['ips'] else []
                 except Exception:
                     current_ips = []
-                # Ensure all unique IPs are merged
                 merged_ips = list(set(current_ips + [ip for ip in ips_to_add if is_ipv4(ip)]))
                 cursor.execute(
                     'UPDATE hosts SET ips = ? WHERE id = ?',
@@ -111,7 +124,6 @@ def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None)
                 )
                 return host_id
 
-    # ── Create new host ─────────────────────────────────────────────────
     initial_ips = json.dumps([ip for ip in ips_to_add if ip and ip != clean_host and not is_ipv4(clean_host)])
     initial_cnames = json.dumps([c for c in cnames_to_add if c and c != clean_host])
     cursor.execute(
@@ -119,6 +131,7 @@ def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None)
         (clean_host, initial_ips, initial_cnames),
     )
     return cursor.lastrowid
+
 
 def resolve_domain(domain):
     try:
@@ -188,6 +201,12 @@ def process_httpx_json(cursor, json_file, source_name="httpx"):
                     source_name,
                 ))
                 count_endpoints += 1
+
+                # Ensure a port record exists for this endpoint
+                ep_port = data.get("port")
+                if ep_port:
+                    _ensure_port(cursor, host_id, ep_port, "tcp",
+                                 data.get("webserver") or None)
 
     return count_endpoints, resolved_in_httpx
 
@@ -344,6 +363,14 @@ def parse_url_discovery(proj_path, nmap_dir, tool_name):
                             )
                             if cursor.rowcount > 0:
                                 count += 1
+
+                            # Ensure a port record exists for this endpoint
+                            parsed = urlparse(url)
+                            ep_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+                            service_map = {80: "http", 443: "https", 8080: "http-proxy",
+                                           8443: "https", 8000: "http", 10443: "https"}
+                            _ensure_port(cursor, host_id, ep_port, "tcp",
+                                         service_map.get(ep_port, "unknown"))
                 except Exception:
                     pass
 
@@ -410,7 +437,6 @@ def parse_gf(proj_path, nmap_dir):
                 except (json.JSONDecodeError, IOError):
                     continue
 
-                target_name = data.get("target", nmap_folder.replace("nmap-", ""))
                 gf_patterns = data.get("gf_patterns", {})
 
                 for pattern_name, urls in gf_patterns.items():
@@ -433,6 +459,7 @@ def parse_gf(proj_path, nmap_dir):
                                 count += 1
 
     console.print(f" [dim]↳ Parser GF: Injetou {count} Tags de Padrões em Endpoints.[/dim]")
+
 
 def parse_jsfinder(proj_path, nmap_dir):
     """
@@ -457,7 +484,6 @@ def parse_jsfinder(proj_path, nmap_dir):
                 except (json.JSONDecodeError, IOError):
                     continue
 
-                target_name = data.get("target", nmap_folder.replace("nmap-", ""))
                 results = data.get("results", [])
 
                 for entry in results:
@@ -491,15 +517,13 @@ def parse_jsfinder(proj_path, nmap_dir):
 
     console.print(f" [dim]↳ Parser JSFinder: Salvou {count} rotas/arquivos descobertos no JS.[/dim]")
 
+
 # ═════════════════════════════════════════════════════════════════════
-# NOVO: PARSE_NUCLEI
+# PARSE_NUCLEI
 # ═════════════════════════════════════════════════════════════════════
 
 def parse_nuclei(proj_path, nmap_dir):
-    """
-    Consume nuclei -json output lines into the vulnerabilities table.
-    Compatible with nuclei v2 and v3 JSONL format.
-    """
+    """Consume nuclei -json output lines into the vulnerabilities table."""
     json_file = os.path.join(nmap_dir, "nuclei_output.json")
     if not os.path.exists(json_file):
         console.print(" [dim]↳ Parser Nuclei: Arquivo nuclei_output.json não encontrado.[/dim]")
@@ -524,24 +548,18 @@ def parse_nuclei(proj_path, nmap_dir):
                     if not host_str:
                         continue
 
-                    # Find or create host
                     ips = [data["ip"]] if data.get("ip") else []
                     host_id = get_or_create_host(cursor, host_str, ips)
                     if not host_id:
                         continue
 
-                    # Extract fields (nuclei v2/v3 compatible)
                     info = data.get("info", {}) or {}
                     vuln_name = data.get("template-id") or info.get("name", "unknown")
                     raw_severity = (data.get("severity") or info.get("severity", "info")).lower()
 
-                    # Map severity to label
                     severity_label = {
-                        "critical": "Crítica",
-                        "high": "Alta",
-                        "medium": "Média",
-                        "low": "Baixa",
-                        "info": "Info",
+                        "critical": "Crítica", "high": "Alta",
+                        "medium": "Média", "low": "Baixa", "info": "Info",
                     }.get(raw_severity, raw_severity.capitalize())
 
                     cvss_score = data.get("cvss-score") or info.get("cvss-score")
@@ -559,7 +577,6 @@ def parse_nuclei(proj_path, nmap_dir):
                     curl_command = data.get("curl-command", "")
                     title = data.get("name") or info.get("name", vuln_name)
 
-                    # Parse references into JSON list
                     raw_refs = data.get("reference") or info.get("references") or []
                     if isinstance(raw_refs, str):
                         raw_refs = [raw_refs] if raw_refs.strip() else []
@@ -582,19 +599,12 @@ def parse_nuclei(proj_path, nmap_dir):
                                 reference_urls = excluded.reference_urls,
                                 source_tool   = excluded.source_tool
                         """, (
-                            host_id,
-                            title,
-                            severity_label,
+                            host_id, title, severity_label,
                             float(cvss_score) if cvss_score else None,
-                            cvss_vector or None,
-                            cve_id or None,
-                            vuln_name,
-                            description,
-                            matched_at,
-                            curl_command,
-                            remediation,
-                            reference_urls,
-                            "nuclei",
+                            cvss_vector or None, cve_id or None,
+                            vuln_name, description, matched_at,
+                            curl_command, remediation,
+                            reference_urls, "nuclei",
                         ))
                         if cursor.rowcount > 0:
                             count += 1
@@ -606,14 +616,11 @@ def parse_nuclei(proj_path, nmap_dir):
 
 
 # ═════════════════════════════════════════════════════════════════════
-# NOVO: PARSE_WHOIS_ENRICHMENT (leve, só WHOIS)
+# PARSE_WHOIS_ENRICHMENT
 # ═════════════════════════════════════════════════════════════════════
 
 def parse_whois_enrichment(proj_path, nmap_dir):
-    """
-    Parse only WHOIS data from nmap XML files without re-inserting all ports.
-    ~10x faster than calling parse_nmap() again.
-    """
+    """Parse only WHOIS data from nmap XML files. ~10x faster than re-parsing all ports."""
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
@@ -666,7 +673,6 @@ def dispatch(module_name, proj_path, nmap_dir):
     db.init_db(proj_path)
 
     recon_dir = os.path.join(proj_path, "Recon")
-    obs_proj_dir = get_obsdir()
 
     if module_name == "recon":
         parse_recon(proj_path, recon_dir)
@@ -681,13 +687,10 @@ def dispatch(module_name, proj_path, nmap_dir):
     elif module_name == "screenshot-runner":
         parse_screenshot(proj_path)
     elif module_name == "gf-summary":
-        # parse_gf now reads from $NMAP_DIR/nmap-*/gf-summary.json
         parse_gf(proj_path, nmap_dir)
     elif module_name == "jsfinder-runner":
-        # parse_jsfinder now reads from $NMAP_DIR/nmap-*/jsfinder-results.json
         parse_jsfinder(proj_path, nmap_dir)
     elif module_name == "whois-enricher":
-        # Dedicated WHOIS-only parser — não re-parseia nmap inteiro
         parse_whois_enrichment(proj_path, nmap_dir)
     elif module_name == "nuclei-runner":
         parse_nuclei(proj_path, nmap_dir)
