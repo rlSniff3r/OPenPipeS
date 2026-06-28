@@ -1,0 +1,16 @@
+---
+tipo: endpoint-group
+target: {{ target.name }}
+route: {{ group_name }}
+count: {{ count }}
+---
+
+# ⛓️ /{{ group_name }}/ — {{ target.name }}
+
+**{{ count }} endpoints** | [[Index.md|← Voltar ao índice de rotas]]
+
+| URL | Status | Título | Tecnologias |
+|-----|--------|--------|-------------|
+{%- for ep in endpoints %}
+| [{{ ep.url }}]({{ ep.url }}) | {{ ep.status_code }} | {{ ep.title or "-" }} | {{ ep.tech_stack | join(", ") if ep.tech_stack else "-" }} |
+{%- endfor %}

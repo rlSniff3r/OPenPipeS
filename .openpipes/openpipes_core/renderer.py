@@ -80,6 +80,28 @@ def _is_in_scope(host: str, scope_domains: list[str]) -> bool:
     return False
 
 
+def _group_endpoints_by_route(endpoints: list[dict]) -> dict[str, list[dict]]:
+    """
+    Group endpoints by the first segment of their URL path.
+    https://example.com/api/v1/users  →  api_v1
+    https://example.com/login         →  login
+    https://example.com               →  root
+    Returns dict sorted by group name.
+    """
+    groups = {}
+    for ep in endpoints:
+        path = urlparse(ep["url"]).path.strip("/")
+        if not path:
+            group = "root"
+        else:
+            raw = path.split("/")[0]
+            group = re.sub(r'[^a-zA-Z0-9_\-]', '_', raw) or "root"
+
+        groups.setdefault(group, []).append(ep)
+
+    return dict(sorted(groups.items()))
+
+
 # ═════════════════════════════════════════════════════════════════════
 # DB QUERY HELPERS
 # ═════════════════════════════════════════════════════════════════════
@@ -516,8 +538,13 @@ def _get_vault_path(obsdir: str, proj_name: str, target_name: str = None) -> str
 
 def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -> bool:
     """
-    Fetch data for a single target and render its markdown note + individual vuln notes.
-    Returns True if rendered successfully.
+    Fetch data for a single target and render:
+      - target.md          (lightweight summary)
+      - Endpoints/Index.md (route group index)
+      - Endpoints/*.md     (one per route group)
+      - js-discoveries.md  (JS routes)
+      - httpx-results.md   (httpx data)
+      - Vulnerabilidades/*.md (one per vuln)
     """
     report = get_target_report(proj_path, host_name)
     if not report:
@@ -526,20 +553,65 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
 
     env = _get_jinja_env()
     vault_dir = _get_vault_path(obsdir, proj_name, host_name)
-    os.makedirs(vault_dir, exist_ok=True)
+    endpoints_dir = os.path.join(vault_dir, "Endpoints")
+    vulns_dir = os.path.join(vault_dir, "Vulnerabilidades")
+    os.makedirs(endpoints_dir, exist_ok=True)
+    os.makedirs(vulns_dir, exist_ok=True)
 
-    # ── Render target note ──────────────────────────────────────────────
+    # ── 1. Target note (lightweight) ────────────────────────────────────
     target_template = env.get_template("target.j2")
     target_md = target_template.render(target=report)
     target_path = os.path.join(vault_dir, f"{host_name}.md")
     with open(target_path, "w", encoding="utf-8") as f:
         f.write(target_md)
 
-    # ── Render individual vulnerability notes ──────────────────────────
-    vuln_template = env.get_template("vuln.j2")
-    vulns_dir = os.path.join(vault_dir, "Vulnerabilidades")
-    os.makedirs(vulns_dir, exist_ok=True)
+    # ── 2. Endpoints — group by route ──────────────────────────────────
+    groups = _group_endpoints_by_route(report["endpoints"])
+    group_names = list(groups.keys())
 
+    # 2a. Endpoints/Index.md — route group listing
+    ep_index_template = env.get_template("endpoints-index.j2")
+    ep_index_md = ep_index_template.render(
+        target=report,
+        groups=groups,
+        group_names=group_names,
+        total_endpoints=report["endpoint_count"],
+    )
+    ep_index_path = os.path.join(endpoints_dir, "Index.md")
+    with open(ep_index_path, "w", encoding="utf-8") as f:
+        f.write(ep_index_md)
+
+    # 2b. One .md per route group
+    ep_group_template = env.get_template("endpoint-group.j2")
+    for group_name, group_eps in groups.items():
+        group_md = ep_group_template.render(
+            target=report,
+            group_name=group_name,
+            endpoints=group_eps,
+            count=len(group_eps),
+        )
+        group_path = os.path.join(endpoints_dir, f"{group_name}.md")
+        with open(group_path, "w", encoding="utf-8") as f:
+            f.write(group_md)
+
+    # ── 3. JS Discoveries ──────────────────────────────────────────────
+    if report["js_discoveries"]:
+        js_template = env.get_template("js-discoveries.j2")
+        js_md = js_template.render(target=report)
+        js_path = os.path.join(vault_dir, "js-discoveries.md")
+        with open(js_path, "w", encoding="utf-8") as f:
+            f.write(js_md)
+
+    # ── 4. HTTPX Results ───────────────────────────────────────────────
+    if report["httpx_count"] > 0:
+        httpx_template = env.get_template("httpx-results.j2")
+        httpx_md = httpx_template.render(target=report)
+        httpx_path = os.path.join(vault_dir, "httpx-results.md")
+        with open(httpx_path, "w", encoding="utf-8") as f:
+            f.write(httpx_md)
+
+    # ── 5. Vulnerabilities ─────────────────────────────────────────────
+    vuln_template = env.get_template("vuln.j2")
     vuln_count = 0
     for vuln in report.get("vulnerabilities", []):
         vuln_md = vuln_template.render(target=report, vuln=vuln)
@@ -548,8 +620,13 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
             f.write(vuln_md)
         vuln_count += 1
 
-    console.print(f" [dim]↳ Render: {host_name} — {vuln_count} vulns[/dim]")
+    console.print(
+        f" [dim]↳ Render: {host_name} — "
+        f"{report['endpoint_count']} endpoints ({len(groups)} rotas), "
+        f"{vuln_count} vulns[/dim]"
+    )
     return True
+
 
 
 def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
