@@ -110,4 +110,6 @@ for domain in $(grep -v '^#' "$DOMAIN_FILE" | grep -v '^$'); do
 done
 
 mkdir -p Varreduras
-cat Recon/*/hosts-allsubs | grep "has address" | cut -d " " -f1,4 | egrep "$(cat $DOMAIN_FILE | sed -z 's/\n/|/g' | sed 's/.$//g')" | sed -z 's/ /\n/g' | sort -u > Varreduras/targets.txt
+# cat Recon/*/hosts-allsubs | grep "has address" | cut -d " " -f1,4 | egrep "$(cat $DOMAIN_FILE | sed -z 's/\n/|/g' | sed 's/.$//g')" | sed -z 's/ /\n/g' | sort -u > Varreduras/targets.txt
+
+cat Recon/*/allsubs | sort -u > Varreduras/targets.txt

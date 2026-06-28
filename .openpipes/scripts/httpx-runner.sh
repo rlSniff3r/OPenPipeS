@@ -98,6 +98,9 @@ for dir in "$base_dir"/nmap-*; do
 
   jq -r '.url' "$json_out" | sort -u > "$url_list"
 
+  # Generate alive_urls.txt for katana/feroxbuster to consume
+  jq -r 'select(.status_code != null) | .url' "$json_out" | sort -u > "$dir/alive_urls.txt"
+
   json_files=("$dir"/httpx-*.json)
   combined_httpx="$dir/httpx-combined.json"
   jq -s '[.[] | select(type=="object" and has("status_code"))]' "${json_files[@]}" > "$combined_httpx"
