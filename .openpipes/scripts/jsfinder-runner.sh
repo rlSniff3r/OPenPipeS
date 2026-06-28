@@ -1,38 +1,26 @@
 #!/bin/bash
-
 set -euo pipefail
-
-# Caminhos base
-
 source $HOME/.openpipes/config.sh
 venv="$HOME/.venv-jsfinder/bin/activate"
-varreduraDir="$proj_path/Varreduras"
+varreduraDir="$NMAP_DIR"  # Changed: use NMAP_DIR directly
 
-# Flag --force
 force=false
 [[ "$*" == *"--force"* ]] && force=true
 
-# Ativa ambiente virtual
 echo "[*] Ativando ambiente virtual do LinkFinder..."
 source "$venv"
 
-# Percorre todos os diretórios nmap-*
 for nmapFolder in "$varreduraDir"/nmap-*; do
     [ -d "$nmapFolder" ] || continue
-
     targetName="${nmapFolder##*/nmap-}"
-    targetDir="$obsdir/$proj_name/Pentest/Alvos/$targetName"
     tmpDir="/tmp/jsfinder-$targetName"
-    outputFile="$targetDir/js-endpoints.md"
-
+    outputFile="$nmapFolder/jsfinder-results.json"
 
     nmap_file="$nmapFolder/nmap.gnmap"
-
     if [[ ! -s "$nmap_file" ]]; then
         echo "[!] Pulando $targetName: nmap.gnmap está vazio ou não existe."
         continue
     fi
-
 
     if [ -f "$outputFile" ] && [ "$force" = false ]; then
         echo "[!] $outputFile já existe. Use --force para sobrescrever. Pulando $targetName..."
@@ -41,61 +29,53 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
 
     echo "[*] Processando alvo: $targetName"
     mkdir -p "$tmpDir"
-    > "$outputFile"
 
     echo "[*] Coletando possíveis arquivos JS..."
     js_urls=()
 
-    # 1. endpoints.md
-    [ -f "$targetDir/endpoints.md" ] && js_urls+=($(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$targetDir/endpoints.md" || true))
-
-    # 2. ferox-katana.md
-    [ -f "$targetDir/ferox-katana.md" ] && js_urls+=($(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$targetDir/ferox-katana.md" || true))
-
-    # 3. gf-summary.md
-    [ -f "$targetDir/gf-summary.md" ] && js_urls+=($(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$targetDir/gf-summary.md" || true))
-
-    # 4. httpx*.json
+    # Sources: keep reading from httpx JSONs (already in nmapFolder)
     for json in "$nmapFolder"/httpx*.json; do
         [ -f "$json" ] || continue
-
         if jq -e 'type=="array"' "$json" &>/dev/null; then
             urls=$(jq -r '.[] | select(.url | test("\\.js($|\\?)")) | .url' "$json")
         else
             urls=$(jq -r 'select(type == "object") | select(.url | test("\\.js($|\\?)")) | .url' "$json")
         fi
-
         js_urls+=($urls)
     done
+
+    # Also check gf-summary.json if it exists (raw output instead of markdown)
+    if [[ -f "$nmapFolder/gf-summary.json" ]]; then
+        gf_urls=$(jq -r '.gf_patterns | to_entries[] | .value[]' "$nmapFolder/gf-summary.json" 2>/dev/null | grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' || true)
+        js_urls+=($gf_urls)
+    fi
 
     js_urls=($(printf "%s\n" "${js_urls[@]}" | sort -u))
     echo "[*] Total de arquivos JS encontrados: ${#js_urls[@]}"
 
     if [ "${#js_urls[@]}" -eq 0 ]; then
-        echo "[!] Nenhum arquivo JS encontrado para $targetName. Pulando..."
+        echo "[!] Nenhum arquivo JS encontrado para $targetName."
         continue
     fi
 
-    echo "# 🔍 JS Endpoints encontrados para $targetName" > "$outputFile"
-    echo "" >> "$outputFile"
-
+    # Build JSON results array
+    results=()
     for url in "${js_urls[@]}"; do
         jsFile="$tmpDir/$(basename "$url" | cut -d '?' -f1)"
         echo "[*] Baixando $url..."
-        curl -s -L --max-time 15 "$url" -o "$jsFile" || { echo "[-] Falha ao baixar: $url" && continue; }
+        curl -s -L --max-time 15 "$url" -o "$jsFile" || { echo "[-] Falha ao baixar: $url"; continue; }
 
-        echo "## Fonte: [$url]($url)" >> "$outputFile"
-        echo "" >> "$outputFile"
-
-        echo "\`\`\`" >> "$outputFile"
-        linkfinder.py -i "$jsFile" -o cli >> "$outputFile"
-        echo "\`\`\`" >> "$outputFile"
-        echo "" >> "$outputFile"
+        routes=$(linkfinder.py -i "$jsFile" -o cli 2>/dev/null | grep -Eo 'https?://[^ ")]+' | sort -u | jq -R -s 'split("\n") | map(select(length > 0))')
+        results+=("$(jq -n --arg url "$url" --argjson routes "$routes" '{source_js_url: $url, discovered_routes: $routes}')")
     done
 
-    echo "[✓] js-endpoints.md criado em: $outputFile"
-    echo ""
+    # Write JSON output
+    jq -n \
+        --arg target "$targetName" \
+        --argjson results "$(printf '%s\n' "${results[@]}" | jq -s '.')" \
+        '{target: $target, generated_at: now, results: $results}' \
+        > "$outputFile"
+
+    echo "[✓] jsfinder-results.json criado em: $outputFile"
 done
-
 echo "[✓] Todos os alvos foram processados!"
-

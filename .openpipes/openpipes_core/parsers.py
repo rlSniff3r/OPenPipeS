@@ -366,83 +366,109 @@ def parse_screenshot(proj_path):
         console.print(f" [dim]↳ Parser Gowitness: Atrelou {count} Screenshots aos hosts.[/dim]")
 
 
-def parse_gf(proj_path, obs_dir):
-    """Varre os arquivos gf-summary.md e taggeia as URLs no DB"""
+def parse_gf(proj_path, nmap_dir):
+    """
+    Parse gf-summary.json files from each target's nmap directory.
+    Tags endpoints in the database with vulnerability patterns found by gf.
+    """
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
 
-            for root, dirs, files in os.walk(obs_dir):
-                for file in files:
-                    if file != "gf-summary.md":
-                        continue
-                    try:
-                        with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
-                            current_vuln = None
-                            for line in f:
-                                line = line.strip()
-                                if line.startswith("## 🧪 gf:"):
-                                    current_vuln = line.split(":", 1)[1].strip()
-                                elif line.startswith("http") and current_vuln:
-                                    cursor.execute("SELECT id, vulnerability_patterns FROM endpoints WHERE url = ?", (line,))
-                                    row = cursor.fetchone()
-                                    if row:
-                                        patterns = json.loads(row['vulnerability_patterns']) if row['vulnerability_patterns'] else []
-                                        if current_vuln not in patterns:
-                                            patterns.append(current_vuln)
-                                            cursor.execute(
-                                                "UPDATE endpoints SET vulnerability_patterns = ? WHERE id = ?",
-                                                (json.dumps(patterns), row['id']),
-                                            )
-                                            count += 1
-                    except Exception:
-                        pass
+            for nmap_folder in sorted(os.listdir(nmap_dir)):
+                if not nmap_folder.startswith("nmap-"):
+                    continue
+                gf_file = os.path.join(nmap_dir, nmap_folder, "gf-summary.json")
+                if not os.path.exists(gf_file):
+                    continue
 
-    if count > 0:
-        console.print(f" [dim]↳ Parser GF-Summary: Injetou {count} Tags de Padrões em Endpoints.[/dim]")
+                try:
+                    with open(gf_file, "r") as f:
+                        data = json.load(f)
+                except (json.JSONDecodeError, IOError):
+                    continue
 
+                target_name = data.get("target", nmap_folder.replace("nmap-", ""))
+                gf_patterns = data.get("gf_patterns", {})
 
-def parse_jsfinder(proj_path, obs_dir):
-    """Extrai as rotas secretas dos JS"""
+                for pattern_name, urls in gf_patterns.items():
+                    for url in urls:
+                        if not url.strip():
+                            continue
+                        cursor.execute(
+                            "SELECT id, vulnerability_patterns FROM endpoints WHERE url = ?",
+                            (url.strip(),),
+                        )
+                        row = cursor.fetchone()
+                        if row:
+                            patterns = json.loads(row["vulnerability_patterns"]) if row["vulnerability_patterns"] else []
+                            if pattern_name not in patterns:
+                                patterns.append(pattern_name)
+                                cursor.execute(
+                                    "UPDATE endpoints SET vulnerability_patterns = ? WHERE id = ?",
+                                    (json.dumps(patterns), row["id"]),
+                                )
+                                count += 1
+
+    console.print(f" [dim]↳ Parser GF: Injetou {count} Tags de Padrões em Endpoints.[/dim]")
+
+def parse_jsfinder(proj_path, nmap_dir):
+    """
+    Parse jsfinder-results.json files from each target's nmap directory.
+    Inserts discovered JS routes into the js_discoveries table.
+    """
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
 
-            for root, dirs, files in os.walk(obs_dir):
-                for file in files:
-                    if file != "js-endpoints.md":
+            for nmap_folder in sorted(os.listdir(nmap_dir)):
+                if not nmap_folder.startswith("nmap-"):
+                    continue
+                js_file = os.path.join(nmap_dir, nmap_folder, "jsfinder-results.json")
+                if not os.path.exists(js_file):
+                    continue
+
+                try:
+                    with open(js_file, "r") as f:
+                        data = json.load(f)
+                except (json.JSONDecodeError, IOError):
+                    continue
+
+                target_name = data.get("target", nmap_folder.replace("nmap-", ""))
+                results = data.get("results", [])
+
+                for entry in results:
+                    source_js_url = entry.get("source_js_url", "")
+                    if not source_js_url:
                         continue
-                    try:
-                        with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
-                            current_js_url = None
-                            in_code_block = False
-                            for line in f:
-                                line = line.strip()
-                                if line.startswith("## Fonte:"):
-                                    match = re.search(r'\[(.*?)\]', line)
-                                    if match:
-                                        current_js_url = match.group(1)
-                                elif line.startswith("```"):
-                                    in_code_block = not in_code_block
-                                elif in_code_block and current_js_url and line:
-                                    host_str = urlparse(current_js_url).hostname
-                                    if host_str:
-                                        host_id = get_or_create_host(cursor, host_str)
-                                        if host_id:
-                                            cursor.execute(
-                                                "INSERT INTO js_discoveries (host_id, source_js_url, discovered_route) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
-                                                (host_id, current_js_url, line),
-                                            )
-                                            if cursor.rowcount > 0:
-                                                count += 1
-                    except Exception:
-                        pass
 
-    if count > 0:
-        console.print(f" [dim]↳ Parser JSFinder: Salvou {count} rotas/arquivos descobertos no JS.[/dim]")
+                    host_str = urlparse(source_js_url).hostname
+                    if not host_str:
+                        continue
 
+                    host_id = get_or_create_host(cursor, host_str)
+                    if not host_id:
+                        continue
+
+                    for route in entry.get("discovered_routes", []):
+                        if not route.strip():
+                            continue
+                        try:
+                            cursor.execute(
+                                """INSERT INTO js_discoveries
+                                   (host_id, source_js_url, discovered_route)
+                                   VALUES (?, ?, ?)
+                                   ON CONFLICT DO NOTHING""",
+                                (host_id, source_js_url, route.strip()),
+                            )
+                            if cursor.rowcount > 0:
+                                count += 1
+                        except Exception:
+                            continue
+
+    console.print(f" [dim]↳ Parser JSFinder: Salvou {count} rotas/arquivos descobertos no JS.[/dim]")
 
 # ═════════════════════════════════════════════════════════════════════
 # NOVO: PARSE_NUCLEI
@@ -634,13 +660,11 @@ def dispatch(module_name, proj_path, nmap_dir):
     elif module_name == "screenshot-runner":
         parse_screenshot(proj_path)
     elif module_name == "gf-summary":
-        parse_url_discovery(proj_path, nmap_dir, "crawled")
-        if obs_proj_dir:
-            parse_gf(proj_path, obs_proj_dir)
+        # parse_gf now reads from $NMAP_DIR/nmap-*/gf-summary.json
+        parse_gf(proj_path, nmap_dir)
     elif module_name == "jsfinder-runner":
-        parse_url_discovery(proj_path, nmap_dir, "js_files")
-        if obs_proj_dir:
-            parse_jsfinder(proj_path, obs_proj_dir)
+        # parse_jsfinder now reads from $NMAP_DIR/nmap-*/jsfinder-results.json
+        parse_jsfinder(proj_path, nmap_dir)
     elif module_name == "whois-enricher":
         # Dedicated WHOIS-only parser — não re-parseia nmap inteiro
         parse_whois_enrichment(proj_path, nmap_dir)
