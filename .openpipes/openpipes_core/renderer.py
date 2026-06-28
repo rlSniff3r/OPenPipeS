@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 from jinja2 import Environment, FileSystemLoader
 from rich.console import Console
@@ -17,8 +18,7 @@ HOME = str(Path.home())
 CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 TEMPLATE_DIR = os.path.join(HOME, ".openpipes", ".templates")
 
-# Safe mode: write to Sync/ subfolder instead of overwriting bash output
-SYNC_MODE = "parallel"  # "parallel" → Sync/ subfolder | "replace" → direct (future)
+SYNC_MODE = "parallel"
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -26,16 +26,11 @@ SYNC_MODE = "parallel"  # "parallel" → Sync/ subfolder | "replace" → direct 
 # ═════════════════════════════════════════════════════════════════════
 
 def _get_env_from_config():
-    """Read project paths from config.sh (same pattern as cli.py)."""
     if not os.path.exists(CONFIG_FILE):
         return None, None, None
     try:
-        cmd = (
-            f"source {CONFIG_FILE} && echo -n \"$proj_name|$proj_path|$obsdir\""
-        )
-        result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, executable="/bin/bash"
-        )
+        cmd = f"source {CONFIG_FILE} && echo -n \"$proj_name|$proj_path|$obsdir\""
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
         parts = result.stdout.strip().split("|")
         if len(parts) == 3 and parts[0]:
             return parts[0], parts[1], parts[2]
@@ -44,35 +39,36 @@ def _get_env_from_config():
     return None, None, None
 
 
-def _get_scope_domains(proj_path: str) -> list[str]:
-    """
-    Read domains.txt from the project root and return a list of
-    second-level domains that define the scope.
+def _get_nmap_dir(proj_path: str) -> str:
+    """Get NMAP_DIR from config.sh."""
+    if not os.path.exists(CONFIG_FILE):
+        return os.path.join(proj_path, "Varreduras")
+    try:
+        cmd = f"source {CONFIG_FILE} && echo -n \"$NMAP_DIR\""
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+        nmap_dir = result.stdout.strip()
+        return nmap_dir if nmap_dir else os.path.join(proj_path, "Varreduras")
+    except Exception:
+        return os.path.join(proj_path, "Varreduras")
 
-    Example: if domains.txt has "empresa.com.br", returns ["empresa.com.br"].
-    Any host ending with ".empresa.com.br" or equal to "empresa.com.br" is in scope.
-    """
+
+def _get_scope_domains(proj_path: str) -> list[str]:
     domains_file = os.path.join(proj_path, "domains.txt")
     if not os.path.exists(domains_file):
         return []
-
     scope = []
     with open(domains_file, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
             domain = line.strip().lower()
-            # Skip empty lines, comments, IPs
             if not domain or domain.startswith("#") or re.match(r"^\d+\.", domain):
                 continue
             scope.append(domain)
-
     return scope
 
 
 def _is_in_scope(host: str, scope_domains: list[str]) -> bool:
-    """Check if a hostname is within the defined scope."""
     if not scope_domains:
-        return True  # No scope defined = everything allowed
-
+        return True
     host = host.lower()
     for domain in scope_domains:
         if host == domain or host.endswith("." + domain):
@@ -80,14 +76,182 @@ def _is_in_scope(host: str, scope_domains: list[str]) -> bool:
     return False
 
 
+# ═════════════════════════════════════════════════════════════════════
+# DB QUERY HELPERS
+# ═════════════════════════════════════════════════════════════════════
+
+def get_project_summary(proj_path: str) -> dict:
+    scope_domains = _get_scope_domains(proj_path)
+    summary = {
+        "total_hosts": 0, "total_ports": 0, "total_endpoints": 0,
+        "total_vulns": 0, "total_js_routes": 0, "total_screenshots": 0,
+        "severity_breakdown": {"Crítica": 0, "Alta": 0, "Média": 0, "Baixa": 0, "Info": 0},
+        "last_updated": None,
+    }
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, host FROM hosts WHERE is_alive = 1")
+        alive_hosts = []
+        for row in cursor.fetchall():
+            if _is_in_scope(row["host"], scope_domains):
+                alive_hosts.append(row["id"])
+        summary["total_hosts"] = len(alive_hosts)
+        if alive_hosts:
+            ph = ",".join("?" for _ in alive_hosts)
+            cursor.execute(f"SELECT COUNT(*) FROM ports WHERE host_id IN ({ph})", alive_hosts)
+            summary["total_ports"] = cursor.fetchone()[0]
+            cursor.execute(f"SELECT COUNT(*) FROM endpoints WHERE host_id IN ({ph})", alive_hosts)
+            summary["total_endpoints"] = cursor.fetchone()[0]
+            cursor.execute(f"SELECT COUNT(*) FROM vulnerabilities WHERE host_id IN ({ph})", alive_hosts)
+            summary["total_vulns"] = cursor.fetchone()[0]
+            cursor.execute(f"SELECT COUNT(*) FROM js_discoveries WHERE host_id IN ({ph})", alive_hosts)
+            summary["total_js_routes"] = cursor.fetchone()[0]
+            cursor.execute(f"SELECT COUNT(*) FROM screenshots WHERE host_id IN ({ph})", alive_hosts)
+            summary["total_screenshots"] = cursor.fetchone()[0]
+            try:
+                cursor.execute(f"SELECT severity, COUNT(*) as cnt FROM vulnerabilities WHERE host_id IN ({ph}) GROUP BY severity", alive_hosts)
+                for r in cursor.fetchall():
+                    if r["severity"] in summary["severity_breakdown"]:
+                        summary["severity_breakdown"][r["severity"]] = r["cnt"]
+            except Exception:
+                pass
+            cursor.execute(f"SELECT MAX(last_updated) FROM hosts WHERE id IN ({ph})", alive_hosts)
+            summary["last_updated"] = cursor.fetchone()[0] or "Nunca"
+    return summary
+
+
+def get_targets_list(proj_path: str) -> list[dict]:
+    scope_domains = _get_scope_domains(proj_path)
+    targets = []
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, host, ips, is_alive, last_updated FROM hosts WHERE is_alive = 1 ORDER BY host")
+        for row in cursor.fetchall():
+            if not _is_in_scope(row["host"], scope_domains):
+                continue
+            targets.append({
+                "id": row["id"], "name": row["host"],
+                "ips": json.loads(row["ips"]) if row["ips"] else [],
+                "is_alive": bool(row["is_alive"]), "last_updated": row["last_updated"],
+            })
+    if not scope_domains:
+        console.print(" [yellow]⚠ Nenhum domains.txt encontrado — todos os hosts vivos serão incluídos.[/yellow]")
+    else:
+        console.print(f" [dim]↳ Scope: {len(scope_domains)} domínio(s) — {len(targets)} alvo(s) dentro do escopo.[/dim]")
+    return targets
+
+
+def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
+    scope_domains = _get_scope_domains(proj_path)
+    if not _is_in_scope(host_name, scope_domains):
+        return None
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM hosts WHERE host = ?", (host_name,))
+        host_row = cursor.fetchone()
+        if not host_row:
+            return None
+        host = dict(host_row)
+        host["ips"] = json.loads(host["ips"]) if host.get("ips") else []
+        host["cnames"] = json.loads(host["cnames"]) if host.get("cnames") else []
+
+        cursor.execute("SELECT port, protocol, state, service, version FROM ports WHERE host_id = ? ORDER BY port", (host["id"],))
+        ports = [dict(r) for r in cursor.fetchall()]
+        open_ports = [p for p in ports if p["state"] == "open"]
+
+        cursor.execute("""SELECT url, status_code, content_length, content_type, title, web_server,
+                          tech_stack, source_tool, vulnerability_patterns
+                          FROM endpoints WHERE host_id = ? ORDER BY url""", (host["id"],))
+        endpoints = []
+        for r in cursor.fetchall():
+            ep = dict(r)
+            ep["tech_stack"] = json.loads(ep["tech_stack"]) if ep.get("tech_stack") else []
+            ep["vulnerability_patterns"] = json.loads(ep["vulnerability_patterns"]) if ep.get("vulnerability_patterns") else []
+            endpoints.append(ep)
+
+        cursor.execute("""SELECT title, severity, cvss_score, cvss_vector, cve_id, vuln_name,
+                          description, matched_at, curl_command, remediation, impact,
+                          reference_urls, source_tool, enriched_by, created_at
+                          FROM vulnerabilities WHERE host_id = ?
+                          ORDER BY CASE severity WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1
+                          WHEN 'Média' THEN 2 WHEN 'Baixa' THEN 3 ELSE 4 END""", (host["id"],))
+        vulnerabilities = []
+        for r in cursor.fetchall():
+            v = dict(r)
+            v["reference_urls"] = json.loads(v["reference_urls"]) if v.get("reference_urls") else []
+            v["severity_emoji"] = {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡", "Baixa": "🟢", "Info": "🔵"}.get(v["severity"], "⚪")
+            v["cvss_score"] = float(v["cvss_score"]) if v.get("cvss_score") else None
+            v["filename"] = f"{v['created_at'][:8] if v.get('created_at') else '00000000'}_{v['title'][:40].replace(' ', '_')}.md"
+            vulnerabilities.append(v)
+
+        cursor.execute("SELECT file_path, created_at FROM screenshots WHERE host_id = ?", (host["id"],))
+        screenshots = [dict(r) for r in cursor.fetchall()]
+
+        cursor.execute("SELECT source_js_url, discovered_route FROM js_discoveries WHERE host_id = ?", (host["id"],))
+        js_discoveries = [dict(r) for r in cursor.fetchall()]
+
+        tech_stack = sorted(set(tech for ep in endpoints for tech in ep.get("tech_stack", [])))
+
+        all_tasks = [{"type": "port", "label": f"Enumerar porta {p['port']}/{p['protocol']} ({p['service']})", "done": False}
+                     for p in open_ports if p["service"] not in ("ssl", "tcpwrapped", "unknown")]
+        if endpoints:
+            all_tasks.append({"type": "web", "label": "Analisar endpoints web", "done": False})
+        if vulnerabilities:
+            all_tasks.append({"type": "review", "label": "Revisar vulnerabilidades encontradas", "done": False})
+        if js_discoveries:
+            all_tasks.append({"type": "js", "label": "Analisar rotas descobertas em JS", "done": False})
+
+        return {
+            "name": host["host"], "ip": host["ips"][0] if host["ips"] else "",
+            "all_ips": host["ips"], "cnames": host["cnames"],
+            "whois": host.get("whois_data", ""), "is_alive": bool(host["is_alive"]),
+            "last_updated": host["last_updated"], "open_ports_count": len(open_ports),
+            "ports": open_ports, "all_ports": ports, "endpoints": endpoints,
+            "endpoint_count": len(endpoints),
+            "httpx_count": len([e for e in endpoints if e["source_tool"] in ("httpx", "recon_httpx")]),
+            "nuclei_count": len(vulnerabilities), "js_endpoint_count": len(js_discoveries),
+            "screenshot_count": len(screenshots), "tech_stack": tech_stack,
+            "tech_summary": f"O host possui {', '.join(tech_stack) if tech_stack else 'tecnologias a serem identificadas'}.",
+            "vulnerabilities": vulnerabilities, "vuln_count": len(vulnerabilities),
+            "vulns_critical": len([v for v in vulnerabilities if v["severity"] == "Crítica"]),
+            "vulns_high": len([v for v in vulnerabilities if v["severity"] == "Alta"]),
+            "vulns_medium": len([v for v in vulnerabilities if v["severity"] == "Média"]),
+            "vulns_low": len([v for v in vulnerabilities if v["severity"] == "Baixa"]),
+            "screenshots": screenshots, "js_discoveries": js_discoveries,
+            "pending_tasks": [t["label"] for t in all_tasks if not t["done"]],
+            "completed_tasks": [t["label"] for t in all_tasks if t["done"]],
+            "pipeline_status": "completed" if vulnerabilities else "in_progress",
+        }
+
+
+def get_vulnerability_detail(proj_path: str, vuln_id: int) -> Optional[dict]:
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT v.*, h.host as target_host, h.ips FROM vulnerabilities v JOIN hosts h ON h.id = v.host_id WHERE v.id = ?", (vuln_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        v = dict(row)
+        v["reference_urls"] = json.loads(v["reference_urls"]) if v.get("reference_urls") else []
+        v["target_ips"] = json.loads(v["ips"]) if v.get("ips") else []
+        v["cvss_score"] = float(v["cvss_score"]) if v.get("cvss_score") else None
+        v["severity_emoji"] = {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡", "Baixa": "🟢", "Info": "🔵"}.get(v["severity"], "⚪")
+        return v
+
+
+# ═════════════════════════════════════════════════════════════════════
+# ENDPOINT ROUTE GROUPING
+# ═════════════════════════════════════════════════════════════════════
+
 def _group_endpoints_by_route(endpoints: list[dict]) -> dict[str, list[dict]]:
     """
     Group endpoints by the first segment of their URL path.
     https://example.com/api/v1/users  →  api_v1
     https://example.com/login         →  login
     https://example.com               →  root
-    Returns dict sorted by group name.
+    Returns dict sorted by group name, with safe filenames.
     """
+    reserved = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
     groups = {}
     for ep in endpoints:
         path = urlparse(ep["url"]).path.strip("/")
@@ -96,141 +260,17 @@ def _group_endpoints_by_route(endpoints: list[dict]) -> dict[str, list[dict]]:
         else:
             raw = path.split("/")[0]
             group = re.sub(r'[^a-zA-Z0-9_\-]', '_', raw) or "root"
-
+            if group.lower() in reserved:
+                group = f"_{group}"
         groups.setdefault(group, []).append(ep)
-
     return dict(sorted(groups.items()))
 
 
 # ═════════════════════════════════════════════════════════════════════
-# DB QUERY HELPERS
+# DASHBOARD ENDPOINTS
 # ═════════════════════════════════════════════════════════════════════
 
-def get_project_summary(proj_path: str) -> dict:
-    """Aggregate stats across all alive, in-scope targets in the project."""
-    scope_domains = _get_scope_domains(proj_path)
-
-    summary = {
-        "total_hosts": 0,
-        "total_ports": 0,
-        "total_endpoints": 0,
-        "total_vulns": 0,
-        "total_js_routes": 0,
-        "total_screenshots": 0,
-        "severity_breakdown": {"Crítica": 0, "Alta": 0, "Média": 0, "Baixa": 0, "Info": 0},
-        "last_updated": None,
-    }
-
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-
-        # Count only in-scope, alive hosts
-        cursor.execute("SELECT id, host FROM hosts WHERE is_alive = 1")
-        alive_hosts = []
-        for row in cursor.fetchall():
-            if _is_in_scope(row["host"], scope_domains):
-                alive_hosts.append(row["id"])
-
-        summary["total_hosts"] = len(alive_hosts)
-
-        if alive_hosts:
-            placeholders = ",".join("?" for _ in alive_hosts)
-
-            cursor.execute(
-                f"SELECT COUNT(*) FROM ports WHERE host_id IN ({placeholders})",
-                alive_hosts,
-            )
-            summary["total_ports"] = cursor.fetchone()[0]
-
-            cursor.execute(
-                f"SELECT COUNT(*) FROM endpoints WHERE host_id IN ({placeholders})",
-                alive_hosts,
-            )
-            summary["total_endpoints"] = cursor.fetchone()[0]
-
-            cursor.execute(
-                f"SELECT COUNT(*) FROM vulnerabilities WHERE host_id IN ({placeholders})",
-                alive_hosts,
-            )
-            summary["total_vulns"] = cursor.fetchone()[0]
-
-            cursor.execute(
-                f"SELECT COUNT(*) FROM js_discoveries WHERE host_id IN ({placeholders})",
-                alive_hosts,
-            )
-            summary["total_js_routes"] = cursor.fetchone()[0]
-
-            cursor.execute(
-                f"SELECT COUNT(*) FROM screenshots WHERE host_id IN ({placeholders})",
-                alive_hosts,
-            )
-            summary["total_screenshots"] = cursor.fetchone()[0]
-
-            try:
-                cursor.execute(
-                    f"""SELECT severity, COUNT(*) as cnt
-                        FROM vulnerabilities
-                        WHERE host_id IN ({placeholders})
-                        GROUP BY severity""",
-                    alive_hosts,
-                )
-                for row in cursor.fetchall():
-                    sev = row["severity"]
-                    if sev in summary["severity_breakdown"]:
-                        summary["severity_breakdown"][sev] = row["cnt"]
-            except Exception:
-                pass
-
-            cursor.execute(
-                f"SELECT MAX(last_updated) FROM hosts WHERE id IN ({placeholders})",
-                alive_hosts,
-            )
-            val = cursor.fetchone()[0]
-            summary["last_updated"] = val or "Nunca"
-
-    return summary
-
-
-def get_targets_list(proj_path: str) -> list[dict]:
-    """Return all alive, in-scope targets with basic info."""
-    scope_domains = _get_scope_domains(proj_path)
-
-    targets = []
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """SELECT id, host, ips, is_alive, last_updated
-               FROM hosts
-               WHERE is_alive = 1
-               ORDER BY host"""
-        )
-        for row in cursor.fetchall():
-            host_name = row["host"]
-            if not _is_in_scope(host_name, scope_domains):
-                continue
-
-            targets.append({
-                "id": row["id"],
-                "name": host_name,
-                "ips": json.loads(row["ips"]) if row["ips"] else [],
-                "is_alive": bool(row["is_alive"]),
-                "last_updated": row["last_updated"],
-            })
-
-    if not scope_domains:
-        console.print(" [yellow]⚠ Nenhum domains.txt encontrado — todos os hosts vivos serão incluídos.[/yellow]")
-    else:
-        console.print(f" [dim]↳ Scope: {len(scope_domains)} domínio(s) — {len(targets)} alvo(s) dentro do escopo.[/dim]")
-
-    return targets
-
-
 def _get_important_endpoints(proj_path: str, limit: int = 30) -> list[dict]:
-    """
-    Return endpoints whose title suggests login, admin, dashboard, or other
-    high-value pages. Only returns endpoints for alive, in-scope hosts.
-    """
-    scope_domains = _get_scope_domains(proj_path)
     keywords = [
         "login", "signin", "sign-in", "logon", "log-in",
         "admin", "administrativo", "administracao", "painel",
@@ -238,295 +278,110 @@ def _get_important_endpoints(proj_path: str, limit: int = 30) -> list[dict]:
         "portal", "intranet", "sso", "saml", "oauth",
         "gestao", "controle", "backup", "monitor",
     ]
-
+    scope_domains = _get_scope_domains(proj_path)
     important = []
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            """SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
-               FROM endpoints e
-               JOIN hosts h ON h.id = e.host_id
-               WHERE h.is_alive = 1
-                 AND e.title IS NOT NULL
-                 AND e.title != ''
-               ORDER BY e.title"""
-        )
+        cursor.execute("""SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
+                          FROM endpoints e JOIN hosts h ON h.id = e.host_id
+                          WHERE h.is_alive = 1 AND e.title IS NOT NULL AND e.title != ''
+                          ORDER BY e.title""")
         for row in cursor.fetchall():
-            host_name = row["host"]
-            if not _is_in_scope(host_name, scope_domains):
+            if not _is_in_scope(row["host"], scope_domains):
                 continue
-
             title = (row["title"] or "").lower()
             if any(kw in title for kw in keywords):
                 important.append({
-                    "url": row["url"],
-                    "title": row["title"],
-                    "status": row["status_code"],
-                    "server": row["web_server"] or "",
-                    "target": host_name,
-                    "ip": json.loads(row["ips"])[0] if row["ips"] else "",
+                    "url": row["url"], "title": row["title"],
+                    "status": row["status_code"], "server": row["web_server"] or "",
+                    "target": row["host"], "ip": json.loads(row["ips"])[0] if row["ips"] else "",
                 })
-
                 if len(important) >= limit:
                     break
-
     return important
 
 
 def _get_dashboard_endpoints(proj_path: str, limit: int = 100) -> list[dict]:
-    """
-    Return all endpoints with relevant status codes and titles,
-    normalized the same way the old DataviewJS code did.
-    """
     scope_domains = _get_scope_domains(proj_path)
-
     endpoints = []
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
-            FROM endpoints e
-            JOIN hosts h ON h.id = e.host_id
-            WHERE h.is_alive = 1
-              AND e.status_code IN (200, 401, 403)
-              AND e.title IS NOT NULL AND e.title != '' AND e.title != '-'
-            ORDER BY h.host, e.url
-        """)
+        cursor.execute("""SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
+                          FROM endpoints e JOIN hosts h ON h.id = e.host_id
+                          WHERE h.is_alive = 1 AND e.status_code IN (200, 401, 403)
+                          AND e.title IS NOT NULL AND e.title != '' AND e.title != '-'
+                          ORDER BY h.host, e.url""")
         seen_urls = set()
         for row in cursor.fetchall():
-            host_name = row["host"]
-            if not _is_in_scope(host_name, scope_domains):
+            if not _is_in_scope(row["host"], scope_domains):
                 continue
-
             url = row["url"]
-            # Normalize: remove :80 and :443 from standard ports
             url = re.sub(r'^http:\/\/([^\/:]+):80\b', r'http://\1', url)
             url = re.sub(r'^https:\/\/([^\/:]+):443\b', r'https://\1', url)
-            # Remove trailing slash
             url = url.rstrip("/")
-
             if url in seen_urls:
                 continue
             seen_urls.add(url)
-
             endpoints.append({
-                "url": url,
-                "title": row["title"] or "-",
-                "status": row["status_code"],
-                "server": row["web_server"] or "",
-                "target": host_name,
+                "url": url, "title": row["title"] or "-",
+                "status": row["status_code"], "server": row["web_server"] or "",
+                "target": row["host"],
             })
-
             if len(endpoints) >= limit:
                 break
-
     return endpoints
-
-
-def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
-    """
-    Fetch ALL data for a single target from the DB.
-    Returns a nested dict ready for Jinja2.
-    """
-    scope_domains = _get_scope_domains(proj_path)
-
-    # Reject out-of-scope hosts
-    if not _is_in_scope(host_name, scope_domains):
-        return None
-
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-
-        # No is_alive filter here — already filtered upstream by get_targets_list()
-        cursor.execute(
-            "SELECT * FROM hosts WHERE host = ?",
-            (host_name,),
-        )
-        host_row = cursor.fetchone()
-        if not host_row:
-            return None
-
-        host = dict(host_row)
-        host["ips"] = json.loads(host["ips"]) if host.get("ips") else []
-        host["cnames"] = json.loads(host["cnames"]) if host.get("cnames") else []
-
-        # ── Ports ───────────────────────────────────────────────────────
-        cursor.execute(
-            """SELECT port, protocol, state, service, version
-               FROM ports WHERE host_id = ?
-               ORDER BY port""",
-            (host["id"],),
-        )
-        ports = [dict(r) for r in cursor.fetchall()]
-        open_ports = [p for p in ports if p["state"] == "open"]
-
-        # ── Endpoints ───────────────────────────────────────────────────
-        cursor.execute(
-            """SELECT url, status_code, content_length, content_type,
-                      title, web_server, tech_stack, source_tool,
-                      vulnerability_patterns
-               FROM endpoints WHERE host_id = ?
-               ORDER BY url""",
-            (host["id"],),
-        )
-        endpoints = []
-        for r in cursor.fetchall():
-            ep = dict(r)
-            ep["tech_stack"] = json.loads(ep["tech_stack"]) if ep.get("tech_stack") else []
-            ep["vulnerability_patterns"] = (
-                json.loads(ep["vulnerability_patterns"])
-                if ep.get("vulnerability_patterns") else []
-            )
-            endpoints.append(ep)
-
-        # ── Vulnerabilities ─────────────────────────────────────────────
-        cursor.execute(
-            """SELECT title, severity, cvss_score, cvss_vector, cve_id,
-                      vuln_name, description, matched_at, curl_command,
-                      remediation, impact, reference_urls, source_tool,
-                      enriched_by, created_at
-               FROM vulnerabilities WHERE host_id = ?
-               ORDER BY
-                 CASE severity
-                   WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1
-                   WHEN 'Média'  THEN 2 WHEN 'Baixa' THEN 3
-                   ELSE 4
-                 END""",
-            (host["id"],),
-        )
-        vulnerabilities = []
-        for r in cursor.fetchall():
-            vuln = dict(r)
-            vuln["reference_urls"] = (
-                json.loads(vuln["reference_urls"])
-                if vuln.get("reference_urls") else []
-            )
-            vuln["severity_emoji"] = {
-                "Crítica": "🔴", "Alta": "🟠",
-                "Média": "🟡", "Baixa": "🟢", "Info": "🔵",
-            }.get(vuln["severity"], "⚪")
-            vuln["cvss_score"] = float(vuln["cvss_score"]) if vuln.get("cvss_score") else None
-            vuln["filename"] = (
-                f"{vuln['created_at'][:8] if vuln.get('created_at') else '00000000'}"
-                f"_{vuln['title'][:40].replace(' ', '_')}.md"
-            )
-            vulnerabilities.append(vuln)
-
-        # ── Screenshots ─────────────────────────────────────────────────
-        cursor.execute(
-            "SELECT file_path, created_at FROM screenshots WHERE host_id = ?",
-            (host["id"],),
-        )
-        screenshots = [dict(r) for r in cursor.fetchall()]
-
-        # ── JS Discoveries ──────────────────────────────────────────────
-        cursor.execute(
-            "SELECT source_js_url, discovered_route FROM js_discoveries WHERE host_id = ?",
-            (host["id"],),
-        )
-        js_discoveries = [dict(r) for r in cursor.fetchall()]
-
-        # ── Compute derived fields ──────────────────────────────────────
-        tech_stack = list(set(
-            tech for ep in endpoints
-            for tech in ep.get("tech_stack", [])
-        ))
-        tech_stack.sort()
-
-        all_tasks = [
-            *[{"type": "port", "label": f"Enumerar porta {p['port']}/{p['protocol']} ({p['service']})",
-               "done": False} for p in open_ports
-              if p["service"] not in ("ssl", "tcpwrapped", "unknown")],
-        ]
-        if endpoints:
-            all_tasks.append({"type": "web", "label": "Analisar endpoints web", "done": False})
-        if vulnerabilities:
-            all_tasks.append({"type": "review", "label": "Revisar vulnerabilidades encontradas",
-                              "done": False})
-        if js_discoveries:
-            all_tasks.append({"type": "js", "label": "Analisar rotas descobertas em JS",
-                              "done": False})
-
-        report = {
-            "name": host["host"],
-            "ip": host["ips"][0] if host["ips"] else "",
-            "all_ips": host["ips"],
-            "cnames": host["cnames"],
-            "whois": host.get("whois_data", ""),
-            "is_alive": bool(host["is_alive"]),
-            "last_updated": host["last_updated"],
-            "open_ports_count": len(open_ports),
-            "ports": open_ports,
-            "all_ports": ports,
-            "endpoints": endpoints,
-            "endpoint_count": len(endpoints),
-            "httpx_count": len([e for e in endpoints if e["source_tool"] in ("httpx", "recon_httpx")]),
-            "nuclei_count": len(vulnerabilities),
-            "js_endpoint_count": len(js_discoveries),
-            "screenshot_count": len(screenshots),
-            "tech_stack": tech_stack,
-            "tech_summary": f"O host possui {', '.join(tech_stack) if tech_stack else 'tecnologias a serem identificadas'}.",
-            "vulnerabilities": vulnerabilities,
-            "vuln_count": len(vulnerabilities),
-            "vulns_critical": len([v for v in vulnerabilities if v["severity"] == "Crítica"]),
-            "vulns_high": len([v for v in vulnerabilities if v["severity"] == "Alta"]),
-            "vulns_medium": len([v for v in vulnerabilities if v["severity"] == "Média"]),
-            "vulns_low": len([v for v in vulnerabilities if v["severity"] == "Baixa"]),
-            "screenshots": screenshots,
-            "js_discoveries": js_discoveries,
-            "pending_tasks": [t["label"] for t in all_tasks if not t["done"]],
-            "completed_tasks": [t["label"] for t in all_tasks if t["done"]],
-            "pipeline_status": "completed" if vulnerabilities else "in_progress",
-        }
-        return report
-
-
-def get_vulnerability_detail(proj_path: str, vuln_id: int) -> Optional[dict]:
-    """Fetch a single vulnerability with host info for rendering."""
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """SELECT v.*, h.host as target_host, h.ips
-               FROM vulnerabilities v
-               JOIN hosts h ON h.id = v.host_id
-               WHERE v.id = ?""",
-            (vuln_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return None
-
-        vuln = dict(row)
-        vuln["reference_urls"] = (
-            json.loads(vuln["reference_urls"])
-            if vuln.get("reference_urls") else []
-        )
-        vuln["target_ips"] = json.loads(vuln["ips"]) if vuln.get("ips") else []
-        vuln["cvss_score"] = float(vuln["cvss_score"]) if vuln.get("cvss_score") else None
-        vuln["severity_emoji"] = {
-            "Crítica": "🔴", "Alta": "🟠",
-            "Média": "🟡", "Baixa": "🟢", "Info": "🔵",
-        }.get(vuln["severity"], "⚪")
-        return vuln
 
 
 # ═════════════════════════════════════════════════════════════════════
 # JINJA2 RENDERER
 # ═════════════════════════════════════════════════════════════════════
 
+def _render_nmap_file(target_name: str, nmap_dir: str, vault_dir: str):
+    """Read nmap.nmap from the target's nmap directory and write it as a code block."""
+    nmap_target_dir = os.path.join(nmap_dir, f"nmap-{target_name}")
+    nmap_nmap_file = os.path.join(nmap_target_dir, "nmap.nmap")
+
+    if not os.path.exists(nmap_nmap_file):
+        return
+
+    try:
+        with open(nmap_nmap_file, "r", encoding="utf-8", errors="ignore") as f:
+            raw_content = f.read()
+    except Exception:
+        return
+
+    # Trim to a reasonable size (first 500 lines) to avoid Obsidian choking
+    lines = raw_content.split("\n")
+    if len(lines) > 500:
+        lines = lines[:500]
+        lines.append("\n*... (resultado truncado para 500 linhas — completo no arquivo original)*")
+
+    content = "\n".join(lines)
+
+    nmd_md = f"""---
+tipo: nmap-results
+target: {target_name}
+---
+
+# 🧹 Nmap — {target_name}
+
+```bash
+{content}
+```
+"""
+    
+    nmap_out_path = os.path.join(vault_dir, "nmap.md")
+    with open(nmap_out_path, "w", encoding="utf-8") as f:
+        f.write(nmd_md)
+
+
 def _get_jinja_env():
-    """Create a Jinja2 environment pointing at the templates directory."""
     if not os.path.exists(TEMPLATE_DIR):
         os.makedirs(TEMPLATE_DIR, exist_ok=True)
-    return Environment(
-        loader=FileSystemLoader(TEMPLATE_DIR),
-        autoescape=False,
-        keep_trailing_newline=True,
-    )
+    return Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False, keep_trailing_newline=True)
 
 
 def _get_vault_path(obsdir: str, proj_name: str, target_name: str = None) -> str:
-    """Build the target directory path inside the Obsidian vault."""
     base = os.path.join(obsdir, proj_name, "Pentest", "Alvos")
     if target_name:
         vault_dir = os.path.join(base, target_name)
@@ -537,15 +392,6 @@ def _get_vault_path(obsdir: str, proj_name: str, target_name: str = None) -> str
 
 
 def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -> bool:
-    """
-    Fetch data for a single target and render:
-      - target.md          (lightweight summary)
-      - Endpoints/Index.md (route group index)
-      - Endpoints/*.md     (one per route group)
-      - js-discoveries.md  (JS routes)
-      - httpx-results.md   (httpx data)
-      - Vulnerabilidades/*.md (one per vuln)
-    """
     report = get_target_report(proj_path, host_name)
     if not report:
         console.print(f" [yellow]⚠ Alvo '{host_name}' não encontrado no banco.[/yellow]")
@@ -558,65 +404,51 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     os.makedirs(endpoints_dir, exist_ok=True)
     os.makedirs(vulns_dir, exist_ok=True)
 
-    # ── 1. Target note (lightweight) ────────────────────────────────────
-    target_template = env.get_template("target.j2")
-    target_md = target_template.render(target=report)
-    target_path = os.path.join(vault_dir, f"{host_name}.md")
-    with open(target_path, "w", encoding="utf-8") as f:
-        f.write(target_md)
-
-    # ── 2. Endpoints — group by route ──────────────────────────────────
+    # Group endpoints by route
     groups = _group_endpoints_by_route(report["endpoints"])
     group_names = list(groups.keys())
 
-    # 2a. Endpoints/Index.md — route group listing
-    ep_index_template = env.get_template("endpoints-index.j2")
-    ep_index_md = ep_index_template.render(
+    # 1. Target note (with inline route index table)
+    target_md = env.get_template("target.j2").render(
         target=report,
         groups=groups,
         group_names=group_names,
-        total_endpoints=report["endpoint_count"],
     )
-    ep_index_path = os.path.join(endpoints_dir, "Index.md")
-    with open(ep_index_path, "w", encoding="utf-8") as f:
-        f.write(ep_index_md)
+    with open(os.path.join(vault_dir, f"{host_name}.md"), "w", encoding="utf-8") as f:
+        f.write(target_md)
 
-    # 2b. One .md per route group
+    # 2. One .md per route group (actual endpoints)
     ep_group_template = env.get_template("endpoint-group.j2")
     for group_name, group_eps in groups.items():
         group_md = ep_group_template.render(
-            target=report,
-            group_name=group_name,
-            endpoints=group_eps,
-            count=len(group_eps),
+            target=report, group_name=group_name,
+            endpoints=group_eps, count=len(group_eps),
         )
-        group_path = os.path.join(endpoints_dir, f"{group_name}.md")
-        with open(group_path, "w", encoding="utf-8") as f:
+        with open(os.path.join(endpoints_dir, f"{group_name}.md"), "w", encoding="utf-8") as f:
             f.write(group_md)
 
-    # ── 3. JS Discoveries ──────────────────────────────────────────────
+    # 3. nmap.md (full scan output)
+    nmap_dir = _get_nmap_dir(proj_path)
+    _render_nmap_file(host_name, nmap_dir, vault_dir)
+
+    # 4. JS Discoveries
     if report["js_discoveries"]:
-        js_template = env.get_template("js-discoveries.j2")
-        js_md = js_template.render(target=report)
-        js_path = os.path.join(vault_dir, "js-discoveries.md")
-        with open(js_path, "w", encoding="utf-8") as f:
+        js_md = env.get_template("js-discoveries.j2").render(target=report)
+        with open(os.path.join(vault_dir, "js-discoveries.md"), "w", encoding="utf-8") as f:
             f.write(js_md)
 
-    # ── 4. HTTPX Results ───────────────────────────────────────────────
+    # 5. HTTPX Results
     if report["httpx_count"] > 0:
-        httpx_template = env.get_template("httpx-results.j2")
-        httpx_md = httpx_template.render(target=report)
-        httpx_path = os.path.join(vault_dir, "httpx-results.md")
-        with open(httpx_path, "w", encoding="utf-8") as f:
+        httpx_md = env.get_template("httpx-results.j2").render(target=report)
+        with open(os.path.join(vault_dir, "httpx-results.md"), "w", encoding="utf-8") as f:
             f.write(httpx_md)
 
-    # ── 5. Vulnerabilities ─────────────────────────────────────────────
+    # 6. Vulnerabilities
     vuln_template = env.get_template("vuln.j2")
     vuln_count = 0
     for vuln in report.get("vulnerabilities", []):
         vuln_md = vuln_template.render(target=report, vuln=vuln)
-        vuln_path = os.path.join(vulns_dir, vuln["filename"])
-        with open(vuln_path, "w", encoding="utf-8") as f:
+        with open(os.path.join(vulns_dir, vuln["filename"]), "w", encoding="utf-8") as f:
             f.write(vuln_md)
         vuln_count += 1
 
@@ -628,57 +460,37 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     return True
 
 
-
 def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
-    """Render the global project dashboard."""
     summary = get_project_summary(proj_path)
     targets = get_targets_list(proj_path)
-
-    # Attach actual port numbers and all IPs to each target
     for t in targets:
         report = get_target_report(proj_path, t["name"])
         if report:
             t["all_ips_str"] = ", ".join(report["all_ips"])
-            t["ports_str"] = ", ".join(
-                str(p["port"]) for p in report["all_ports"]
-            )
+            t["ports_str"] = ", ".join(str(p["port"]) for p in report["all_ports"])
             t["vuln_count"] = report["vuln_count"]
         else:
-            t["all_ips_str"] = "—"
-            t["ports_str"] = "—"
-            t["vuln_count"] = 0
+            t["all_ips_str"] = "—"; t["ports_str"] = "—"; t["vuln_count"] = 0
 
     important = _get_important_endpoints(proj_path)
-
-    env = _get_jinja_env()
-    dashboard_template = env.get_template("dashboard.j2")
-
     all_endpoints = _get_dashboard_endpoints(proj_path)
 
-    dashboard_md = dashboard_template.render(
-        project_name=proj_name,
-        summary=summary,
-        targets=targets,
-        important_endpoints=important,
-        all_endpoints=all_endpoints,
+    env = _get_jinja_env()
+    dashboard_md = env.get_template("dashboard.j2").render(
+        project_name=proj_name, summary=summary, targets=targets,
+        important_endpoints=important, all_endpoints=all_endpoints,
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
-
     dashboard_dir = _get_vault_path(obsdir, proj_name)
     if SYNC_MODE == "parallel":
         dashboard_dir = os.path.join(dashboard_dir, "Sync")
     os.makedirs(dashboard_dir, exist_ok=True)
-
-    dashboard_path = os.path.join(dashboard_dir, "Dashboard_Global.md")
-    with open(dashboard_path, "w", encoding="utf-8") as f:
+    with open(os.path.join(dashboard_dir, "Dashboard_Global.md"), "w", encoding="utf-8") as f:
         f.write(dashboard_md)
-
-    console.print(f" [dim]↳ Render: Dashboard Global "
-              f"({len(important)} importantes, {len(all_endpoints)} endpoints totais)[/dim]")
+    console.print(f" [dim]↳ Render: Dashboard Global ({len(important)} importantes, {len(all_endpoints)} endpoints)[/dim]")
 
 
 def render_index(proj_path: str, obsdir: str, proj_name: str):
-    """Render a project index page with links to all targets."""
     targets = get_targets_list(proj_path)
     for t in targets:
         report = get_target_report(proj_path, t["name"])
@@ -687,34 +499,23 @@ def render_index(proj_path: str, obsdir: str, proj_name: str):
         t["endpoint_count"] = report["endpoint_count"] if report else 0
 
     env = _get_jinja_env()
-    index_template = env.get_template("index.j2")
-    index_md = index_template.render(
-        project_name=proj_name,
-        targets=targets,
+    index_md = env.get_template("index.j2").render(
+        project_name=proj_name, targets=targets,
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
-
     index_dir = _get_vault_path(obsdir, proj_name)
     if SYNC_MODE == "parallel":
         index_dir = os.path.join(index_dir, "Sync")
     os.makedirs(index_dir, exist_ok=True)
-
-    index_path = os.path.join(index_dir, "Index.md")
-    with open(index_path, "w", encoding="utf-8") as f:
+    with open(os.path.join(index_dir, "Index.md"), "w", encoding="utf-8") as f:
         f.write(index_md)
-
     console.print(f" [dim]↳ Render: Project Index[/dim]")
 
 
 def render_all(proj_path: str, obsdir: str, proj_name: str, target_name: str = None):
-    """
-    Render all targets (or a single target) for the active project.
-    Called by `openpipes sync`.
-    """
     console.print(f"\n[bold cyan]▶ Sync: Renderizando vault do Obsidian[/bold cyan]")
     console.print(f" [dim]Projeto: {proj_name}[/dim]")
     console.print(f" [dim]Modo: {'Parallel (Sync/)' if SYNC_MODE == 'parallel' else 'Direct'}[/dim]")
-
     if target_name:
         render_target(proj_path, obsdir, proj_name, target_name)
     else:
@@ -722,31 +523,17 @@ def render_all(proj_path: str, obsdir: str, proj_name: str, target_name: str = N
         if not targets:
             console.print(" [yellow]⚠ Nenhum alvo encontrado no banco de dados.[/yellow]")
             return
-
         for t in targets:
             render_target(proj_path, obsdir, proj_name, t["name"])
-
         render_dashboard(proj_path, obsdir, proj_name)
         render_index(proj_path, obsdir, proj_name)
-
     console.print(f"\n[bold green]✔ Sync concluído![/bold green]")
 
 
-# ═════════════════════════════════════════════════════════════════════
-# CLI ENTRY POINT (called from cli.py)
-# ═════════════════════════════════════════════════════════════════════
-
 def sync_project(target_name: str = None):
-    """
-    Entry point called by `openpipes sync` or the interactive menu.
-    Reads the active project from config.sh and renders everything.
-    """
     proj_name, proj_path, obsdir = _get_env_from_config()
     if not proj_name or not proj_path or not obsdir:
         console.print("[bold red]✖ Erro: Projeto não configurado. Rode init-openpipes primeiro.[/bold red]")
         return
-
-    # Ensure DB is up-to-date
     db.init_db(proj_path)
-
     render_all(proj_path, obsdir, proj_name, target_name)
