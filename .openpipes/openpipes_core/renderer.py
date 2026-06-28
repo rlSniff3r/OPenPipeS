@@ -251,6 +251,56 @@ def _get_important_endpoints(proj_path: str, limit: int = 30) -> list[dict]:
     return important
 
 
+def _get_dashboard_endpoints(proj_path: str, limit: int = 100) -> list[dict]:
+    """
+    Return all endpoints with relevant status codes and titles,
+    normalized the same way the old DataviewJS code did.
+    """
+    scope_domains = _get_scope_domains(proj_path)
+
+    endpoints = []
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
+            FROM endpoints e
+            JOIN hosts h ON h.id = e.host_id
+            WHERE h.is_alive = 1
+              AND e.status_code IN (200, 401, 403)
+              AND e.title IS NOT NULL AND e.title != '' AND e.title != '-'
+            ORDER BY h.host, e.url
+        """)
+        seen_urls = set()
+        for row in cursor.fetchall():
+            host_name = row["host"]
+            if not _is_in_scope(host_name, scope_domains):
+                continue
+
+            url = row["url"]
+            # Normalize: remove :80 and :443 from standard ports
+            url = re.sub(r'^http:\/\/([^\/:]+):80\b', r'http://\1', url)
+            url = re.sub(r'^https:\/\/([^\/:]+):443\b', r'https://\1', url)
+            # Remove trailing slash
+            url = url.rstrip("/")
+
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            endpoints.append({
+                "url": url,
+                "title": row["title"] or "-",
+                "status": row["status_code"],
+                "server": row["web_server"] or "",
+                "target": host_name,
+            })
+
+            if len(endpoints) >= limit:
+                break
+
+    return endpoints
+
+
 def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
     """
     Fetch ALL data for a single target from the DB.
@@ -525,11 +575,15 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
 
     env = _get_jinja_env()
     dashboard_template = env.get_template("dashboard.j2")
+
+    all_endpoints = _get_dashboard_endpoints(proj_path)
+
     dashboard_md = dashboard_template.render(
         project_name=proj_name,
         summary=summary,
         targets=targets,
         important_endpoints=important,
+        all_endpoints=all_endpoints,
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
 
@@ -542,7 +596,8 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
     with open(dashboard_path, "w", encoding="utf-8") as f:
         f.write(dashboard_md)
 
-    console.print(f" [dim]↳ Render: Dashboard Global ({len(important)} endpoints importantes)[/dim]")
+    console.print(f" [dim]↳ Render: Dashboard Global "
+              f"({len(important)} importantes, {len(all_endpoints)} endpoints totais)[/dim]")
 
 
 def render_index(proj_path: str, obsdir: str, proj_name: str):

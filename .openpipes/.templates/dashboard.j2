@@ -62,4 +62,22 @@ gerado_em: {{ generated_at }}
 
 ---
 
+## 🌐 Endpoints Encontrados nos Alvos
+{%- if all_endpoints %}
+
+<details>
+<summary>Mostrar todos os {{ all_endpoints | length }} endpoints</summary>
+
+| URL | Título | Status | Servidor | Alvo |
+|-----|--------|--------|----------|------|
+{%- for ep in all_endpoints %}
+| `{{ ep.url }}` | {{ ep.title }} | {{ ep.status }} | {{ ep.server }} | [[{{ ep.target }}/Sync/{{ ep.target }}.md\|{{ ep.target }}]] |
+{%- endfor %}
+</details>
+{%- else %}
+*Nenhum endpoint encontrado.*
+{%- endif %}
+
+---
+
 *Última sincronização: {{ generated_at }}*
