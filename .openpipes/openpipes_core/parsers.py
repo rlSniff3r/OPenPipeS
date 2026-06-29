@@ -105,8 +105,7 @@ def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None)
             )
         return host_id
 
-    # ── Before creating a new host, check if any IP already belongs to
-    # ── an existing host (e.g., CDN hostname from nmap reverse DNS).
+    # Before creating a new host, check if any IP already belongs to an existing host
     for ip in ips_to_add:
         if is_ipv4(ip):
             cursor.execute("SELECT id, ips FROM hosts WHERE ips LIKE ?", (f'%"{ip}"%',))
@@ -296,7 +295,6 @@ def parse_nmap(proj_path, nmap_dir):
                         if host_id:
                             cursor.execute('UPDATE hosts SET is_alive = 1 WHERE id = ?', (host_id,))
 
-                        # WHOIS
                         whois_data = ""
                         for script in host_node.findall(".//script"):
                             if script.get('id') in ('whois-ip', 'whois-domain'):
@@ -330,16 +328,15 @@ def parse_httpx(proj_path, nmap_dir):
     json_file = os.path.join(nmap_dir, "httpx_output.json")
     if not os.path.exists(json_file):
         return
-
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count_endpoints, _ = process_httpx_json(cursor, json_file, source_name="httpx")
-
     console.print(f" [dim]↳ Parser HTTPx: Ingeriu {count_endpoints} URLs e Tecnologias.[/dim]")
 
 
 def parse_url_discovery(proj_path, nmap_dir, tool_name):
+    """Legacy text-based URL parser (fallback when JSONL not available)."""
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
@@ -364,7 +361,6 @@ def parse_url_discovery(proj_path, nmap_dir, tool_name):
                             if cursor.rowcount > 0:
                                 count += 1
 
-                            # Ensure a port record exists for this endpoint
                             parsed = urlparse(url)
                             ep_port = parsed.port or (443 if parsed.scheme == "https" else 80)
                             service_map = {80: "http", 443: "https", 8080: "http-proxy",
@@ -375,34 +371,33 @@ def parse_url_discovery(proj_path, nmap_dir, tool_name):
                     pass
 
     if count > 0:
-        console.print(f" [dim]↳ Parser {tool_name.capitalize()}: Mapeou {count} Endpoints.[/dim]")
+        console.print(f" [dim]↳ Parser {tool_name}: Mapeou {count} Endpoints (TXT).[/dim]")
 
 
-def parse_url_discovery_json(proj_path, nmap_dir, tool_name):
+def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
     """
-    Parse JSON output from katana/feroxbuster that includes status_code
-    and content_length. Falls back to text parsing if no JSON file found.
+    Parse JSONL output from katana/feroxbuster with nested structure:
+      {"request": {"endpoint": "..."}, "response": {"status_code": 200, "content_length": 1234}}
+    Falls back to text parsing if no JSONL file found.
     """
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
-            json_files = []
+            jsonl_files = []
 
             for root, dirs, files in os.walk(nmap_dir):
                 for file in files:
-                    if tool_name in file.lower() and file.endswith('.json'):
-                        json_files.append(os.path.join(root, file))
+                    if tool_name in file.lower() and file.endswith('.jsonl'):
+                        jsonl_files.append(os.path.join(root, file))
 
-            if not json_files:
-                # Fall back to text-based parsing
-                console.print(f" [dim]↳ Parser {tool_name}: JSON não encontrado, usando TXT.[/dim]")
+            if not jsonl_files:
                 parse_url_discovery(proj_path, nmap_dir, tool_name)
                 return
 
-            for json_file in json_files:
+            for jsonl_file in jsonl_files:
                 try:
-                    with open(json_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    with open(jsonl_file, 'r', encoding='utf-8', errors='ignore') as f:
                         for line in f:
                             line = line.strip()
                             if not line:
@@ -412,7 +407,14 @@ def parse_url_discovery_json(proj_path, nmap_dir, tool_name):
                             except json.JSONDecodeError:
                                 continue
 
-                            url = data.get('url', '') or data.get('URL', '')
+                            # Skip error entries (host not found, timeout)
+                            if data.get("error"):
+                                continue
+
+                            request_data = data.get("request", {})
+                            response_data = data.get("response", {})
+
+                            url = request_data.get("endpoint", "") or data.get("url", "")
                             if not url:
                                 continue
 
@@ -424,29 +426,23 @@ def parse_url_discovery_json(proj_path, nmap_dir, tool_name):
                             if not host_id:
                                 continue
 
-                            # Extract metadata from JSON
-                            status_code = data.get('status', data.get('status-code', data.get('status_code')))
-                            content_length = data.get('content-length', data.get('content_length', data.get('content_length')))
-                            title = data.get('title', '')
+                            status_code = response_data.get("status_code") if response_data else None
+                            content_length = response_data.get("content_length") if response_data else None
 
                             cursor.execute("""
                                 INSERT INTO endpoints
-                                    (host_id, url, status_code, content_length, title, source_tool)
-                                VALUES (?, ?, ?, ?, ?, ?)
+                                    (host_id, url, status_code, content_length, source_tool)
+                                VALUES (?, ?, ?, ?, ?)
                                 ON CONFLICT(url) DO UPDATE SET
                                     status_code=excluded.status_code,
-                                    content_length=excluded.content_length,
-                                    title=excluded.title
-                            """, (host_id, url, status_code, content_length, title, tool_name))
+                                    content_length=excluded.content_length
+                            """, (host_id, url, status_code, content_length, tool_name))
                             if cursor.rowcount > 0:
                                 count += 1
 
-                            # Ensure port record exists
                             parsed = urlparse(url)
                             ep_port = parsed.port or (443 if parsed.scheme == "https" else 80)
-                            service_map = {80: "http", 443: "https", 8080: "http-proxy"}
-                            _ensure_port(cursor, host_id, ep_port, "tcp",
-                                         service_map.get(ep_port, "unknown"))
+                            _ensure_port(cursor, host_id, ep_port, "tcp")
                 except Exception:
                     continue
 
@@ -454,17 +450,14 @@ def parse_url_discovery_json(proj_path, nmap_dir, tool_name):
 
 
 def parse_screenshot(proj_path):
-    """Lê o Banco do Gowitness e atrela imagens aos nossos hosts"""
     screenshot_dir = os.path.join(proj_path, "Varreduras", "screenshots")
     db_path = os.path.join(screenshot_dir, "gowitness.sqlite3")
     if not os.path.exists(db_path):
         return
-
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
-
             try:
                 gw_conn = sqlite3.connect(db_path)
                 gw_cursor = gw_conn.cursor()
@@ -484,36 +477,27 @@ def parse_screenshot(proj_path):
                 gw_conn.close()
             except Exception as e:
                 console.print(f" [yellow]Erro lendo db gowitness: {e}[/yellow]")
-
     if count > 0:
         console.print(f" [dim]↳ Parser Gowitness: Atrelou {count} Screenshots aos hosts.[/dim]")
 
 
 def parse_gf(proj_path, nmap_dir):
-    """
-    Parse gf-summary.json files from each target's nmap directory.
-    Tags endpoints in the database with vulnerability patterns found by gf.
-    """
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
-
             for nmap_folder in sorted(os.listdir(nmap_dir)):
                 if not nmap_folder.startswith("nmap-"):
                     continue
                 gf_file = os.path.join(nmap_dir, nmap_folder, "gf-summary.json")
                 if not os.path.exists(gf_file):
                     continue
-
                 try:
                     with open(gf_file, "r") as f:
                         data = json.load(f)
                 except (json.JSONDecodeError, IOError):
                     continue
-
                 gf_patterns = data.get("gf_patterns", {})
-
                 for pattern_name, urls in gf_patterns.items():
                     for url in urls:
                         if not url.strip():
@@ -532,48 +516,36 @@ def parse_gf(proj_path, nmap_dir):
                                     (json.dumps(patterns), row["id"]),
                                 )
                                 count += 1
-
     console.print(f" [dim]↳ Parser GF: Injetou {count} Tags de Padrões em Endpoints.[/dim]")
 
 
 def parse_jsfinder(proj_path, nmap_dir):
-    """
-    Parse jsfinder-results.json files from each target's nmap directory.
-    Inserts discovered JS routes into the js_discoveries table.
-    """
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
-
             for nmap_folder in sorted(os.listdir(nmap_dir)):
                 if not nmap_folder.startswith("nmap-"):
                     continue
                 js_file = os.path.join(nmap_dir, nmap_folder, "jsfinder-results.json")
                 if not os.path.exists(js_file):
                     continue
-
                 try:
                     with open(js_file, "r") as f:
                         data = json.load(f)
                 except (json.JSONDecodeError, IOError):
                     continue
-
                 results = data.get("results", [])
-
                 for entry in results:
                     source_js_url = entry.get("source_js_url", "")
                     if not source_js_url:
                         continue
-
                     host_str = urlparse(source_js_url).hostname
                     if not host_str:
                         continue
-
                     host_id = get_or_create_host(cursor, host_str)
                     if not host_id:
                         continue
-
                     for route in entry.get("discovered_routes", []):
                         if not route.strip():
                             continue
@@ -589,7 +561,6 @@ def parse_jsfinder(proj_path, nmap_dir):
                                 count += 1
                         except Exception:
                             continue
-
     console.print(f" [dim]↳ Parser JSFinder: Salvou {count} rotas/arquivos descobertos no JS.[/dim]")
 
 
@@ -598,17 +569,14 @@ def parse_jsfinder(proj_path, nmap_dir):
 # ═════════════════════════════════════════════════════════════════════
 
 def parse_nuclei(proj_path, nmap_dir):
-    """Consume nuclei -json output lines into the vulnerabilities table."""
     json_file = os.path.join(nmap_dir, "nuclei_output.json")
     if not os.path.exists(json_file):
         console.print(" [dim]↳ Parser Nuclei: Arquivo nuclei_output.json não encontrado.[/dim]")
         return
-
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
-
             with open(json_file, "r", encoding="utf-8", errors="ignore") as f:
                 for line in f:
                     line = line.strip()
@@ -618,45 +586,36 @@ def parse_nuclei(proj_path, nmap_dir):
                         data = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-
                     host_str = data.get("host") or data.get("ip", "")
                     if not host_str:
                         continue
-
                     ips = [data["ip"]] if data.get("ip") else []
                     host_id = get_or_create_host(cursor, host_str, ips)
                     if not host_id:
                         continue
-
                     info = data.get("info", {}) or {}
                     vuln_name = data.get("template-id") or info.get("name", "unknown")
                     raw_severity = (data.get("severity") or info.get("severity", "info")).lower()
-
                     severity_label = {
                         "critical": "Crítica", "high": "Alta",
                         "medium": "Média", "low": "Baixa", "info": "Info",
                     }.get(raw_severity, raw_severity.capitalize())
-
                     cvss_score = data.get("cvss-score") or info.get("cvss-score")
                     cvss_vector = data.get("cvss-metrics") or info.get("cvss-metrics")
-
                     cve_raw = data.get("cve-id") or info.get("cve-id", [])
                     if isinstance(cve_raw, list):
                         cve_id = ",".join(cve_raw) if cve_raw else ""
                     else:
                         cve_id = str(cve_raw) if cve_raw else ""
-
                     description = data.get("description") or info.get("description", "")
                     remediation = data.get("remediation") or info.get("remediation", "")
                     matched_at = data.get("matched-at", "")
                     curl_command = data.get("curl-command", "")
                     title = data.get("name") or info.get("name", vuln_name)
-
                     raw_refs = data.get("reference") or info.get("references") or []
                     if isinstance(raw_refs, str):
                         raw_refs = [raw_refs] if raw_refs.strip() else []
                     reference_urls = json.dumps(raw_refs)
-
                     try:
                         cursor.execute("""
                             INSERT INTO vulnerabilities
@@ -665,28 +624,21 @@ def parse_nuclei(proj_path, nmap_dir):
                                  curl_command, remediation, reference_urls, source_tool)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             ON CONFLICT(vuln_name, matched_at, host_id) DO UPDATE SET
-                                severity      = excluded.severity,
-                                cvss_score    = excluded.cvss_score,
-                                cvss_vector   = excluded.cvss_vector,
-                                cve_id        = excluded.cve_id,
-                                description   = excluded.description,
-                                remediation   = excluded.remediation,
-                                reference_urls = excluded.reference_urls,
-                                source_tool   = excluded.source_tool
+                                severity=excluded.severity, cvss_score=excluded.cvss_score,
+                                cvss_vector=excluded.cvss_vector, cve_id=excluded.cve_id,
+                                description=excluded.description, remediation=excluded.remediation,
+                                reference_urls=excluded.reference_urls, source_tool=excluded.source_tool
                         """, (
                             host_id, title, severity_label,
                             float(cvss_score) if cvss_score else None,
                             cvss_vector or None, cve_id or None,
                             vuln_name, description, matched_at,
-                            curl_command, remediation,
-                            reference_urls, "nuclei",
+                            curl_command, remediation, reference_urls, "nuclei",
                         ))
                         if cursor.rowcount > 0:
                             count += 1
-                    except Exception as e:
-                        console.print(f" [yellow]Nuclei insert warning: {e}[/yellow]")
+                    except Exception:
                         continue
-
     console.print(f" [dim]↳ Parser Nuclei: Inseriu {count} vulnerabilidades.[/dim]")
 
 
@@ -695,12 +647,10 @@ def parse_nuclei(proj_path, nmap_dir):
 # ═════════════════════════════════════════════════════════════════════
 
 def parse_whois_enrichment(proj_path, nmap_dir):
-    """Parse only WHOIS data from nmap XML files. ~10x faster than re-parsing all ports."""
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
-
             for root, dirs, files in os.walk(nmap_dir):
                 for file in files:
                     if not file.endswith(".xml"):
@@ -709,7 +659,6 @@ def parse_whois_enrichment(proj_path, nmap_dir):
                         tree = ET.parse(os.path.join(root, file))
                     except Exception:
                         continue
-
                     for host_node in tree.getroot().findall("host"):
                         ip = ""
                         hostname = ""
@@ -722,7 +671,6 @@ def parse_whois_enrichment(proj_path, nmap_dir):
                         target = hostname if hostname else ip
                         if not target:
                             continue
-
                         whois_data = ""
                         for script in host_node.findall(".//script"):
                             if script.get("id") in ("whois-ip", "whois-domain"):
@@ -735,8 +683,75 @@ def parse_whois_enrichment(proj_path, nmap_dir):
                                     (whois_data.strip(), host_id),
                                 )
                                 count += 1
-
     console.print(f" [dim]↳ Parser WHOIS: Atualizou WHOIS de {count} hosts.[/dim]")
+
+
+# ═════════════════════════════════════════════════════════════════════
+# FALSE POSITIVE DETECTION
+# ═════════════════════════════════════════════════════════════════════
+
+def flag_false_positives(proj_path: str):
+    """
+    Tag endpoints as potential_false_positive based on:
+    1. Content-length clustering (5+ URLs, same host+status+size → same error page)
+    2. Error keywords in title
+    """
+    error_titles = [
+        "not found", "404", "error", "forbidden", "access denied",
+        "page not found", "pagina nao encontrada", "página não encontrada",
+        "erro", "acesso negado", "nao encontrado", "não encontrado",
+        "bad request", "internal server error", "method not allowed",
+        "access denied", "blocked", "waf", "security",
+    ]
+
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            tagged = 0
+
+            # ── Cluster detection: 5+ endpoints with same host+status+size ──
+            cursor.execute("""
+                SELECT host_id, status_code, content_length, COUNT(*) as cnt
+                FROM endpoints
+                WHERE status_code IS NOT NULL AND content_length > 0
+                GROUP BY host_id, status_code, content_length
+                HAVING cnt >= 5
+                ORDER BY cnt DESC
+            """)
+            clusters = cursor.fetchall()
+            for row in clusters:
+                cursor.execute("""
+                    SELECT id, url, vulnerability_patterns FROM endpoints
+                    WHERE host_id = ? AND status_code = ? AND content_length = ?
+                """, (row["host_id"], row["status_code"], row["content_length"]))
+                for ep in cursor.fetchall():
+                    patterns = json.loads(ep["vulnerability_patterns"]) if ep["vulnerability_patterns"] else []
+                    if "potential_false_positive" not in patterns:
+                        patterns.append("potential_false_positive")
+                        cursor.execute(
+                            "UPDATE endpoints SET vulnerability_patterns = ? WHERE id = ?",
+                            (json.dumps(patterns), ep["id"]),
+                        )
+                        tagged += 1
+
+            # ── Title heuristic ──
+            for kw in error_titles:
+                cursor.execute("""
+                    SELECT id, vulnerability_patterns FROM endpoints
+                    WHERE LOWER(title) LIKE ? AND title IS NOT NULL AND title != ''
+                """, (f"%{kw}%",))
+                for ep in cursor.fetchall():
+                    patterns = json.loads(ep["vulnerability_patterns"]) if ep["vulnerability_patterns"] else []
+                    if "potential_false_positive" not in patterns:
+                        patterns.append("potential_false_positive")
+                        cursor.execute(
+                            "UPDATE endpoints SET vulnerability_patterns = ? WHERE id = ?",
+                            (json.dumps(patterns), ep["id"]),
+                        )
+                        tagged += 1
+
+    if tagged > 0:
+        console.print(f" [dim]↳ False Positive Detection: Marcou {tagged} endpoints como potenciais falsos positivos.[/dim]")
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -744,9 +759,7 @@ def parse_whois_enrichment(proj_path, nmap_dir):
 # ═════════════════════════════════════════════════════════════════════
 
 def dispatch(module_name, proj_path, nmap_dir):
-    # Always ensure schema is up-to-date before parsing
     db.init_db(proj_path)
-
     recon_dir = os.path.join(proj_path, "Recon")
 
     if module_name == "recon":
@@ -756,9 +769,9 @@ def dispatch(module_name, proj_path, nmap_dir):
     elif module_name == "httpx-runner":
         parse_httpx(proj_path, nmap_dir)
     elif module_name == "feroxbuster-runner":
-        parse_url_discovery(proj_path, nmap_dir, "ferox")
+        parse_url_discovery_jsonl(proj_path, nmap_dir, "ferox")
     elif module_name in ("katana-runner", "katana-buster"):
-        parse_url_discovery(proj_path, nmap_dir, "crawled")
+        parse_url_discovery_jsonl(proj_path, nmap_dir, "crawled")
     elif module_name == "screenshot-runner":
         parse_screenshot(proj_path)
     elif module_name == "gf-summary":
@@ -769,10 +782,9 @@ def dispatch(module_name, proj_path, nmap_dir):
         parse_whois_enrichment(proj_path, nmap_dir)
     elif module_name == "nuclei-runner":
         parse_nuclei(proj_path, nmap_dir)
-    elif module_name == "feroxbuster-runner":
-        parse_url_discovery_json(proj_path, nmap_dir, "ferox")
-    elif module_name in ("katana-runner", "katana-buster"):
-        parse_url_discovery_json(proj_path, nmap_dir, "crawled")
-
     else:
         console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")
+        return
+
+    # Run false positive detection after every parse
+    flag_false_positives(proj_path)

@@ -60,7 +60,8 @@ process_target() {
     # ──────────────────────────────────────────────────────────────────────
 
 #    local INPUT_TMP=$(cat "$OBSIDIAN_DIR/endpoints.md" | sed -E 's/(:80|:443)(\/|$)/\2/g' | sort -u)
-    local INPUT_FILE="$OBSIDIAN_DIR/endpoints.md"
+#    local INPUT_FILE="$OBSIDIAN_DIR/endpoints.md"
+    local INPUT_FILE="$WORK_DIR/alive_urls.txt"
 
     if [ ! -s "$INPUT_FILE" ]; then
         echo -e "${RED}[!] alive_urls.txt não encontrado ou vazio${NC}"
@@ -81,18 +82,24 @@ process_target() {
 
     echo -e "${CYAN}    -> Profundidade: $KATANA_DEPTH | Concorrência: $KATANA_CONCURRENCY${NC}"
 
+    REGEX_ESCOPO=$(awk 'NF' $DOMAIN_FILE | sed 's/\./\\./g' | paste -sd '|' - | sed 's/^/(/' | sed 's/$/)/')
+
     katana -list "$INPUT_FILE" \
         -d "$KATANA_DEPTH" \
         -c "$KATANA_CONCURRENCY" \
+        -silent \
+        -fs "$REGEX_ESCOPO" \
+        -cs "$REGEX_ESCOPO" \
+        -cos "(facebook|twitter|instagram|linkedin|youtube|google|github|apple|microsoft)" \
         -jc \
         -kf all \
-        -fsc 400,401,404,500,501,502,503 \
-        -json \
-        -silent \
-        -o "$WORK_DIR/crawled_all.json"
+        -or \
+        -ob \
+        -jsonl \
+        -o "$WORK_DIR/crawled_all.jsonl"
 
     # Keep text version for backward compatibility
-    jq -r '.url' "$WORK_DIR/crawled_all.json" > "$WORK_DIR/crawled_all.txt" 2>/dev/null
+    jq -r '.request.endpoint' "$WORK_DIR/crawled_all.jsonl" > "$WORK_DIR/crawled_all.txt" 2>/dev/null
 
 
     if [ ! -f "$CRAWLED_FILE" ]; then
@@ -199,9 +206,9 @@ mapfile -t TARGETS_ARRAY < "$TARGETS_FILE"
 
 for TARGET_NAME in "${TARGETS_ARRAY[@]}"; do
     [[ -z "$TARGET_NAME" || "$TARGET_NAME" =~ ^# ]] && continue
-    
+
     echo -e "${YELLOW}────────────────────────────────────────${NC}"
-    
+
 #    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME/Web" ]; then
         process_target "$TARGET_NAME" || echo -e "${RED}[FAIL] Erro em $TARGET_NAME${NC}"
 #    else

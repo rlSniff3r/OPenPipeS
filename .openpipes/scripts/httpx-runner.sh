@@ -87,14 +87,20 @@ for dir in "$base_dir"/nmap-*; do
   echo "http://$ip" >> "$target_list"
   echo "https://$ip" >> "$target_list"
 
+#  REGEX_FILTRO=$(awk 'NF' $DOMAIN_FILE | paste -sd '|' -)
+
+#  echo $REGEX_FILTRO
 
   timestamp=$(date +%Y%m%d-%H%M%S)
   json_out="$dir/httpx-$timestamp.json"
   url_list="$dir/httpx-$timestamp.list"
   echo "[*] Executando httpx para $targetName → $json_out"
 
-  httpx -l "$target_list" -p "$ports" -x GET,POST,OPTIONS,HEAD \
-    -title -tech-detect -server -sc -fr -ip -json -o "$json_out"
+  httpx -l "$target_list" \
+    -p "$ports" \
+    -x GET,POST,OPTIONS,HEAD \
+    -title -tech-detect -server -sc -fr -ip \
+    -json -o "$json_out"
 
   jq -r '.url' "$json_out" | sort -u > "$url_list"
 
@@ -157,4 +163,3 @@ for dir in "$base_dir"/nmap-*; do
 done
 
 echo -e "\n[🏁] httpx-runner.v3.sh finalizado com sucesso!"
-

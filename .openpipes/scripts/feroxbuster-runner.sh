@@ -65,7 +65,8 @@ process_target() {
         # PASSO 1: Validar inputs
         # ──────────────────────────────────────────────────────────────────────
 
-        local URLS_FILE="$obsdir/$proj_name/Pentest/Alvos/$TARGET/endpoints.md"
+#        local URLS_FILE="$obsdir/$proj_name/Pentest/Alvos/$TARGET/endpoints.md"
+        local URLS_FILE="$NMAP_DIR/nmap-$TARGET/alive_urls.txt"
 
         if [ ! -s "$URLS_FILE" ]; then
             echo -e "${RED}[!] alive_urls.txt não encontrado ou vazio ${NC}"
@@ -113,11 +114,11 @@ process_target() {
         while read -r url; do
             # Nome seguro para arquivo de saída
             local safe_name=$(echo "$url" | sed 's/http:\/\///;s/https:\/\///;s/[\/:]/_/g')
-            local OUTPUT_FILE="$WORK_DIR/ferox_${safe_name}.txt"
-            
+            local OUTPUT_FILE="$WORK_DIR/ferox_${safe_name}"
+
             ((FEROX_COUNT++))
             echo -e "${YELLOW}    [$FEROX_COUNT/$URL_COUNT] Fuzzing: $url${NC}"
-            
+
             # Executa feroxbuster
             feroxbuster -u "$url" \
                 -w "$WL" \
@@ -132,7 +133,7 @@ process_target() {
                 --silent 2>/dev/null || true
 
             # Keep text version for backward compatibility
-            jq -r '.url' "$OUTPUT_FILE.json" > "$OUTPUT_FILE" 2>/dev/null
+            jq -r '.url' "$OUTPUT_FILE.json" > "$OUTPUT_FILE.txt" 2>/dev/null
 
             # Conta achados neste URL
 #            if [ -f "$OUTPUT_FILE" ]; then
@@ -141,7 +142,7 @@ process_target() {
 #                TOTAL_FOUND=$((${TOTAL_FOUND} + ${FOUND}))
 #                echo -e "${GREEN}        -> $FOUND endpoints encontrados${NC}"
 #            fi
-            
+
         done < "$URLS_FILE"
 
         # ──────────────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ process_target() {
         local MD_FILE="$OBSIDIAN_DIR/feroxbuster.md"
         mkdir -p "$OBSIDIAN_DIR"
 
-	{
+        {
             echo "#  Feroxbuster Fuzzing - $TARGET"
             echo ""
             echo "**Data**: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -194,16 +195,16 @@ process_target() {
             echo "| Endpoints Encontrados | $TOTAL_FOUND |"
             echo "| Endpoints Únicos | $UNIQUE_FOUND |"
 #            echo "| Taxa de Sucesso | $(awk "BEGIN {printf \"%.1f%%\", ($UNIQUE_FOUND/$WL_SIZE)*100}") |"
-#	    echo "| Taxa de Sucesso | $(awk -v unique="$UNIQUE_FOUND" -v wl="$WL_SIZE" 'BEGIN { if (wl > 0) printf "%.1f%%", (unique/wl)*100; else print "0.0%" }') |"
+#           echo "| Taxa de Sucesso | $(awk -v unique="$UNIQUE_FOUND" -v wl="$WL_SIZE" 'BEGIN { if (wl > 0) printf "%.1f%%", (unique/wl)*100; else print "0.0%" }') |"
             echo ""
             echo "## Endpoints Descobertos"
             echo ""
             cat "$CONSOLIDATED" 2>/dev/null || echo "Nenhum endpoint descoberto"
             echo ""
             echo "---"
-	} > "$MD_FILE"
+        } > "$MD_FILE"
 
-	echo -e "${CYAN}    -> Markdown: $MD_FILE ${NC}"
+        echo -e "${CYAN}    -> Markdown: $MD_FILE ${NC}"
 }
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -228,9 +229,9 @@ mapfile -t TARGETS_ARRAY < "$TARGETS_FILE"
 
 for TARGET_NAME in "${TARGETS_ARRAY[@]}"; do
     [[ -z "$TARGET_NAME" || "$TARGET_NAME" =~ ^# ]] && continue
-    
+
     echo -e "${YELLOW}════════════════════════════════════════${NC}"
-    
+
 #    if [ -d "$NMAP_DIR/nmap-$TARGET_NAME/Web" ]; then
         process_target "$TARGET_NAME" || echo -e "${RED}[FAIL] Erro em $TARGET_NAME${NC}"
 #    else
