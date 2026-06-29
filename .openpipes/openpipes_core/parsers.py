@@ -879,8 +879,6 @@ def dispatch(module_name, proj_path, nmap_dir):
         parse_gf(proj_path, nmap_dir)
     elif module_name == "jsfinder-runner":
         parse_jsfinder(proj_path, nmap_dir)
-    elif module_name == "whois-enricher":
-        parse_whois_enrichment(proj_path, nmap_dir)
     elif module_name == "nuclei-runner":
         parse_nuclei(proj_path, nmap_dir)
     elif module_name == "whois-enricher":

@@ -63,11 +63,19 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 ## 🔗 Endpoints por Rota
 {%- if group_names %}
 
+{# 1. Cria uma lista contendo o nome e a contagem calculada de cada grupo #}
+{%- set sorted_groups = [] %}
+{%- for group_name in group_names %}
+  {%- set count = groups[group_name] | length %}
+  {%- set _ = sorted_groups.append({'name': group_name, 'count': count}) %}
+{%- endfor %}
+
 | Rota | Quantidade |
 |------|-----------|
-{%- for group_name in group_names %}
-{%- set count = groups[group_name] | length %}
-| [[Endpoints/{{ group_name }}.md\|/{{ group_name }}/]] | {{ count }} |
+{# 2. Ordena a nova lista pelo campo 'count' de forma decrescente #}
+{%- for group in sorted_groups | sort(attribute='count', reverse=True) %}
+
+| [[Endpoints/{{ group.name }}.md\|/{{ group.name }}/]] | {{ group.count }} |
 {%- endfor %}
 {%- else %}
 *Nenhum endpoint encontrado.*
