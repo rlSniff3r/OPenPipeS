@@ -10,6 +10,19 @@ vuln_count: {{ target.vuln_count }}
 last_updated: {{ target.last_updated }}
 ---
 
+{%- if target.whois %}
+{%- set whois = target.whois | from_json %}
+
+### 🌐 WHOIS
+
+| Campo | Valor |
+|-------|-------|
+{%- for key, value in whois.items() %}
+| {{ key }} | `{{ value }}` |
+{%- endfor %}
+{%- endif %}
+
+
 # {{ target.name }}
 {%- if target.is_alive %}
 
@@ -35,10 +48,6 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 ## 📘 Narrativa Técnica
 
 {{ target.tech_summary }}
-{%- if target.whois %}
-
-**WHOIS:** `{{ target.whois[:200] }}{% if target.whois|length > 200 %}...{% endif %}`
-{%- endif %}
 
 ---
 

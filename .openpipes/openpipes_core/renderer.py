@@ -378,7 +378,15 @@ target: {target_name}
 def _get_jinja_env():
     if not os.path.exists(TEMPLATE_DIR):
         os.makedirs(TEMPLATE_DIR, exist_ok=True)
-    return Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False, keep_trailing_newline=True)
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATE_DIR),
+        autoescape=False,
+        keep_trailing_newline=True,
+    )
+    # Add a filter to parse JSON strings in templates
+    env.filters["from_json"] = lambda v: json.loads(v) if v and v != "null" and v != "" else {}
+    return env
+
 
 
 def _get_vault_path(obsdir: str, proj_name: str, target_name: str = None) -> str:
