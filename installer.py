@@ -262,7 +262,7 @@ def main():
         ("Compilando Gowitness (Go)...", lambda: install_go_tool("github.com/sensepost/gowitness@latest")),
         ("Instalando Rust e Feroxbuster...", install_rust_and_ferox),
         ("Instalando Amass 3.20.0...", install_amass),
-        ("Instalando Dnsrecon 1.2.0...", install_dnsrecon),                # UPDATED version
+        ("Instalando Dnsrecon 1.1.3...", install_dnsrecon),                # UPDATED version
         ("Configurando VENVs isolados...", setup_isolated_venvs),
         ("Instalando Wordlists (SecLists + big-parsed)...", install_wordlists),
         ("Configurando variáveis de ambiente...", configure_environment),
