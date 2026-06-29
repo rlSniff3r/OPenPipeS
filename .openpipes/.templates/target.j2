@@ -8,6 +8,11 @@ tags: [alvo, host]
 pipeline_status: {{ target.pipeline_status }}
 vuln_count: {{ target.vuln_count }}
 last_updated: {{ target.last_updated }}
+cssclasses:
+  - purpleRed
+  - whiteRed-rounded
+  - yellowCab
+  - flatBlue
 ---
 
 {%- if target.whois %}
@@ -62,8 +67,6 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 
 ## 🔗 Endpoints por Rota
 {%- if group_names %}
-
-{# 1. Cria uma lista contendo o nome e a contagem calculada de cada grupo #}
 {%- set sorted_groups = [] %}
 {%- for group_name in group_names %}
   {%- set count = groups[group_name] | length %}
@@ -72,10 +75,8 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 
 | Rota | Quantidade |
 |------|-----------|
-{# 2. Ordena a nova lista pelo campo 'count' de forma decrescente #}
 {%- for group in sorted_groups | sort(attribute='count', reverse=True) %}
-
-| [[Endpoints/{{ group.name }}.md\|/{{ group.name }}/]] | {{ group.count }} |
+| **[[Endpoints/{{ group.name }}.md\|/{{ group.name }}/]]** | {{ group.count }} |
 {%- endfor %}
 {%- else %}
 *Nenhum endpoint encontrado.*
@@ -115,8 +116,8 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 ---
 
 ## 🚩 Progresso
-{%- for task in target.pending_tasks %}
 
+{%- for task in target.pending_tasks %}
 - [ ] {{ task }}
 {%- else %}
 - [x] Todas as tarefas concluídas

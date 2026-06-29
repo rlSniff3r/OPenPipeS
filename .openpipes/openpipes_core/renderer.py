@@ -2,6 +2,7 @@ import os
 import json
 import re
 import subprocess
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -18,7 +19,7 @@ HOME = str(Path.home())
 CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 TEMPLATE_DIR = os.path.join(HOME, ".openpipes", ".templates")
 
-SYNC_MODE = "parallel"
+SYNC_MODE = "replace"  # or "parallel" — can be set in config.sh
 
 
 # ═════════════════════════════════════════════════════════════════════
