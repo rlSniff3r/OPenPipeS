@@ -31,24 +31,24 @@ for dir in "$base_dir"/nmap-*; do
   nuclei -l urls_file -severity low,medium,high,critical -je "$nuclei_json"
 
   # Gera nuclei.md no Obsidian
-  obs_nuclei_file="$obsdir/Pentest/Alvos/$target_name/nuclei.md"
-  mkdir -p "$(dirname "$obs_nuclei_file")"
+  # obs_nuclei_file="$obsdir/Pentest/Alvos/$target_name/nuclei.md"
+  # mkdir -p "$(dirname "$obs_nuclei_file")"
 
-  echo "---" > "$obs_nuclei_file"
-  echo "tipo: nuclei" >> "$obs_nuclei_file"
-  echo "targetName: $target_name" >> "$obs_nuclei_file"
-  echo "data: $(date +%Y-%m-%d)" >> "$obs_nuclei_file"
-  echo "---" >> "$obs_nuclei_file"
-  echo -e "\n# 📦 Resultados do Nuclei\n" >> "$obs_nuclei_file"
-  echo "| Nome | Severidade | URL | Dados Extraídos | Descrição |" >> "$obs_nuclei_file"
-  echo "|------|------------|-----|------------------|------------|" >> "$obs_nuclei_file"
+  # echo "---" > "$obs_nuclei_file"
+  # echo "tipo: nuclei" >> "$obs_nuclei_file"
+  # echo "targetName: $target_name" >> "$obs_nuclei_file"
+  # echo "data: $(date +%Y-%m-%d)" >> "$obs_nuclei_file"
+  # echo "---" >> "$obs_nuclei_file"
+  # echo -e "\n# 📦 Resultados do Nuclei\n" >> "$obs_nuclei_file"
+  # echo "| Nome | Severidade | URL | Dados Extraídos | Descrição |" >> "$obs_nuclei_file"
+  # echo "|------|------------|-----|------------------|------------|" >> "$obs_nuclei_file"
 
-  jq -r '
-    .[] |
-    "| \(.info.name // "-") | \(.info.severity // "-") | \(.["matched-at"] // "-") | \((.["extracted-results"] // ["-"]) | join(", ")) | \(.info.description // "-" | gsub("\n"; " ")) |"
-  ' "$nuclei_json" >> "$obs_nuclei_file"
+  # jq -r '
+  #   .[] |
+  #   "| \(.info.name // "-") | \(.info.severity // "-") | \(.["matched-at"] // "-") | \((.["extracted-results"] // ["-"]) | join(", ")) | \(.info.description // "-" | gsub("\n"; " ")) |"
+  # ' "$nuclei_json" >> "$obs_nuclei_file"
 
-  echo "[✔] nuclei.md gerado para $target_name"
+  # echo "[✔] nuclei.md gerado para $target_name"
 done
 
 echo "[✓] Execução do nuclei-runner.sh finalizada com sucesso!"

@@ -2,7 +2,7 @@
 set -euo pipefail
 source $HOME/.openpipes/config.sh
 venv="$HOME/.venv-jsfinder/bin/activate"
-varreduraDir="$NMAP_DIR"  # Changed: use NMAP_DIR directly
+varreduraDir="$NMAP_DIR"
 
 force=false
 [[ "$*" == *"--force"* ]] && force=true
@@ -33,7 +33,7 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
     echo "[*] Coletando possíveis arquivos JS..."
     js_urls=()
 
-    # Sources: keep reading from httpx JSONs (already in nmapFolder)
+    # Source 1: httpx JSONs (raw tool output)
     for json in "$nmapFolder"/httpx*.json; do
         [ -f "$json" ] || continue
         if jq -e 'type=="array"' "$json" &>/dev/null; then
@@ -44,10 +44,28 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
         js_urls+=($urls)
     done
 
-    # Also check gf-summary.json if it exists (raw output instead of markdown)
+    # Source 2: katana crawled URLs
+    if [[ -f "$nmapFolder/crawled_all.txt" ]]; then
+        crawled_js=$(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$nmapFolder/crawled_all.txt" || true)
+        js_urls+=($crawled_js)
+    fi
+
+    # Source 3: feroxbuster consolidated URLs
+    if [[ -f "$nmapFolder/ferox_consolidated.txt" ]]; then
+        ferox_js=$(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$nmapFolder/ferox_consolidated.txt" || true)
+        js_urls+=($ferox_js)
+    fi
+
+    # Source 4: alive_urls.txt (live httpx URLs)
+    if [[ -f "$nmapFolder/alive_urls.txt" ]]; then
+        alive_js=$(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$nmapFolder/alive_urls.txt" || true)
+        js_urls+=($alive_js)
+    fi
+
+    # Source 5: gf-summary.json patterns (raw output)
     if [[ -f "$nmapFolder/gf-summary.json" ]]; then
-        gf_urls=$(jq -r '.gf_patterns | to_entries[] | .value[]' "$nmapFolder/gf-summary.json" 2>/dev/null | grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' || true)
-        js_urls+=($gf_urls)
+        gf_js=$(jq -r '.gf_patterns | to_entries[] | .value[]' "$nmapFolder/gf-summary.json" 2>/dev/null | grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' || true)
+        js_urls+=($gf_js)
     fi
 
     js_urls=($(printf "%s\n" "${js_urls[@]}" | sort -u))

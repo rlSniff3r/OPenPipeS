@@ -7,4 +7,8 @@ BASE.txt
 LOCAL.txt
 REMOTE.txt
 "Extras - Images/"
-installer.sh
+.openpipes/scripts/cria_Alvos_Obsidian.sh
+.openpipes/scripts/cria_Vulnerabilidades.sh
+.openpipes/scripts/visualization
+.openpipes/scripts/identities_manager.sh
+.openpipes/scripts/openpipes_orchestrator.sh

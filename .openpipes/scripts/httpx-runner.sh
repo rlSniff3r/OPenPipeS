@@ -115,49 +115,49 @@ for dir in "$base_dir"/nmap-*; do
   jq 'unique_by(.url, .method, .final_url)' "$combined_httpx" > "$dedup_json"
 
   # Markdown: httpx.md
-  md_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/httpx.md"
-  mkdir -p "$(dirname "$md_file")"
-  echo "# 🌐 HTTPX - $targetName" > "$md_file"
-  echo "" >> "$md_file"
-  echo "| Method | URL | IP | Port | Status | Title | Tecnologias | Servidor |" >> "$md_file"
-  echo "|--------|-----|----|------|--------|-------|-------------|----------|" >> "$md_file"
-
-  if [[ -f "$dedup_json" ]]; then
-  jq -r '
-    sort_by(.method, .url, .final_url) |
-    .[] |
-    . as $h |
-    [
-      $h.method,
-      ($h.final_url // $h.url // "-"),
-      ($h.host // "-"),
-      ($h.port|tostring // "-"),
-      (
-        ($h.status_code|tostring + " " + ($h.status_line // "-")) +
-        (if $h.chain_status_codes then
-          " (" + ($h.chain_status_codes | map(tostring) | join("→")) + ")"
-        else
-          ""
-        end)
-      ),
-      (($h.title // "-") | gsub("\\|"; "-")),
-      (($h.tech // ["-"] | join(",") | gsub("\\|"; "-"))),
-      (($h.webserver // "-") | gsub("\\|"; "-"))
+#  md_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/httpx.md"
+#  mkdir -p "$(dirname "$md_file")"
+#  echo "# 🌐 HTTPX - $targetName" > "$md_file"
+#  echo "" >> "$md_file"
+#  echo "| Method | URL | IP | Port | Status | Title | Tecnologias | Servidor |" >> "$md_file"
+#  echo "|--------|-----|----|------|--------|-------|-------------|----------|" >> "$md_file"
+#
+#  if [[ -f "$dedup_json" ]]; then
+#  jq -r '
+#    sort_by(.method, .url, .final_url) |
+#    .[] |
+#    . as $h |
+#    [
+#      $h.method,
+#      ($h.final_url // $h.url // "-"),
+#      ($h.host // "-"),
+#      ($h.port|tostring // "-"),
+#      (
+#        ($h.status_code|tostring + " " + ($h.status_line // "-")) +
+#        (if $h.chain_status_codes then
+#          " (" + ($h.chain_status_codes | map(tostring) | join("→")) + ")"
+#        else
+#          ""
+#        end)
+#      ),
+#      (($h.title // "-") | gsub("\\|"; "-")),
+#      (($h.tech // ["-"] | join(",") | gsub("\\|"; "-"))),
+#      (($h.webserver // "-") | gsub("\\|"; "-"))
 #      ($h.title // "-"),
 #      ($h.tech // ["-"] | join(",")),
 #      ($h.webserver // "-")
-    ] | "| " + join(" | ") + " |"
-  ' "$dedup_json" >> "$md_file"
-  else
-    echo "| - | - | - | - | - | - | - | - |" >> "$md_file"
-  fi
+#    ] | "| " + join(" | ") + " |"
+#  ' "$dedup_json" >> "$md_file"
+#  else
+#    echo "| - | - | - | - | - | - | - | - |" >> "$md_file"
+#  fi
 
   # endpoints.md
-  endpoints_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/endpoints.md"
+#  endpoints_file="$obsdir/$proj_name/Pentest/Alvos/$targetName/endpoints.md"
 #  jq -r '.[] | select(.status_code >= 200 and .status_code < 300) | .url' "$dedup_json" | sort -u >> "$endpoints_file"
-  cat $md_file | grep http | cut -d " " -f4 | sort -u >> "$endpoints_file"
-  cat "$endpoints_file" | sed -E 's/:(443|80)\b//g' | sed 's,/$,,g' | sort -u > /tmp/endpoints_tmp
-  cat /tmp/endpoints_tmp > "$endpoints_file"
+#  cat $md_file | grep http | cut -d " " -f4 | sort -u >> "$endpoints_file"
+#  cat "$endpoints_file" | sed -E 's/:(443|80)\b//g' | sed 's,/$,,g' | sort -u > /tmp/endpoints_tmp
+#  cat /tmp/endpoints_tmp > "$endpoints_file"
 
   echo "[✔] $targetName finalizado."
 done
