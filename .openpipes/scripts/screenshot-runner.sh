@@ -82,11 +82,10 @@ process_target() {
         2>&1 | tee "$ss_dir/gowitness.log"
 
     # Filtra JSONL para campos relevantes
-    if [[ -f "$ss_dir/go_raw.jsonl" ]]; then
-        jq -c '{file_name: .file_name, url: .url, final_url: .final_url, status_code: .response_code, content_length: .content_length, title: .title}' \
-            "$ss_dir/go_raw.jsonl" > "$ss_dir/go.jsonl"
+    if [[ -f $ss_dir/go_raw.jsonl ]]; then
+        jq -c '{file_name: .file_name, url: .url, final_url: .final_url, status_code: .response_code, content_length: .content_length, title: .title}' $ss_dir/go_raw.jsonl > $ss_dir/go.jsonl
         rm -f "$ss_dir/go_raw.jsonl"
-        local shot_count=$(wc -l < "$ss_dir/go.jsonl")
+        local shot_count=$(wc -l < $ss_dir/go.jsonl)
         log INFO "$target_name: $shot_count screenshots capturados"
     fi
 

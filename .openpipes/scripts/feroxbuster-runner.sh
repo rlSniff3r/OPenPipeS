@@ -129,11 +129,11 @@ process_target() {
                 --filter-status 400,401,404,405,500,502,503 \
                 --no-state \
                 --json \
-                -o "$OUTPUT_FILE.json" \
+                -o "$OUTPUT_FILE.jsonl" \
                 --silent 2>/dev/null || true
 
             # Keep text version for backward compatibility
-            jq -r '.url' "$OUTPUT_FILE.json" > "$OUTPUT_FILE.txt" 2>/dev/null
+            jq -r '.url' "$OUTPUT_FILE.jsonl" > "$OUTPUT_FILE.txt" 2>/dev/null
 
             # Conta achados neste URL
 #            if [ -f "$OUTPUT_FILE" ]; then

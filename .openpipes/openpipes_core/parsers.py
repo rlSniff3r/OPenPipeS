@@ -376,9 +376,8 @@ def parse_url_discovery(proj_path, nmap_dir, tool_name):
 
 def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
     """
-    Parse JSONL output from katana/feroxbuster with nested structure:
-      {"request": {"endpoint": "..."}, "response": {"status_code": 200, "content_length": 1234}}
-    Falls back to text parsing if no JSONL file found.
+    Parse JSONL output from katana or feroxbuster.
+    Handles both nested (katana) and flat (feroxbuster) formats.
     """
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
@@ -388,7 +387,7 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
 
             for root, dirs, files in os.walk(nmap_dir):
                 for file in files:
-                    if tool_name in file.lower() and file.endswith('.jsonl'):
+                    if tool_name in file.lower() and (file.endswith('.jsonl') or file.endswith('.json')):
                         jsonl_files.append(os.path.join(root, file))
 
             if not jsonl_files:
@@ -407,14 +406,25 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
                             except json.JSONDecodeError:
                                 continue
 
-                            # Skip error entries (host not found, timeout)
+                            # Skip feroxbuster configuration line
+                            if data.get("type") == "configuration":
+                                continue
+
+                            # Skip error entries
                             if data.get("error"):
                                 continue
 
-                            request_data = data.get("request", {})
-                            response_data = data.get("response", {})
+                            # Skip feroxbuster wildcard responses (known false positives)
+                            if data.get("wildcard") is True:
+                                continue
 
-                            url = request_data.get("endpoint", "") or data.get("url", "")
+                            # Extract URL — handle both formats
+                            # Feroxbuster: data["url"]
+                            # Katana: data["request"]["endpoint"]
+                            url = data.get("url", "")
+                            if not url:
+                                request_data = data.get("request", {})
+                                url = request_data.get("endpoint", "") or data.get("url", "")
                             if not url:
                                 continue
 
@@ -426,8 +436,23 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
                             if not host_id:
                                 continue
 
-                            status_code = response_data.get("status_code") if response_data else None
-                            content_length = response_data.get("content_length") if response_data else None
+                            # Extract status — handle both formats
+                            # Feroxbuster: data["status"]
+                            # Katana: data["response"]["status_code"]
+                            status_code = data.get("status")
+                            if status_code is None:
+                                response_data = data.get("response", {})
+                                status_code = response_data.get("status_code") if response_data else None
+                            
+                            # Skip entries without a valid status code
+                            if status_code is None or status_code == 0:
+                                continue
+
+                            # Extract content_length — handle both formats
+                            content_length = data.get("content_length")
+                            if content_length is None:
+                                response_data = data.get("response", {})
+                                content_length = response_data.get("content_length") if response_data else None
 
                             cursor.execute("""
                                 INSERT INTO endpoints
@@ -440,6 +465,7 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
                             if cursor.rowcount > 0:
                                 count += 1
 
+                            # Ensure port record exists
                             parsed = urlparse(url)
                             ep_port = parsed.port or (443 if parsed.scheme == "https" else 80)
                             _ensure_port(cursor, host_id, ep_port, "tcp")
@@ -846,7 +872,7 @@ def flag_false_positives(proj_path: str):
             cursor.execute("""
                 SELECT host_id, status_code, content_length, COUNT(*) as cnt
                 FROM endpoints
-                WHERE status_code IS NOT NULL AND content_length > 0
+                WHERE content_length > 0
                 GROUP BY host_id, status_code, content_length
                 HAVING cnt >= 5
                 ORDER BY cnt DESC

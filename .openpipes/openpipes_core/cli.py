@@ -463,9 +463,9 @@ def run_reparse_all():
         ("recon",      lambda: parsers.parse_recon(proj_path, recon_dir)),
         ("nmap",       lambda: parsers.parse_nmap(proj_path, nmap_dir_path)),
         ("httpx",      lambda: parsers.parse_httpx(proj_path, nmap_dir_path)),
-        ("feroxbuster", lambda: parsers.parse_url_discovery(proj_path, nmap_dir_path, "ferox")),
-        ("katana",     lambda: parsers.parse_url_discovery(proj_path, nmap_dir_path, "crawled")),
-        ("screenshots", lambda: parsers.parse_screenshot(proj_path)),
+        ("feroxbuster", lambda: parsers.parse_url_discovery_jsonl(proj_path, nmap_dir_path, "ferox")),
+        ("katana",     lambda: parsers.parse_url_discovery_jsonl(proj_path, nmap_dir_path, "crawled")),
+        ("screenshots", lambda: parsers.parse_screenshot(proj_path, nmap_dir)),
         ("nuclei",     lambda: parsers.parse_nuclei(proj_path, nmap_dir_path)),
         ("whois",      lambda: parsers.parse_whois_enrichment(proj_path, nmap_dir_path)),
     ]
