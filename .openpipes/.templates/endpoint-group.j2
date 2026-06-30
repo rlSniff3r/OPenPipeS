@@ -3,14 +3,19 @@ tipo: endpoint-group
 target: {{ target.name }}
 route: {{ group_name }}
 count: {{ count }}
+cssclasses:
+  - purpleRed
+  - whiteRed-rounded
+  - yellowCab
+  - flatBlue
 ---
 
 # ⛓️ /{{ group_name }}/ — {{ target.name }}
 
 **{{ count }} endpoints** | [[../{{ target.name }}.md|← Voltar para {{ target.name }}]]
 
-| URL | Status | Título | Tecnologias |
+| **URL** | **Status** | **Título** | **Tecnologias** |
 |-----|--------|--------|-------------|
 {%- for ep in endpoints %}
-| [{{ ep.url }}]({{ ep.url }}) | {{ ep.status_code }} | {{ ep.title or "-" }} | {{ ep.tech_stack | join(", ") if ep.tech_stack else "-" }} |
+| **[{{ ep.url }}]({{ ep.url }})** | {{ ep.status_code }} | {{ ep.title or "-" }} | {{ ep.tech_stack | join(", ") if ep.tech_stack else "-" }} |
 {%- endfor %}

@@ -114,7 +114,7 @@ fi
 echo -e "\n${YELLOW}[*] Criando estrutura de pastas...${NC}"
 
 # Pastas Físicas (Onde as ferramentas rodam)
-mkdir -p "$proj_path"/{Recon,OSINT,Screenshots,Varreduras}
+mkdir -p "$proj_path"/{Recon,OSINT,Varreduras}
 
 # Pastas Lógicas (Obsidian - Onde os links simbólicos ou sync ocorrem)
 mkdir -p "$OBS_PATH/Alvos"
