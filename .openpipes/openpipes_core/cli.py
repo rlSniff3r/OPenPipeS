@@ -576,7 +576,7 @@ def main():
         if args.command == "run":
             run_bash_module(args.module)
         elif args.command == "sync":
-        renderer.sync_project(target_name=args.target)
+            renderer.sync_project(target_name=args.target)
 
 
 if __name__ == "__main__":

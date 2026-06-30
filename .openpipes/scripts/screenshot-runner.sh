@@ -77,7 +77,7 @@ process_target() {
         --write-jsonl \
         --write-jsonl-file "$ss_dir/go_raw.jsonl" \
         --threads 5 \
-        --timeout 15s \
+        --timeout 15 \
         --no-http=false \
         2>&1 | tee "$ss_dir/gowitness.log"
 

@@ -906,7 +906,7 @@ def dispatch(module_name, proj_path, nmap_dir):
     elif module_name in ("katana-runner", "katana-buster"):
         parse_url_discovery_jsonl(proj_path, nmap_dir, "crawled")
     elif module_name == "screenshot-runner":
-        parse_screenshot(proj_path)
+        parse_screenshot(proj_path, nmap_dir)
     elif module_name == "gf-summary":
         parse_gf(proj_path, nmap_dir)
     elif module_name == "jsfinder-runner":
