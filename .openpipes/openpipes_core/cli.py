@@ -397,6 +397,7 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("[16]", "[bold cyan]Reparse All (Recria DB dos outputs)[/bold cyan]")
         menu_table.add_row("[17]", "[bold cyan]Ver Dados do Banco[/bold cyan]")
         menu_table.add_row("[18]", "[bold green]Sync Obsidian Vault (Jinja2)[/bold green]")
+        menu_table.add_row("[19]", "[bold cyan]Verifier (Valida Endpoints via HTTP)[/bold cyan]")
 
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
@@ -425,6 +426,16 @@ Framework de Reconhecimento v2.0
             show_database_viewer()
         elif escolha == "18":
             renderer.sync_project()           # all targets
+        elif escolha == "19":
+            import asyncio
+            proj_name, proj_path, _ = get_project_env()
+            if proj_path:
+                db.init_db(proj_path)
+                asyncio.run(verifier.verify_endpoints(proj_path))
+            else:
+                console.print("[red]Projeto não configurado.[/red]")
+                input("Pressione ENTER...")
+
         elif escolha in opcoes:
             run_bash_module(opcoes[escolha])
         else:
@@ -567,6 +578,8 @@ def main():
     run_parser.add_argument("module", help="Nome do módulo (ex: recon, nwrapper, nuclei-runner)")
     sync_parser = subparsers.add_parser("sync", help="Renderiza Jinja2 templates para o vault do Obsidian")
     sync_parser.add_argument("--target", "-t", help="Renderizar apenas um alvo específico")
+    verify_parser = subparsers.add_parser("verify", help="Verifica endpoints com HTTP real")
+    verify_parser.add_argument("--limit", type=int, default=None, help="Limite de endpoints")
 
 
     if len(sys.argv) == 1:
@@ -577,6 +590,12 @@ def main():
             run_bash_module(args.module)
         elif args.command == "sync":
             renderer.sync_project(target_name=args.target)
+        elif args.command == "verify":
+            proj_name, proj_path, _ = get_project_env()
+            if proj_path:
+                db.init_db(proj_path)
+                import asyncio
+                asyncio.run(verifier.verify_endpoints(proj_path, limit=args.limit))
 
 
 if __name__ == "__main__":
