@@ -34,12 +34,6 @@ done
 for dir in "$base_dir"/nmap-*; do
   [[ ! -d "$dir" ]] && continue
 
-  nmap_file="$dir/nmap.gnmap"
-
-  if [[ ! -s "$nmap_file" ]]; then
-      echo "[!] Pulando $targetName: nmap.gnmap está vazio ou não existe."
-      continue
-  fi
 
   targetName="${dir##*/nmap-}"
   ip=$(grep "Nmap scan report for" $dir/initial | sed 's/Nmap scan report for //g' |cut -d "(" -f2 | cut -d ")" -f1 | cut -d ":" -f2)

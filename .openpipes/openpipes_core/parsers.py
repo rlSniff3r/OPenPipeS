@@ -449,36 +449,68 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
     console.print(f" [dim]↳ Parser {tool_name}: Ingeriu {count} endpoints com metadados.[/dim]")
 
 
-def parse_screenshot(proj_path):
-    screenshot_dir = os.path.join(proj_path, "Varreduras", "screenshots")
-    db_path = os.path.join(screenshot_dir, "gowitness.sqlite3")
-    if not os.path.exists(db_path):
-        return
+def parse_screenshot(proj_path, nmap_dir):
+    """
+    Parse gowitness JSONL output + screenshot files from each target's
+    $NMAP_DIR/nmap-$target/Screenshots/ directory.
+    """
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
-            try:
-                gw_conn = sqlite3.connect(db_path)
-                gw_cursor = gw_conn.cursor()
-                gw_cursor.execute("SELECT url, filename FROM urls")
-                for row in gw_cursor.fetchall():
-                    url, filename = row[0], row[1]
-                    host_str = urlparse(url).hostname
-                    if host_str:
-                        host_id = get_or_create_host(cursor, host_str)
-                        if host_id:
-                            cursor.execute(
-                                "INSERT INTO screenshots (host_id, file_path) VALUES (?, ?) ON CONFLICT(file_path) DO NOTHING",
-                                (host_id, filename),
+
+            for nmap_folder in sorted(os.listdir(nmap_dir)):
+                if not nmap_folder.startswith("nmap-"):
+                    continue
+                target_name = nmap_folder[5:]
+                ss_dir = os.path.join(nmap_dir, nmap_folder, "Screenshots")
+                jsonl_file = os.path.join(ss_dir, "go.jsonl")
+                if not os.path.exists(jsonl_file):
+                    continue
+
+                # Find host_id by target name
+                cursor.execute("SELECT id FROM hosts WHERE host = ?", (target_name,))
+                row = cursor.fetchone()
+                if not row:
+                    continue
+                host_id = row["id"]
+
+                try:
+                    with open(jsonl_file, "r") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                data = json.loads(line)
+                            except json.JSONDecodeError:
+                                continue
+
+                            file_name = data.get("file_name", "")
+                            if not file_name:
+                                continue
+
+                            source_url = data.get("url", "")
+                            final_url = data.get("final_url", "")
+                            status_code = data.get("status_code")
+                            title = data.get("title", "")
+                            content_length = data.get("content_length")
+
+                            cursor.execute("""
+                                INSERT INTO screenshots
+                                    (host_id, file_path, source_url, final_url, status_code, title, content_length)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                ON CONFLICT(file_path) DO NOTHING""",
+                                (host_id, file_name, source_url, final_url, status_code, title, content_length),
                             )
+
                             if cursor.rowcount > 0:
                                 count += 1
-                gw_conn.close()
-            except Exception as e:
-                console.print(f" [yellow]Erro lendo db gowitness: {e}[/yellow]")
-    if count > 0:
-        console.print(f" [dim]↳ Parser Gowitness: Atrelou {count} Screenshots aos hosts.[/dim]")
+                except Exception:
+                    continue
+
+    console.print(f" [dim]↳ Parser Screenshots (JSONL): Associou {count} imagens a hosts.[/dim]")
+
 
 
 def parse_gf(proj_path, nmap_dir):

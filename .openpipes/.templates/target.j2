@@ -105,10 +105,10 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 
 ## 📸 Screenshots
 {%- if target.screenshots %}
-
 {% for shot in target.screenshots %}
-![[{{ shot.file_path }}|500]]
-{%- endfor %}
+![[Screenshots/{{ shot.file_path }}|500]]
+{% if shot.title %}*{{ shot.title }}*{% endif %}
+{% endfor %}
 {%- else %}
 *Nenhum screenshot disponível.*
 {%- endif %}
@@ -126,3 +126,4 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 ---
 
 *Gerado pelo OPenPipeS Sync em {{ target.last_updated }}*
+q

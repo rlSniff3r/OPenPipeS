@@ -136,6 +136,11 @@ def init_db(proj_path):
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 host_id    INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
                 file_path  TEXT UNIQUE,
+                source_url    TEXT,               -- NEW: original URL that was screenshotted
+                final_url     TEXT,               -- NEW: final URL after redirects
+                status_code   INTEGER,            -- NEW: HTTP status code
+                title         TEXT,               -- NEW: page title
+                content_length INTEGER,           -- NEW: response size
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)

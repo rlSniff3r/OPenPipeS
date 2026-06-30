@@ -2,7 +2,7 @@ import os
 import json
 import re
 import subprocess
-import json
+import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -19,12 +19,8 @@ HOME = str(Path.home())
 CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 TEMPLATE_DIR = os.path.join(HOME, ".openpipes", ".templates")
 
-SYNC_MODE = "replace"  # or "parallel" — can be set in config.sh
+SYNC_MODE = "replace"
 
-
-# ═════════════════════════════════════════════════════════════════════
-# CONFIG HELPERS
-# ═════════════════════════════════════════════════════════════════════
 
 def _get_env_from_config():
     if not os.path.exists(CONFIG_FILE):
@@ -41,7 +37,6 @@ def _get_env_from_config():
 
 
 def _get_nmap_dir(proj_path: str) -> str:
-    """Get NMAP_DIR from config.sh."""
     if not os.path.exists(CONFIG_FILE):
         return os.path.join(proj_path, "Varreduras")
     try:
@@ -77,10 +72,6 @@ def _is_in_scope(host: str, scope_domains: list[str]) -> bool:
     return False
 
 
-# ═════════════════════════════════════════════════════════════════════
-# DB QUERY HELPERS
-# ═════════════════════════════════════════════════════════════════════
-
 def get_project_summary(proj_path: str) -> dict:
     scope_domains = _get_scope_domains(proj_path)
     summary = {
@@ -110,7 +101,10 @@ def get_project_summary(proj_path: str) -> dict:
             cursor.execute(f"SELECT COUNT(*) FROM screenshots WHERE host_id IN ({ph})", alive_hosts)
             summary["total_screenshots"] = cursor.fetchone()[0]
             try:
-                cursor.execute(f"SELECT severity, COUNT(*) as cnt FROM vulnerabilities WHERE host_id IN ({ph}) GROUP BY severity", alive_hosts)
+                cursor.execute(
+                    f"SELECT severity, COUNT(*) as cnt FROM vulnerabilities WHERE host_id IN ({ph}) GROUP BY severity",
+                    alive_hosts,
+                )
                 for r in cursor.fetchall():
                     if r["severity"] in summary["severity_breakdown"]:
                         summary["severity_breakdown"][r["severity"]] = r["cnt"]
@@ -156,13 +150,19 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
         host["ips"] = json.loads(host["ips"]) if host.get("ips") else []
         host["cnames"] = json.loads(host["cnames"]) if host.get("cnames") else []
 
-        cursor.execute("SELECT port, protocol, state, service, version FROM ports WHERE host_id = ? ORDER BY port", (host["id"],))
+        cursor.execute(
+            "SELECT port, protocol, state, service, version "
+            "FROM ports WHERE host_id = ? ORDER BY port",
+            (host["id"],),
+        )
         ports = [dict(r) for r in cursor.fetchall()]
         open_ports = [p for p in ports if p["state"] == "open"]
 
-        cursor.execute("""SELECT url, status_code, content_length, content_type, title, web_server,
-                          tech_stack, source_tool, vulnerability_patterns
-                          FROM endpoints WHERE host_id = ? ORDER BY url""", (host["id"],))
+        cursor.execute("""SELECT url, status_code, content_length, content_type,
+                          title, web_server, tech_stack, source_tool,
+                          vulnerability_patterns
+                          FROM endpoints WHERE host_id = ? ORDER BY url""",
+                       (host["id"],))
         endpoints = []
         for r in cursor.fetchall():
             ep = dict(r)
@@ -170,12 +170,15 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
             ep["vulnerability_patterns"] = json.loads(ep["vulnerability_patterns"]) if ep.get("vulnerability_patterns") else []
             endpoints.append(ep)
 
-        cursor.execute("""SELECT title, severity, cvss_score, cvss_vector, cve_id, vuln_name,
-                          description, matched_at, curl_command, remediation, impact,
+        cursor.execute("""SELECT title, severity, cvss_score, cvss_vector,
+                          cve_id, vuln_name, description, matched_at,
+                          curl_command, remediation, impact,
                           reference_urls, source_tool, enriched_by, created_at
                           FROM vulnerabilities WHERE host_id = ?
-                          ORDER BY CASE severity WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1
-                          WHEN 'Média' THEN 2 WHEN 'Baixa' THEN 3 ELSE 4 END""", (host["id"],))
+                          ORDER BY CASE severity WHEN 'Crítica' THEN 0
+                          WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2
+                          WHEN 'Baixa' THEN 3 ELSE 4 END""",
+                       (host["id"],))
         vulnerabilities = []
         for r in cursor.fetchall():
             v = dict(r)
@@ -185,16 +188,27 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
             v["filename"] = f"{v['created_at'][:8] if v.get('created_at') else '00000000'}_{v['title'][:40].replace(' ', '_')}.md"
             vulnerabilities.append(v)
 
-        cursor.execute("SELECT file_path, created_at FROM screenshots WHERE host_id = ?", (host["id"],))
+        cursor.execute(
+            "SELECT file_path, source_url, final_url, status_code, "
+            "title, content_length, created_at "
+            "FROM screenshots WHERE host_id = ?",
+            (host["id"],),
+        )
         screenshots = [dict(r) for r in cursor.fetchall()]
 
-        cursor.execute("SELECT source_js_url, discovered_route FROM js_discoveries WHERE host_id = ?", (host["id"],))
+        cursor.execute(
+            "SELECT source_js_url, discovered_route "
+            "FROM js_discoveries WHERE host_id = ?",
+            (host["id"],),
+        )
         js_discoveries = [dict(r) for r in cursor.fetchall()]
 
         tech_stack = sorted(set(tech for ep in endpoints for tech in ep.get("tech_stack", [])))
 
-        all_tasks = [{"type": "port", "label": f"Enumerar porta {p['port']}/{p['protocol']} ({p['service']})", "done": False}
-                     for p in open_ports if p["service"] not in ("ssl", "tcpwrapped", "unknown")]
+        all_tasks = [
+            {"type": "port", "label": f"Enumerar porta {p['port']}/{p['protocol']} ({p['service']})", "done": False}
+            for p in open_ports if p["service"] not in ("ssl", "tcpwrapped", "unknown")
+        ]
         if endpoints:
             all_tasks.append({"type": "web", "label": "Analisar endpoints web", "done": False})
         if vulnerabilities:
@@ -228,7 +242,11 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
 def get_vulnerability_detail(proj_path: str, vuln_id: int) -> Optional[dict]:
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT v.*, h.host as target_host, h.ips FROM vulnerabilities v JOIN hosts h ON h.id = v.host_id WHERE v.id = ?", (vuln_id,))
+        cursor.execute(
+            "SELECT v.*, h.host as target_host, h.ips "
+            "FROM vulnerabilities v JOIN hosts h ON h.id = v.host_id WHERE v.id = ?",
+            (vuln_id,),
+        )
         row = cursor.fetchone()
         if not row:
             return None
@@ -240,18 +258,7 @@ def get_vulnerability_detail(proj_path: str, vuln_id: int) -> Optional[dict]:
         return v
 
 
-# ═════════════════════════════════════════════════════════════════════
-# ENDPOINT ROUTE GROUPING
-# ═════════════════════════════════════════════════════════════════════
-
 def _group_endpoints_by_route(endpoints: list[dict]) -> dict[str, list[dict]]:
-    """
-    Group endpoints by the first segment of their URL path.
-    https://example.com/api/v1/users  →  api_v1
-    https://example.com/login         →  login
-    https://example.com               →  root
-    Returns dict sorted by group name, with safe filenames.
-    """
     reserved = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
     groups = {}
     for ep in endpoints:
@@ -261,15 +268,11 @@ def _group_endpoints_by_route(endpoints: list[dict]) -> dict[str, list[dict]]:
         else:
             raw = path.split("/")[0]
             group = re.sub(r'[^a-zA-Z0-9_\-]', '_', raw) or "root"
-            if group.lower() in reserved:
-                group = f"_{group}"
+        if group.lower() in reserved:
+            group = f"_{group}"
         groups.setdefault(group, []).append(ep)
     return dict(sorted(groups.items()))
 
-
-# ═════════════════════════════════════════════════════════════════════
-# DASHBOARD ENDPOINTS
-# ═════════════════════════════════════════════════════════════════════
 
 def _get_important_endpoints(proj_path: str, limit: int = 30) -> list[dict]:
     keywords = [
@@ -297,8 +300,8 @@ def _get_important_endpoints(proj_path: str, limit: int = 30) -> list[dict]:
                     "status": row["status_code"], "server": row["web_server"] or "",
                     "target": row["host"], "ip": json.loads(row["ips"])[0] if row["ips"] else "",
                 })
-                if len(important) >= limit:
-                    break
+            if len(important) >= limit:
+                break
     return important
 
 
@@ -333,44 +336,33 @@ def _get_dashboard_endpoints(proj_path: str, limit: int = 100) -> list[dict]:
     return endpoints
 
 
-# ═════════════════════════════════════════════════════════════════════
-# JINJA2 RENDERER
-# ═════════════════════════════════════════════════════════════════════
-
 def _render_nmap_file(target_name: str, nmap_dir: str, vault_dir: str):
-    """Read nmap.nmap from the target's nmap directory and write it as a code block."""
     nmap_target_dir = os.path.join(nmap_dir, f"nmap-{target_name}")
     nmap_nmap_file = os.path.join(nmap_target_dir, "nmap.nmap")
-
     if not os.path.exists(nmap_nmap_file):
         return
-
     try:
         with open(nmap_nmap_file, "r", encoding="utf-8", errors="ignore") as f:
             raw_content = f.read()
     except Exception:
         return
-
-    # Trim to a reasonable size (first 500 lines) to avoid Obsidian choking
     lines = raw_content.split("\n")
     if len(lines) > 500:
         lines = lines[:500]
-        lines.append("\n*... (resultado truncado para 500 linhas — completo no arquivo original)*")
-
+        lines.append("\n*... (resultado truncado para 500 linhas)*")
     content = "\n".join(lines)
-
-    nmd_md = f"""---
-tipo: nmap-results
-target: {target_name}
----
-
-# 🧹 Nmap — {target_name}
-
-```bash
-{content}
-```
-"""
-    
+    cb = "```"
+    nmd_md = (
+        f"---\n"
+        f"tipo: nmap-results\n"
+        f"target: {target_name}\n"
+        f"---\n"
+        f"# 🧹 Nmap — {target_name}\n"
+        f"\n"
+        f"{cb}bash\n"
+        f"{content}\n"
+        f"{cb}\n"
+    )
     nmap_out_path = os.path.join(vault_dir, "nmap.md")
     with open(nmap_out_path, "w", encoding="utf-8") as f:
         f.write(nmd_md)
@@ -384,19 +376,14 @@ def _get_jinja_env():
         autoescape=False,
         keep_trailing_newline=True,
     )
-    # Add a filter to parse JSON strings in templates
     env.filters["from_json"] = lambda v: json.loads(v) if v and v != "null" and v != "" else {}
     return env
-
 
 
 def _get_vault_path(obsdir: str, proj_name: str, target_name: str = None) -> str:
     base = os.path.join(obsdir, proj_name, "Pentest", "Alvos")
     if target_name:
-        vault_dir = os.path.join(base, target_name)
-        if SYNC_MODE == "parallel":
-            vault_dir = os.path.join(vault_dir, "Sync")
-        return vault_dir
+        return os.path.join(base, target_name)
     return base
 
 
@@ -413,20 +400,15 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     os.makedirs(endpoints_dir, exist_ok=True)
     os.makedirs(vulns_dir, exist_ok=True)
 
-    # Group endpoints by route
     groups = _group_endpoints_by_route(report["endpoints"])
     group_names = list(groups.keys())
 
-    # 1. Target note (with inline route index table)
     target_md = env.get_template("target.j2").render(
-        target=report,
-        groups=groups,
-        group_names=group_names,
+        target=report, groups=groups, group_names=group_names,
     )
     with open(os.path.join(vault_dir, f"{host_name}.md"), "w", encoding="utf-8") as f:
         f.write(target_md)
 
-    # 2. One .md per route group (actual endpoints)
     ep_group_template = env.get_template("endpoint-group.j2")
     for group_name, group_eps in groups.items():
         group_md = ep_group_template.render(
@@ -436,23 +418,19 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
         with open(os.path.join(endpoints_dir, f"{group_name}.md"), "w", encoding="utf-8") as f:
             f.write(group_md)
 
-    # 3. nmap.md (full scan output)
     nmap_dir = _get_nmap_dir(proj_path)
     _render_nmap_file(host_name, nmap_dir, vault_dir)
 
-    # 4. JS Discoveries
     if report["js_discoveries"]:
         js_md = env.get_template("js-discoveries.j2").render(target=report)
         with open(os.path.join(vault_dir, "js-discoveries.md"), "w", encoding="utf-8") as f:
             f.write(js_md)
 
-    # 5. HTTPX Results
     if report["httpx_count"] > 0:
         httpx_md = env.get_template("httpx-results.j2").render(target=report)
         with open(os.path.join(vault_dir, "httpx-results.md"), "w", encoding="utf-8") as f:
             f.write(httpx_md)
 
-    # 6. Vulnerabilities
     vuln_template = env.get_template("vuln.j2")
     vuln_count = 0
     for vuln in report.get("vulnerabilities", []):
@@ -460,6 +438,20 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
         with open(os.path.join(vulns_dir, vuln["filename"]), "w", encoding="utf-8") as f:
             f.write(vuln_md)
         vuln_count += 1
+
+    nmap_target_dir = os.path.join(nmap_dir, f"nmap-{host_name}", "Screenshots")
+    ss_vault_dir = os.path.join(vault_dir, "Screenshots")
+    ss_copied = 0
+    if os.path.isdir(nmap_target_dir):
+        os.makedirs(ss_vault_dir, exist_ok=True)
+        for shot in report.get("screenshots", []):
+            src = os.path.join(nmap_target_dir, shot["file_path"])
+            dst = os.path.join(ss_vault_dir, shot["file_path"])
+            if os.path.exists(src) and not os.path.exists(dst):
+                shutil.copy2(src, dst)
+                ss_copied += 1
+    if ss_copied > 0:
+        console.print(f"  [dim]Copiadas {ss_copied} screenshots para o vault.[/dim]")
 
     console.print(
         f" [dim]↳ Render: {host_name} — "
@@ -479,7 +471,9 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
             t["ports_str"] = ", ".join(str(p["port"]) for p in report["all_ports"])
             t["vuln_count"] = report["vuln_count"]
         else:
-            t["all_ips_str"] = "—"; t["ports_str"] = "—"; t["vuln_count"] = 0
+            t["all_ips_str"] = "—"
+            t["ports_str"] = "—"
+            t["vuln_count"] = 0
 
     important = _get_important_endpoints(proj_path)
     all_endpoints = _get_dashboard_endpoints(proj_path)
@@ -491,8 +485,6 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
     dashboard_dir = _get_vault_path(obsdir, proj_name)
-    if SYNC_MODE == "parallel":
-        dashboard_dir = os.path.join(dashboard_dir, "Sync")
     os.makedirs(dashboard_dir, exist_ok=True)
     with open(os.path.join(dashboard_dir, "Dashboard_Global.md"), "w", encoding="utf-8") as f:
         f.write(dashboard_md)
@@ -513,8 +505,6 @@ def render_index(proj_path: str, obsdir: str, proj_name: str):
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
     index_dir = _get_vault_path(obsdir, proj_name)
-    if SYNC_MODE == "parallel":
-        index_dir = os.path.join(index_dir, "Sync")
     os.makedirs(index_dir, exist_ok=True)
     with open(os.path.join(index_dir, "Index.md"), "w", encoding="utf-8") as f:
         f.write(index_md)

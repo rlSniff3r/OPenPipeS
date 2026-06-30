@@ -16,12 +16,6 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
     tmpDir="/tmp/jsfinder-$targetName"
     outputFile="$nmapFolder/jsfinder-results.json"
 
-    nmap_file="$nmapFolder/nmap.gnmap"
-    if [[ ! -s "$nmap_file" ]]; then
-        echo "[!] Pulando $targetName: nmap.gnmap está vazio ou não existe."
-        continue
-    fi
-
     if [ -f "$outputFile" ] && [ "$force" = false ]; then
         echo "[!] $outputFile já existe. Use --force para sobrescrever. Pulando $targetName..."
         continue
