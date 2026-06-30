@@ -15,6 +15,18 @@ cssclasses:
   - flatBlue
 ---
 
+## 📸 Screenshots
+{%- if target.screenshots %}
+{% for shot in target.screenshots %}
+![[Screenshots/{{ shot.file_path }}|500]]
+{% if shot.title %}*{{ shot.title }}*{% endif %}
+{% endfor %}
+{%- else %}
+*Nenhum screenshot disponível.*
+{%- endif %}
+
+---
+
 {%- if target.whois %}
 {%- set whois = target.whois | from_json %}
 
@@ -99,18 +111,6 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 {%- for tech in target.tech_stack %}
 - {{ tech }}
 {%- endfor %}
-{%- endif %}
-
----
-
-## 📸 Screenshots
-{%- if target.screenshots %}
-{% for shot in target.screenshots %}
-![[Screenshots/{{ shot.file_path }}|500]]
-{% if shot.title %}*{{ shot.title }}*{% endif %}
-{% endfor %}
-{%- else %}
-*Nenhum screenshot disponível.*
 {%- endif %}
 
 ---

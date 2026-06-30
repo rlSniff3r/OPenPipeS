@@ -5,6 +5,7 @@ import sys
 import subprocess
 import argparse
 import time
+import verifier
 from pathlib import Path
 
 from rich.console import Console
