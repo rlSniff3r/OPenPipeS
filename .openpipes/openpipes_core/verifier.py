@@ -1,57 +1,40 @@
-import asyncio
 import hashlib
 import json
 import re
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import httpx
+import requests
 from rich.console import Console
 
 import db
 
 console = Console()
 
-BATCH_SIZE = 100
 TIMEOUT = 15
+MAX_WORKERS = 50
 
 
 def _structural_hash(html: str) -> str:
-    """
-    Hash the HTML structure only, ignoring variable text content.
-    Two pages with the same template but different URL paths
-    will produce the same structural hash.
-    """
+    """Hash HTML structure only, ignoring variable text content."""
     if not html:
         return ""
-    # Keep first 8KB for structural analysis
     text = html[:8192]
-    # Remove text between tags, keep only structure
     structure = re.sub(r'>[^<]+<', '><', text)
-    # Normalize attribute values that vary per request
     structure = re.sub(r'(href|src|action)=["\'][^"\']+["\']', r'\1=""', structure)
-    # Normalize IDs and classes (often page-specific)
     structure = re.sub(r'\sid=["\'][^"\']+["\']', ' id=""', structure)
     return hashlib.md5(structure.encode()).hexdigest()
 
 
-def _extract_title(html: str) -> str:
-    """Extract <title> from HTML."""
-    match = re.search(r'<title[^>]*>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
-    return match.group(1).strip() if match else ""
-
-
-async def verify_endpoints(proj_path: str, limit: int = None):
-    """Read unverified endpoints, make real HTTP requests, fingerprint, and tag FPs."""
+def verify_endpoints(proj_path: str, limit: int = None):
+    """Read unverified endpoints, make real HTTP requests, fingerprint, tag FPs."""
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        # Only verify endpoints that have a proper URL (http/https)
         cursor.execute("""
             SELECT id, url, host_id FROM endpoints
             WHERE (response_hash IS NULL OR response_hash = '')
               AND url LIKE 'http%'
             ORDER BY id
-        """ + (" LIMIT ?" if limit else ""),
-                       (limit,) if limit else ())
+        """ + (" LIMIT ?" if limit else ""), (limit,) if limit else ())
         to_verify = cursor.fetchall()
 
     if not to_verify:
@@ -60,50 +43,32 @@ async def verify_endpoints(proj_path: str, limit: int = None):
 
     console.print(f" [dim]↳ Verifier: Verificando {len(to_verify)} endpoints...[/dim]")
 
-    verified = 0
-    for i in range(0, len(to_verify), BATCH_SIZE):
-        batch = to_verify[i:i + BATCH_SIZE]
-        results = await _verify_batch(batch)
-        verified += _store_results(proj_path, results)
-        console.print(f"  [dim]{min(i + BATCH_SIZE, len(to_verify))}/{len(to_verify)}[/dim]")
+    def check_one(row):
+        try:
+            r = requests.get(row["url"], timeout=TIMEOUT, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/120",
+            }, allow_redirects=True)
+            return {
+                "id": row["id"],
+                "status_code": r.status_code,
+                "content_length": len(r.content),
+                "response_hash": _structural_hash(r.text),
+                "error": None,
+            }
+        except Exception as e:
+            return {"id": row["id"], "error": str(e)}
 
+    results = []
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(check_one, row): row for row in to_verify}
+        for i, future in enumerate(as_completed(futures), 1):
+            results.append(future.result())
+            if i % 500 == 0:
+                console.print(f"  [dim]{i}/{len(to_verify)}[/dim]")
+
+    _store_results(proj_path, results)
     tagged = _cluster_by_hash(proj_path)
-    console.print(f" [dim]↳ Verifier: {verified} verificados, {tagged} FPs taggeados.[/dim]")
-
-
-async def _verify_batch(batch: list) -> list[dict]:
-    """Verify a batch of URLs concurrently."""
-    async with httpx.AsyncClient(
-        timeout=TIMEOUT,
-        follow_redirects=True,
-        limits=httpx.Limits(max_connections=50),
-    ) as client:
-        async def check_one(row):
-            try:
-                r = await client.get(row["url"], headers={
-                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/120",
-                })
-                html = r.text[:8192]
-                return {
-                    "id": row["id"],
-                    "status_code": r.status_code,
-                    "content_length": len(r.content),
-                    "response_hash": _structural_hash(html),
-                    "title": _extract_title(html),
-                    "error": None,
-                }
-            except Exception as e:
-                return {
-                    "id": row["id"],
-                    "status_code": None,
-                    "content_length": None,
-                    "response_hash": None,
-                    "title": None,
-                    "error": str(e),
-                }
-
-        tasks = [check_one(row) for row in batch]
-        return await asyncio.gather(*tasks)
+    console.print(f" [dim]↳ Verifier: {len(results)} verificados, {tagged} FPs taggeados.[/dim]")
 
 
 def _store_results(proj_path: str, results: list[dict]) -> int:
@@ -112,10 +77,11 @@ def _store_results(proj_path: str, results: list[dict]) -> int:
         with db.transaction(conn):
             cursor = conn.cursor()
             for r in results:
-                if r["error"]:
-                    # Mark as verified (failed) so we don't retry indefinitely
+                if r.get("error"):
                     cursor.execute("""
                         UPDATE endpoints SET
+                            status_code = 0,
+                            content_length = 0,
                             response_hash = '',
                             verified_at = CURRENT_TIMESTAMP
                         WHERE id = ?
@@ -123,14 +89,10 @@ def _store_results(proj_path: str, results: list[dict]) -> int:
                 else:
                     cursor.execute("""
                         UPDATE endpoints SET
-                            status_code = ?,
-                            content_length = ?,
-                            response_hash = ?,
-                            title = ?,
-                            verified_at = CURRENT_TIMESTAMP
+                            status_code = ?, content_length = ?,
+                            response_hash = ?, verified_at = CURRENT_TIMESTAMP
                         WHERE id = ?
-                    """, (r["status_code"], r["content_length"],
-                          r["response_hash"], r["title"], r["id"]))
+                    """, (r["status_code"], r["content_length"], r["response_hash"], r["id"]))
                 count += 1
     return count
 
@@ -149,8 +111,7 @@ def _cluster_by_hash(proj_path: str) -> int:
                 HAVING cnt >= 5
                 ORDER BY cnt DESC
             """)
-            clusters = cursor.fetchall()
-            for row in clusters:
+            for row in cursor.fetchall():
                 cursor.execute("""
                     SELECT id, vulnerability_patterns FROM endpoints
                     WHERE host_id = ? AND response_hash = ?
@@ -165,24 +126,9 @@ def _cluster_by_hash(proj_path: str) -> int:
                             (json.dumps(patterns), ep["id"]),
                         )
                         tagged += 1
-
-            # Also add the title column to endpoints if missing
-            _add_title_column(proj_path)
-
-    if clusters:
-        console.print(f"  [dim]↳ {len(clusters)} clusters de FPs encontrados.[/dim]")
     return tagged
-
-
-def _add_title_column(proj_path: str):
-    """Ensure title column exists on endpoints (needed for verifier results)."""
-    with db.get_connection(proj_path) as conn:
-        try:
-            conn.execute("ALTER TABLE endpoints ADD COLUMN title TEXT")
-        except Exception:
-            pass  # Column already exists
 
 
 def run_sync(proj_path: str, limit: int = None):
     """Synchronous entry point called from cli.py."""
-    asyncio.run(verify_endpoints(proj_path, limit))
+    verify_endpoints(proj_path, limit)

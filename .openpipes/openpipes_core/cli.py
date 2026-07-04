@@ -432,7 +432,7 @@ Framework de Reconhecimento v2.0
             proj_name, proj_path, _ = get_project_env()
             if proj_path:
                 db.init_db(proj_path)
-                asyncio.run(verifier.verify_endpoints(proj_path))
+                verifier.verify_endpoints(proj_path)
             else:
                 console.print("[red]Projeto não configurado.[/red]")
                 input("Pressione ENTER...")

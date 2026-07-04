@@ -126,9 +126,16 @@ def init_db(proj_path):
                 tech_stack            TEXT DEFAULT '[]',
                 source_tool           TEXT,
                 vulnerability_patterns TEXT DEFAULT '[]',
-                discovered_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                discovered_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                response_hash         TEXT,
+                verified_at           TIMESTAMP
             )
         """)
+
+        _add_missing_columns(conn, "endpoints", {
+            "response_hash": "response_hash TEXT",
+            "verified_at": "verified_at TIMESTAMP",
+        })
 
         # ── Screenshots ─────────────────────────────────────────────────
         cursor.execute("""
