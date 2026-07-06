@@ -399,6 +399,7 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("[17]", "[bold cyan]Ver Dados do Banco[/bold cyan]")
         menu_table.add_row("[18]", "[bold green]Sync Obsidian Vault (Jinja2)[/bold green]")
         menu_table.add_row("[19]", "[bold cyan]Verifier (Valida Endpoints via HTTP)[/bold cyan]")
+        menu_table.add_row("[20]", "[bold green]Feed Tools from DB[/bold green]")
 
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
@@ -413,20 +414,28 @@ Framework de Reconhecimento v2.0
         if escolha == "0":
             console.print("[bold blue]Saindo...[/bold blue]")
             break
+
         elif escolha == "99":
             show_help()
+
         elif escolha == "14":
             show_execution_history()
+
         elif escolha == "13":
             run_full_pipeline()
+
         elif escolha == "15":
             run_osint_people_enricher()
+
         elif escolha == "16":
             run_reparse_all()
+
         elif escolha == "17":
             show_database_viewer()
+
         elif escolha == "18":
             renderer.sync_project()           # all targets
+
         elif escolha == "19":
             proj_name, proj_path, _ = get_project_env()
             if proj_path:
@@ -436,11 +445,17 @@ Framework de Reconhecimento v2.0
                 console.print("[red]Projeto não configurado.[/red]")
                 input("Pressione ENTER...")
 
+        elif escolha == "20":
+            import feeder
+            feeder.run()
+
+
         elif escolha in opcoes:
             run_bash_module(opcoes[escolha])
         else:
             console.print("[bold red]Opção inválida![/bold red]")
             time.sleep(1)
+
 
 def run_reparse_all():
     """
@@ -580,6 +595,7 @@ def main():
     sync_parser.add_argument("--target", "-t", help="Renderizar apenas um alvo específico")
     verify_parser = subparsers.add_parser("verify", help="Verifica endpoints com HTTP real")
     verify_parser.add_argument("--limit", type=int, default=None, help="Limite de endpoints")
+    feed_parser = subparsers.add_parser("feed", help="Alimenta ferramentas a partir do banco de dados")
 
 
     if len(sys.argv) == 1:
@@ -595,7 +611,9 @@ def main():
             if proj_path:
                 db.init_db(proj_path)
                 verifier.verify_endpoints(proj_path, limit=args.limit)
-
+        elif args.command == "feed":    
+            import feeder
+            feeder.run()
 
 if __name__ == "__main__":
     main()
