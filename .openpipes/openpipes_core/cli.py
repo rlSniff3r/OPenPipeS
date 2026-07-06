@@ -428,11 +428,10 @@ Framework de Reconhecimento v2.0
         elif escolha == "18":
             renderer.sync_project()           # all targets
         elif escolha == "19":
-            import asyncio
             proj_name, proj_path, _ = get_project_env()
             if proj_path:
                 db.init_db(proj_path)
-                verifier.verify_endpoints(proj_path)
+                verifier.verify_endpoints(proj_path, limit=args.limit)
             else:
                 console.print("[red]Projeto não configurado.[/red]")
                 input("Pressione ENTER...")
@@ -595,8 +594,7 @@ def main():
             proj_name, proj_path, _ = get_project_env()
             if proj_path:
                 db.init_db(proj_path)
-                import asyncio
-                asyncio.run(verifier.verify_endpoints(proj_path, limit=args.limit))
+                verifier.verify_endpoints(proj_path, limit=args.limit)
 
 
 if __name__ == "__main__":
