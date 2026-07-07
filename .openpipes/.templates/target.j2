@@ -13,18 +13,9 @@ cssclasses:
   - whiteRed-rounded
   - yellowCab
   - flatBlue
----
-
-## 📸 Screenshots
 {%- if target.screenshots %}
-{% for shot in target.screenshots %}
-![[Screenshots/{{ shot.file_path }}|500]]
-{% if shot.title %}*{{ shot.title }}*{% endif %}
-{% endfor %}
-{%- else %}
-*Nenhum screenshot disponível.*
+cover: "[[Screenshots/{{ target.screenshots[0].file_path }}]]"
 {%- endif %}
-
 ---
 
 {%- if target.whois %}
@@ -44,6 +35,19 @@ cssclasses:
 {%- if target.is_alive %}
 
 _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualização: {{ target.last_updated }}_
+{%- endif %}
+
+---
+
+## 📸 Screenshots
+{%- if target.screenshots %}
+{%- for shot in target.screenshots %}
+![[Screenshots/{{ shot.file_path }}|500]]
+**URL:** [{{ shot.source_url }}]({{ shot.source_url }})
+{%- if shot.title %} *{{ shot.title }}*{% endif %}
+{%- endfor %}
+{%- else %}
+*Nenhum screenshot disponível.*
 {%- endif %}
 
 ---
