@@ -135,6 +135,7 @@ def init_db(proj_path):
         _add_missing_columns(conn, "endpoints", {
             "response_hash": "response_hash TEXT",
             "verified_at": "verified_at TIMESTAMP",
+            "scanned_by": "scanned_by TEXT DEFAULT ''",
         })
 
         # ── Screenshots ─────────────────────────────────────────────────

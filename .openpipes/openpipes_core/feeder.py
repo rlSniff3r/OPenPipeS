@@ -1,10 +1,10 @@
 import os
 import json
+from collections import defaultdict
 from pathlib import Path
 
-from rich.console import Console
-
 import db
+from rich.console import Console
 
 console = Console()
 HOME = str(Path.home())
@@ -12,12 +12,11 @@ CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 
 
 def _get_proj_path():
-    """Get project path from config."""
     if not os.path.exists(CONFIG_FILE):
-        return None
+        return None, None
     try:
-        cmd = f"source {CONFIG_FILE} && echo -n \"$proj_path|$NMAP_DIR\""
         import subprocess
+        cmd = f"source {CONFIG_FILE} && echo -n \"$proj_path|$NMAP_DIR\""
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
         parts = result.stdout.strip().split("|")
         if len(parts) == 2:
@@ -27,79 +26,230 @@ def _get_proj_path():
     return None, None
 
 
-def feed_httpx(proj_path: str, nmap_dir: str):
+def _get_unscanned(proj_path: str, tool_name: str, status_min: int = 100, status_max: int = 599):
     """
-    Query DB for alive, in-scope hosts with open HTTP ports.
-    Writes targets.txt and per-target httpx_targets.txt for httpx-runner.
+    Get endpoints that haven't been processed by this tool yet.
+    Excludes potential false positives.
     """
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
+        cursor.execute("""
+            SELECT e.id, e.url, e.host_id, h.host
+            FROM endpoints e
+            JOIN hosts h ON h.id = e.host_id
+            WHERE h.is_alive = 1
+              AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%'
+                   OR e.vulnerability_patterns IS NULL)
+              AND (e.scanned_by NOT LIKE ? OR e.scanned_by IS NULL)
+            ORDER BY h.host, e.url
+        """, (f"%{tool_name}%",))
+        return cursor.fetchall()
 
-        # Get alive hosts with open HTTP ports
+
+def _mark_scanned(proj_path: str, endpoint_ids: list, tool_name: str):
+    """Append tool name to scanned_by for each endpoint."""
+    if not endpoint_ids:
+        return
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            for eid in endpoint_ids:
+                cursor.execute("""
+                    UPDATE endpoints SET
+                        scanned_by = CASE
+                            WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
+                            ELSE scanned_by || ',' || ?
+                        END
+                    WHERE id = ?
+                """, (tool_name, tool_name, eid))
+
+
+def feed_httpx(proj_path: str, nmap_dir: str):
+    """Feed targets with open HTTP ports to httpx."""
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
         cursor.execute("""
             SELECT DISTINCT h.id, h.host, h.ips
             FROM hosts h
             JOIN ports p ON p.host_id = h.id
-            WHERE h.is_alive = 1
-              AND p.state = 'open'
-              AND p.service IN ('http', 'https', 'http-proxy', 'ssl', 'unknown')
+            WHERE h.is_alive = 1 AND p.state = 'open'
+              AND p.service IN ('http','https','http-proxy','ssl','unknown')
             ORDER BY h.host
         """)
         hosts = cursor.fetchall()
 
-        if not hosts:
-            console.print("[yellow]⚠ Nenhum host vivo com portas HTTP encontrado no banco.[/yellow]")
-            return
+    if not hosts:
+        console.print("[yellow]⚠ Nenhum host com portas HTTP.[/yellow]")
+        return
 
-        console.print(f" [dim]↳ Feed httpx: {len(hosts)} hosts com portas HTTP[/dim]")
+    for row in hosts:
+        host_id, host_name = row["id"], row["host"]
+        ips = json.loads(row["ips"]) if row["ips"] else []
+        target_dir = os.path.join(nmap_dir, f"nmap-{host_name}")
+        os.makedirs(target_dir, exist_ok=True)
 
-        for host_row in hosts:
-            host_id = host_row["id"]
-            host_name = host_row["host"]
-            ips = json.loads(host_row["ips"]) if host_row["ips"] else []
-            ip = ips[0] if ips else ""
+        with db.get_connection(proj_path) as conn:
+            c = conn.cursor()
+            c.execute("SELECT port FROM ports WHERE host_id = ? AND state = 'open' AND service IN ('http','https','http-proxy','ssl','unknown')", (host_id,))
+            ports = [str(r[0]) for r in c.fetchall()]
 
-            # Get open HTTP ports for this host
-            cursor.execute("""
-                SELECT port, service FROM ports
-                WHERE host_id = ? AND state = 'open'
-                  AND service IN ('http', 'https', 'http-proxy', 'ssl', 'unknown')
-                ORDER BY port
-            """, (host_id,))
-            ports = [str(r["port"]) for r in cursor.fetchall()]
+        with open(os.path.join(target_dir, "httpx_targets.txt"), "w") as f:
+            f.write(f"http://{host_name}\nhttps://{host_name}\n")
+            if ips:
+                f.write(f"http://{ips[0]}\nhttps://{ips[0]}\n")
+        with open(os.path.join(target_dir, "httpx_ports.txt"), "w") as f:
+            f.write(",".join(ports))
 
-            if not ports:
-                continue
+    console.print(f" [dim]↳ Feed httpx: {len(hosts)} hosts[/dim]")
 
-            # Write per-target target list (used by httpx-runner.sh)
-            target_dir = os.path.join(nmap_dir, f"nmap-{host_name}")
-            os.makedirs(target_dir, exist_ok=True)
-            target_file = os.path.join(target_dir, "httpx_targets.txt")
 
-            with open(target_file, "w") as f:
-                f.write(f"http://{host_name}\n")
-                f.write(f"https://{host_name}\n")
-                if ip:
-                    f.write(f"http://{ip}\n")
-                    f.write(f"https://{ip}\n")
+def feed_katana(proj_path: str, nmap_dir: str):
+    """Feed unscanned, verified endpoints to katana."""
+    rows = _get_unscanned(proj_path, "katana", status_min=200, status_max=399)
+    if not rows:
+        console.print("[dim]↳ Feed katana: nada novo.[/dim]")
+        return
+    by_host = defaultdict(list)
+    for r in rows:
+        by_host[r["host"]].append(r["url"])
+    total = 0
+    for host, urls in by_host.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        with open(os.path.join(target_dir, "alive_urls.txt"), "w") as f:
+            for url in urls:
+                f.write(url + "\n")
+        total += len(urls)
+    _mark_scanned(proj_path, [r["id"] for r in rows], "katana")
+    console.print(f" [dim]↳ Feed katana: {total} novos URLs para {len(by_host)} hosts[/dim]")
 
-            # Write ports file
-            ports_file = os.path.join(target_dir, "httpx_ports.txt")
-            with open(ports_file, "w") as f:
-                f.write(",".join(ports))
 
-        # Write global targets.txt
-        targets_file = os.path.join(nmap_dir, "targets.txt")
-        with open(targets_file, "w") as f:
-            for host_row in hosts:
-                f.write(host_row["host"] + "\n")
+def feed_ferox(proj_path: str, nmap_dir: str):
+    """Feed unscanned, verified endpoints to feroxbuster."""
+    rows = _get_unscanned(proj_path, "ferox", status_min=200, status_max=399)
+    if not rows:
+        console.print("[dim]↳ Feed ferox: nada novo.[/dim]")
+        return
+    by_host = defaultdict(list)
+    for r in rows:
+        by_host[r["host"]].append(r["url"])
+    total = 0
+    for host, urls in by_host.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        with open(os.path.join(target_dir, "alive_urls.txt"), "w") as f:
+            for url in urls:
+                f.write(url + "\n")
+        total += len(urls)
+    _mark_scanned(proj_path, [r["id"] for r in rows], "ferox")
+    console.print(f" [dim]↳ Feed ferox: {total} novos URLs para {len(by_host)} hosts[/dim]")
 
-        console.print(f" [dim]↳ Feed httpx: targets.txt e listas por alvo atualizados.[/dim]")
+
+def feed_jsfinder(proj_path: str, nmap_dir: str):
+    """Feed JS URLs (endpoints ending in .js) to jsfinder."""
+    rows = _get_unscanned(proj_path, "jsfinder")
+    js_rows = [r for r in rows if r["url"].lower().endswith(".js") or ".js?" in r["url"].lower()]
+    if not js_rows:
+        console.print("[dim]↳ Feed jsfinder: nada novo.[/dim]")
+        return
+    by_host = defaultdict(list)
+    for r in js_rows:
+        by_host[r["host"]].append(r["url"])
+    total = 0
+    for host, urls in by_host.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        out = os.path.join(target_dir, "js_urls.txt")
+        with open(out, "w") as f:
+            for url in urls:
+                f.write(url + "\n")
+        total += len(urls)
+    _mark_scanned(proj_path, [r["id"] for r in js_rows], "jsfinder")
+    console.print(f" [dim]↳ Feed jsfinder: {total} novos JS URLs[/dim]")
+
+
+def feed_gf(proj_path: str, nmap_dir: str):
+    """Feed unscanned endpoints to gf-summary."""
+    rows = _get_unscanned(proj_path, "gf")
+    if not rows:
+        console.print("[dim]↳ Feed gf: nada novo.[/dim]")
+        return
+    by_host = defaultdict(list)
+    for r in rows:
+        by_host[r["host"]].append(r["url"])
+    total = 0
+    for host, urls in by_host.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        out = os.path.join(target_dir, "gf_urls.txt")
+        with open(out, "w") as f:
+            for url in urls:
+                f.write(url + "\n")
+        total += len(urls)
+    _mark_scanned(proj_path, [r["id"] for r in rows], "gf")
+    console.print(f" [dim]↳ Feed gf: {total} URLs[/dim]")
+
+
+def feed_screenshot(proj_path: str, nmap_dir: str):
+    """Feed verified, non-FP endpoints to screenshot-runner."""
+    rows = _get_unscanned(proj_path, "screenshot", status_min=200, status_max=399)
+    if not rows:
+        console.print("[dim]↳ Feed screenshot: nada novo.[/dim]")
+        return
+    by_host = defaultdict(list)
+    for r in rows:
+        by_host[r["host"]].append(r["url"])
+    total = 0
+    for host, urls in by_host.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        alive_file = os.path.join(target_dir, "alive_urls.txt")
+        with open(alive_file, "w") as f:
+            for url in urls:
+                f.write(url + "\n")
+        total += len(urls)
+    _mark_scanned(proj_path, [r["id"] for r in rows], "screenshot")
+    console.print(f" [dim]↳ Feed screenshot: {total} URLs[/dim]")
+
+
+def feed_nwrapper(proj_path: str, nmap_dir: str):
+    """Feed in-scope, alive hosts to nmap wrapper."""
+    import subprocess
+    cmd = f"source {CONFIG_FILE} && echo -n \"$proj_path\""
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+    proj_dir = result.stdout.strip()
+
+    domains_file = os.path.join(proj_dir, "domains.txt")
+    if os.path.exists(domains_file):
+        console.print(f" [dim]↳ Feed nwrapper: usando domains.txt existente.[/dim]")
+        return
+
+    # Or write targets.txt with all alive hosts
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT host FROM hosts WHERE is_alive = 1 ORDER BY host")
+        hosts = [r["host"] for r in cursor.fetchall()]
+
+    if hosts:
+        out = os.path.join(nmap_dir, "targets.txt")
+        os.makedirs(nmap_dir, exist_ok=True)
+        with open(out, "w") as f:
+            for h in hosts:
+                f.write(h + "\n")
+        console.print(f" [dim]↳ Feed nwrapper: {len(hosts)} hosts[/dim]")
+    else:
+        console.print("[yellow]⚠ Nenhum host vivo para nwrapper.[/yellow]")
 
 
 def feed_all(proj_path: str, nmap_dir: str):
     """Run all feeders."""
+    feed_nwrapper(proj_path, nmap_dir)
     feed_httpx(proj_path, nmap_dir)
+    feed_katana(proj_path, nmap_dir)
+    feed_ferox(proj_path, nmap_dir)
+    feed_jsfinder(proj_path, nmap_dir)
+    feed_gf(proj_path, nmap_dir)
+    feed_screenshot(proj_path, nmap_dir)
 
 
 def run():
