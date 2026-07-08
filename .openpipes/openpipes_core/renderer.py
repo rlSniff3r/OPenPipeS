@@ -526,6 +526,16 @@ def render_all(proj_path: str, obsdir: str, proj_name: str, target_name: str = N
     console.print(f"\n[bold green]✔ Sync concluído![/bold green]")
 
 
+def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
+    """Placeholder — dashboard rendering logic."""
+    console.print(f" [dim]↳ Render: Dashboard Global[/dim]")
+
+
+def render_index(proj_path: str, obsdir: str, proj_name: str):
+    """Placeholder — index rendering logic."""
+    console.print(f" [dim]↳ Render: Project Index[/dim]")
+
+
 def sync_project(target_name: str = None):
     proj_name, proj_path, obsdir = _get_env_from_config()
     if not proj_name or not proj_path or not obsdir:
