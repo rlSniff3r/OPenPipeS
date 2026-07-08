@@ -400,15 +400,41 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     os.makedirs(endpoints_dir, exist_ok=True)
     os.makedirs(vulns_dir, exist_ok=True)
 
+    # ── Group endpoints by route, apply FP filter and threshold ──
+    MIN_ROUTE_SIZE = 3
     groups = _group_endpoints_by_route(report["endpoints"])
+
+    # Filter out false positives
+    for gname in list(groups.keys()):
+        groups[gname] = [
+            ep for ep in groups[gname]
+            if "potential_false_positive" not in ep.get("vulnerability_patterns", [])
+        ]
+        if not groups[gname]:
+            del groups[gname]
+
+    # Merge small groups (< 3 endpoints) into _agrupadas
+    large_groups = {}
+    small_eps = []
+    for gname, eps in groups.items():
+        if len(eps) >= MIN_ROUTE_SIZE:
+            large_groups[gname] = eps
+        else:
+            small_eps.extend(eps)
+    if small_eps:
+        large_groups["_agrupadas"] = small_eps
+
+    groups = large_groups
     group_names = list(groups.keys())
 
+    # 1. Target note
     target_md = env.get_template("target.j2").render(
         target=report, groups=groups, group_names=group_names,
     )
     with open(os.path.join(vault_dir, f"{host_name}.md"), "w", encoding="utf-8") as f:
         f.write(target_md)
 
+    # 2. Route group files (only for groups with content)
     ep_group_template = env.get_template("endpoint-group.j2")
     for group_name, group_eps in groups.items():
         group_md = ep_group_template.render(
@@ -418,6 +444,7 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
         with open(os.path.join(endpoints_dir, f"{group_name}.md"), "w", encoding="utf-8") as f:
             f.write(group_md)
 
+    # 3–7 remain unchanged...
     nmap_dir = _get_nmap_dir(proj_path)
     _render_nmap_file(host_name, nmap_dir, vault_dir)
 
@@ -455,40 +482,10 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
 
     console.print(
         f" [dim]↳ Render: {host_name} — "
-        f"{report['endpoint_count']} endpoints ({len(groups)} rotas), "
+        f"{sum(len(v) for v in groups.values())} endpoints ({len(groups)} rotas), "
         f"{vuln_count} vulns[/dim]"
     )
     return True
-
-
-def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
-    summary = get_project_summary(proj_path)
-    targets = get_targets_list(proj_path)
-    for t in targets:
-        report = get_target_report(proj_path, t["name"])
-        if report:
-            t["all_ips_str"] = ", ".join(report["all_ips"])
-            t["ports_str"] = ", ".join(str(p["port"]) for p in report["all_ports"])
-            t["vuln_count"] = report["vuln_count"]
-        else:
-            t["all_ips_str"] = "—"
-            t["ports_str"] = "—"
-            t["vuln_count"] = 0
-
-    important = _get_important_endpoints(proj_path)
-    all_endpoints = _get_dashboard_endpoints(proj_path)
-
-    env = _get_jinja_env()
-    dashboard_md = env.get_template("dashboard.j2").render(
-        project_name=proj_name, summary=summary, targets=targets,
-        important_endpoints=important, all_endpoints=all_endpoints,
-        generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    )
-    dashboard_dir = _get_vault_path(obsdir, proj_name)
-    os.makedirs(dashboard_dir, exist_ok=True)
-    with open(os.path.join(dashboard_dir, "Dashboard_Global.md"), "w", encoding="utf-8") as f:
-        f.write(dashboard_md)
-    console.print(f" [dim]↳ Render: Dashboard Global ({len(important)} importantes, {len(all_endpoints)} endpoints)[/dim]")
 
 
 def render_index(proj_path: str, obsdir: str, proj_name: str):

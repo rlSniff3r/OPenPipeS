@@ -26,19 +26,23 @@ def _structural_hash(html: str) -> str:
 
 
 def verify_endpoints(proj_path: str, limit: int = None):
-    """Read unverified endpoints, make real HTTP requests, fingerprint, tag FPs."""
+    """
+    Read unverified endpoints (response_hash IS NULL),
+    make real HTTP requests, fingerprint, tag false positives.
+    """
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, url, host_id FROM endpoints
-            WHERE (response_hash IS NULL OR response_hash = '')
+            WHERE response_hash IS NULL
+              AND verified_at IS NULL
               AND url LIKE 'http%'
             ORDER BY id
         """ + (" LIMIT ?" if limit else ""), (limit,) if limit else ())
         to_verify = cursor.fetchall()
 
     if not to_verify:
-        console.print(" [dim]↳ Verifier: Nenhum endpoint para verificar.[/dim]")
+        console.print(" [dim]↳ Verifier: Nenhum endpoint novo para verificar.[/dim]")
         return
 
     console.print(f" [dim]↳ Verifier: Verificando {len(to_verify)} endpoints...[/dim]")
@@ -71,8 +75,7 @@ def verify_endpoints(proj_path: str, limit: int = None):
     console.print(f" [dim]↳ Verifier: {len(results)} verificados, {tagged} FPs taggeados.[/dim]")
 
 
-def _store_results(proj_path: str, results: list[dict]) -> int:
-    count = 0
+def _store_results(proj_path: str, results: list[dict]):
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
@@ -82,7 +85,7 @@ def _store_results(proj_path: str, results: list[dict]) -> int:
                         UPDATE endpoints SET
                             status_code = 0,
                             content_length = 0,
-                            response_hash = '',
+                            response_hash = 'FAILED',
                             verified_at = CURRENT_TIMESTAMP
                         WHERE id = ?
                     """, (r["id"],))
@@ -93,8 +96,6 @@ def _store_results(proj_path: str, results: list[dict]) -> int:
                             response_hash = ?, verified_at = CURRENT_TIMESTAMP
                         WHERE id = ?
                     """, (r["status_code"], r["content_length"], r["response_hash"], r["id"]))
-                count += 1
-    return count
 
 
 def _cluster_by_hash(proj_path: str) -> int:
@@ -106,7 +107,9 @@ def _cluster_by_hash(proj_path: str) -> int:
             cursor.execute("""
                 SELECT host_id, response_hash, COUNT(*) as cnt
                 FROM endpoints
-                WHERE response_hash IS NOT NULL AND response_hash != ''
+                WHERE response_hash IS NOT NULL
+                  AND response_hash != ''
+                  AND response_hash != 'FAILED'
                 GROUP BY host_id, response_hash
                 HAVING cnt >= 5
                 ORDER BY cnt DESC
