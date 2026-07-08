@@ -425,7 +425,7 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
         large_groups["_agrupadas"] = small_eps
 
     groups = large_groups
-    group_names = list(groups.keys())
+    group_names = sorted(groups.keys(), key=lambda g: len(groups[g]), reverse=True)
 
     # 1. Target note
     target_md = env.get_template("target.j2").render(
