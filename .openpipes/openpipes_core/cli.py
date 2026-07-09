@@ -400,6 +400,7 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("[18]", "[bold green]Sync Obsidian Vault (Jinja2)[/bold green]")
         menu_table.add_row("[19]", "[bold cyan]Verifier (Valida Endpoints via HTTP)[/bold cyan]")
         menu_table.add_row("[20]", "[bold green]Feed Tools from DB[/bold green]")
+        menu_table.add_row("[21]", "[bold yellow]Cycle (Completo)[/bold yellow]")
 
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
@@ -448,7 +449,10 @@ Framework de Reconhecimento v2.0
         elif escolha == "20":
             import feeder
             feeder.run()
-
+        
+        elif escolha == "21":
+            import cycle
+            cycle.run_cycle()
 
         elif escolha in opcoes:
             run_bash_module(opcoes[escolha])
@@ -596,6 +600,7 @@ def main():
     verify_parser = subparsers.add_parser("verify", help="Verifica endpoints com HTTP real")
     verify_parser.add_argument("--limit", type=int, default=None, help="Limite de endpoints")
     feed_parser = subparsers.add_parser("feed", help="Alimenta ferramentas a partir do banco de dados")
+    cycle_parser = subparsers.add_parser("cycle", help="Ciclo completo: feed → run → verify → sync")
 
 
     if len(sys.argv) == 1:
@@ -614,6 +619,10 @@ def main():
         elif args.command == "feed":    
             import feeder
             feeder.run()
+        elif args.command == "cycle":
+            import cycle
+            cycle.run_cycle()
+
 
 if __name__ == "__main__":
     main()
