@@ -44,19 +44,22 @@ def _run_module(name):
     db.init_db(proj_path)
     exec_id = db.log_module_start(proj_path, name)
     try:
-        # nwrapper needs the cycle targets file
         extra_args = ""
         if name == "nwrapper":
             extra_args = f"-f {os.path.join(nmap_dir, 'targets_cycle.txt')}"
         cmd = f"source {CONFIG_FILE} && {script} {extra_args}"
-        result = subprocess.run(cmd, shell=True, cwd=proj_path, executable="/bin/bash",
-                                capture_output=True, text=True)
+        # No capture_output — user sees sudo prompts, progress bars, etc.
+        result = subprocess.run(cmd, shell=True, cwd=proj_path, executable="/bin/bash")
         exit_code = result.returncode
         db.log_module_finish(proj_path, exec_id, exit_code)
         if exit_code == 0:
             import parsers
             parsers.dispatch(name, proj_path, nmap_dir)
-        return exit_code == 0, result.stdout[-200:] if result.stdout else ""
+        return exit_code == 0, ""
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Execução interrompida.[/yellow]")
+        db.log_module_finish(proj_path, exec_id, 130)
+        return False, "Interrompido"
     except Exception as e:
         db.log_module_finish(proj_path, exec_id, 1)
         return False, str(e)
@@ -65,6 +68,7 @@ def _run_module(name):
 def run_cycle(targets: list = None):
     """
     Full cycle: feed → run modules → verify → sync.
+    Uses cycle-specific targets for nwrapper (only unscanned hosts).
     """
     proj_name, proj_path, nmap_dir = _get_env()
     if not proj_path:
@@ -73,20 +77,29 @@ def run_cycle(targets: list = None):
 
     console.print(Panel(f"[bold cyan]🔄 Cycle — {proj_name}[/bold cyan]"))
     start = time.time()
-
-    # 1. Feed
-    console.print("\n[bold]1. Feed[/bold]")
     db.init_db(proj_path)
-    feeder.feed_all(proj_path, nmap_dir)
+
+    # 1. Feed — cycle mode for nwrapper (only unscanned hosts)
+    console.print("\n[bold]1. Feed[/bold]")
+    feeder.feed_nwrapper(proj_path, nmap_dir, cycle=True)
+    feeder.feed_httpx(proj_path, nmap_dir)
+    feeder.feed_katana(proj_path, nmap_dir)
+    feeder.feed_ferox(proj_path, nmap_dir)
+    feeder.feed_jsfinder(proj_path, nmap_dir)
+    feeder.feed_gf(proj_path, nmap_dir)
+    feeder.feed_screenshot(proj_path, nmap_dir)
 
     # 2. Run modules
-    modules = ["nwrapper", "httpx-runner", "katana-runner", "feroxbuster-runner", "jsfinder-runner", "gf-summary", "screenshot-runner"]
+    modules = ["nwrapper", "httpx-runner", "katana-runner", "feroxbuster-runner",
+               "jsfinder-runner", "gf-summary", "screenshot-runner"]
     results = []
     console.print("\n[bold]2. Run[/bold]")
     for mod in modules:
         ok, msg = _run_module(mod)
         status = "[green]OK[/green]" if ok else "[red]FAIL[/red]"
         console.print(f"  {status} {mod}")
+        if msg:
+            console.print(f"    {msg}")
         results.append((mod, ok))
 
     # 3. Verify
@@ -100,7 +113,6 @@ def run_cycle(targets: list = None):
     elapsed = time.time() - start
     console.print(f"\n[bold green]✔ Ciclo completo em {elapsed:.1f}s[/bold green]")
 
-    # Summary
     table = Table(box=None)
     table.add_column("Módulo", style="cyan")
     table.add_column("Status")

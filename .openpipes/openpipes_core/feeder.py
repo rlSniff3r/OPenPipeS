@@ -212,7 +212,7 @@ def feed_screenshot(proj_path: str, nmap_dir: str):
     console.print(f" [dim]↳ Feed screenshot: {total} URLs[/dim]")
 
 
-ddef feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
+def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
     """
     Feed nwrapper with hosts to scan.
     In cycle mode, only includes hosts not yet scanned (no ports in DB).
