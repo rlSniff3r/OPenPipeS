@@ -212,33 +212,37 @@ def feed_screenshot(proj_path: str, nmap_dir: str):
     console.print(f" [dim]↳ Feed screenshot: {total} URLs[/dim]")
 
 
-def feed_nwrapper(proj_path: str, nmap_dir: str):
-    """Feed in-scope, alive hosts to nmap wrapper."""
-    import subprocess
-    cmd = f"source {CONFIG_FILE} && echo -n \"$proj_path\""
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
-    proj_dir = result.stdout.strip()
-
-    domains_file = os.path.join(proj_dir, "domains.txt")
-    if os.path.exists(domains_file):
-        console.print(f" [dim]↳ Feed nwrapper: usando domains.txt existente.[/dim]")
-        return
-
-    # Or write targets.txt with all alive hosts
+ddef feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
+    """
+    Feed nwrapper with hosts to scan.
+    In cycle mode, only includes hosts not yet scanned (no ports in DB).
+    """
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT host FROM hosts WHERE is_alive = 1 ORDER BY host")
+
+        if cycle:
+            # Only hosts without any port records
+            cursor.execute("""
+                SELECT h.host FROM hosts h
+                WHERE h.is_alive = 1
+                AND NOT EXISTS (SELECT 1 FROM ports p WHERE p.host_id = h.id)
+                ORDER BY h.host
+            """)
+            out_file = os.path.join(nmap_dir, "targets_cycle.txt")
+        else:
+            cursor.execute("SELECT host FROM hosts WHERE is_alive = 1 ORDER BY host")
+            out_file = os.path.join(nmap_dir, "targets.txt")
+
         hosts = [r["host"] for r in cursor.fetchall()]
 
     if hosts:
-        out = os.path.join(nmap_dir, "targets.txt")
         os.makedirs(nmap_dir, exist_ok=True)
-        with open(out, "w") as f:
+        with open(out_file, "w") as f:
             for h in hosts:
                 f.write(h + "\n")
-        console.print(f" [dim]↳ Feed nwrapper: {len(hosts)} hosts[/dim]")
+        console.print(f" [dim]↳ Feed nwrapper: {len(hosts)} hosts → {os.path.basename(out_file)}[/dim]")
     else:
-        console.print("[yellow]⚠ Nenhum host vivo para nwrapper.[/yellow]")
+        console.print("[dim]↳ Feed nwrapper: nada novo.[/dim]")
 
 
 def feed_all(proj_path: str, nmap_dir: str):

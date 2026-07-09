@@ -1,6 +1,7 @@
 import os
 import subprocess
 import time
+import threading
 from pathlib import Path
 
 from rich.console import Console
@@ -18,6 +19,12 @@ CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 BIN_DIR = os.path.join(HOME, ".openpipes", "bin")
 
 
+def _sudo_keepalive(stop_event):
+    while not stop_event.is_set():
+        subprocess.run(["sudo", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stop_event.wait(120)  # refresh every 2 minutes
+
+
 def _get_env():
     if not os.path.exists(CONFIG_FILE):
         return None, None, None
@@ -30,7 +37,6 @@ def _get_env():
 
 
 def _run_module(name):
-    """Run a bash module and parse its output."""
     script = os.path.join(BIN_DIR, name)
     if not os.path.exists(script):
         return False, f"Script {name} não encontrado"
@@ -38,7 +44,11 @@ def _run_module(name):
     db.init_db(proj_path)
     exec_id = db.log_module_start(proj_path, name)
     try:
-        cmd = f"source {CONFIG_FILE} && {script}"
+        # nwrapper needs the cycle targets file
+        extra_args = ""
+        if name == "nwrapper":
+            extra_args = f"-f {os.path.join(nmap_dir, 'targets_cycle.txt')}"
+        cmd = f"source {CONFIG_FILE} && {script} {extra_args}"
         result = subprocess.run(cmd, shell=True, cwd=proj_path, executable="/bin/bash",
                                 capture_output=True, text=True)
         exit_code = result.returncode
@@ -70,8 +80,7 @@ def run_cycle(targets: list = None):
     feeder.feed_all(proj_path, nmap_dir)
 
     # 2. Run modules
-    modules = ["httpx-runner", "katana-runner", "feroxbuster-runner",
-               "jsfinder-runner", "gf-summary", "screenshot-runner"]
+    modules = ["nwrapper", "httpx-runner", "katana-runner", "feroxbuster-runner", "jsfinder-runner", "gf-summary", "screenshot-runner"]
     results = []
     console.print("\n[bold]2. Run[/bold]")
     for mod in modules:
