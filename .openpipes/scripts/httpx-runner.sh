@@ -4,7 +4,6 @@ source $HOME/.openpipes/config.sh
 for dir in "$NMAP_DIR"/nmap-*; do
     [[ ! -d "$dir" ]] && continue
     targetName="${dir##*/nmap-}"
-
     target_list="$dir/httpx_targets.txt"
     ports_file="$dir/httpx_ports.txt"
 
@@ -31,4 +30,7 @@ for dir in "$NMAP_DIR"/nmap-*; do
 
     echo "[✔] $targetName finalizado."
 done
+
+# Consolidate all httpx JSONs into one file for the parser
+jq -s '.[]' "$NMAP_DIR"/nmap-*/httpx-*.json > "$NMAP_DIR/httpx_output.json" 2>/dev/null
 echo "[✔] httpx-runner concluído."
