@@ -74,6 +74,8 @@ def _is_in_scope(host: str, scope_domains: list[str]) -> bool:
 
 def get_project_summary(proj_path: str) -> dict:
     scope_domains = _get_scope_domains(proj_path)
+    fp_filter = "(vulnerability_patterns NOT LIKE '%potential_false_positive%' OR vulnerability_patterns IS NULL)"
+
     summary = {
         "total_hosts": 0, "total_ports": 0, "total_endpoints": 0,
         "total_vulns": 0, "total_js_routes": 0, "total_screenshots": 0,
@@ -90,16 +92,26 @@ def get_project_summary(proj_path: str) -> dict:
         summary["total_hosts"] = len(alive_hosts)
         if alive_hosts:
             ph = ",".join("?" for _ in alive_hosts)
+
             cursor.execute(f"SELECT COUNT(*) FROM ports WHERE host_id IN ({ph})", alive_hosts)
             summary["total_ports"] = cursor.fetchone()[0]
-            cursor.execute(f"SELECT COUNT(*) FROM endpoints WHERE host_id IN ({ph})", alive_hosts)
+
+            # Endpoints count — excluding false positives
+            cursor.execute(
+                f"SELECT COUNT(*) FROM endpoints WHERE host_id IN ({ph}) AND {fp_filter}",
+                alive_hosts,
+            )
             summary["total_endpoints"] = cursor.fetchone()[0]
+
             cursor.execute(f"SELECT COUNT(*) FROM vulnerabilities WHERE host_id IN ({ph})", alive_hosts)
             summary["total_vulns"] = cursor.fetchone()[0]
+
             cursor.execute(f"SELECT COUNT(*) FROM js_discoveries WHERE host_id IN ({ph})", alive_hosts)
             summary["total_js_routes"] = cursor.fetchone()[0]
+
             cursor.execute(f"SELECT COUNT(*) FROM screenshots WHERE host_id IN ({ph})", alive_hosts)
             summary["total_screenshots"] = cursor.fetchone()[0]
+
             try:
                 cursor.execute(
                     f"SELECT severity, COUNT(*) as cnt FROM vulnerabilities WHERE host_id IN ({ph}) GROUP BY severity",
@@ -110,6 +122,7 @@ def get_project_summary(proj_path: str) -> dict:
                         summary["severity_breakdown"][r["severity"]] = r["cnt"]
             except Exception:
                 pass
+
             cursor.execute(f"SELECT MAX(last_updated) FROM hosts WHERE id IN ({ph})", alive_hosts)
             summary["last_updated"] = cursor.fetchone()[0] or "Nunca"
     return summary
@@ -289,6 +302,8 @@ def _get_important_endpoints(proj_path: str, limit: int = 30) -> list[dict]:
         cursor.execute("""SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
                           FROM endpoints e JOIN hosts h ON h.id = e.host_id
                           WHERE h.is_alive = 1 AND e.title IS NOT NULL AND e.title != ''
+                          AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%'
+                               OR e.vulnerability_patterns IS NULL)
                           ORDER BY e.title""")
         for row in cursor.fetchall():
             if not _is_in_scope(row["host"], scope_domains):
@@ -314,6 +329,8 @@ def _get_dashboard_endpoints(proj_path: str, limit: int = 100) -> list[dict]:
                           FROM endpoints e JOIN hosts h ON h.id = e.host_id
                           WHERE h.is_alive = 1 AND e.status_code IN (200, 401, 403)
                           AND e.title IS NOT NULL AND e.title != '' AND e.title != '-'
+                          AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%'
+                               OR e.vulnerability_patterns IS NULL)
                           ORDER BY h.host, e.url""")
         seen_urls = set()
         for row in cursor.fetchall():
@@ -527,8 +544,37 @@ def render_all(proj_path: str, obsdir: str, proj_name: str, target_name: str = N
 
 
 def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
-    """Placeholder — dashboard rendering logic."""
-    console.print(f" [dim]↳ Render: Dashboard Global[/dim]")
+    summary = get_project_summary(proj_path)
+    targets = get_targets_list(proj_path)
+    for t in targets:
+        report = get_target_report(proj_path, t["name"])
+        if report:
+            t["all_ips_str"] = ", ".join(report["all_ips"])
+            t["ports_str"] = ", ".join(str(p["port"]) for p in report["all_ports"])
+            t["services_str"] = ", ".join(sorted(set(
+                p["service"] for p in report["all_ports"] if p["service"]
+            )))
+            t["vuln_count"] = report["vuln_count"]
+        else:
+            t["all_ips_str"] = "—"
+            t["ports_str"] = "—"
+            t["services_str"] = "—"
+            t["vuln_count"] = 0
+
+    important = _get_important_endpoints(proj_path)
+    all_endpoints = _get_dashboard_endpoints(proj_path)
+
+    env = _get_jinja_env()
+    dashboard_md = env.get_template("dashboard.j2").render(
+        project_name=proj_name, summary=summary, targets=targets,
+        important_endpoints=important, all_endpoints=all_endpoints,
+        generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
+    pentest_dir = os.path.join(obsdir, proj_name, "Pentest")
+    os.makedirs(pentest_dir, exist_ok=True)
+    with open(os.path.join(pentest_dir, "Dashboard_Global.md"), "w", encoding="utf-8") as f:
+        f.write(dashboard_md)
+    console.print(f" [dim]↳ Render: Dashboard Global + Hosts Panel ({len(important)} importantes, {len(all_endpoints)} endpoints)[/dim]")
 
 
 def render_index(proj_path: str, obsdir: str, proj_name: str):

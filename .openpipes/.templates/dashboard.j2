@@ -12,6 +12,7 @@ gerado_em: {{ generated_at }}
 |---------|-------|
 | 🖥️ Hosts em escopo | {{ summary.total_hosts }} |
 | 🔌 Portas abertas | {{ summary.total_ports }} |
+| 🌐 Endpoints verificados | {{ summary.total_endpoints }} |
 | 🛡️ Vulnerabilidades | {{ summary.total_vulns }} |
 | 📸 Screenshots | {{ summary.total_screenshots }} |
 | 🪡 Rotas em JS | {{ summary.total_js_routes }} |
@@ -38,44 +39,26 @@ gerado_em: {{ generated_at }}
 
 ## 🖥️ Alvos
 
-| Alvo | IPs | Portas | Vulns |
-|------|-----|--------|-------|
+| Alvo | IPs | Portas | Serviços | Vulns |
+|------|-----|--------|----------|-------|
 {%- for t in targets %}
-| [[{{ t.name }}/Sync/{{ t.name }}.md\|{{ t.name }}]] | `{{ t.all_ips_str }}` | `{{ t.ports_str }}` | {{ t.vuln_count }} |
+| [[{{ t.name }}.md\|{{ t.name }}]] | `{{ t.all_ips_str }}` | `{{ t.ports_str }}` | {{ t.services_str }} | {{ t.vuln_count }} |
 {%- else %}
-| *Nenhum alvo configurado* | | | |
+| *Nenhum alvo configurado* | | | | |
 {%- endfor %}
 
 ---
 
-## 🔑 Endpoints Importantes
-{%- if important_endpoints %}
-
-| URL | Título | Status | Servidor | Alvo |
-|-----|--------|--------|----------|------|
-{%- for ep in important_endpoints %}
-| `{{ ep.url }}` | {{ ep.title }} | {{ ep.status }} | {{ ep.server }} | {{ ep.target }} |
-{%- endfor %}
-{%- else %}
-*Nenhum endpoint importante identificado.*
-{%- endif %}
-
----
-
-## 🌐 Endpoints Encontrados nos Alvos
+## 🌐 Endpoints Relevantes
 {%- if all_endpoints %}
 
-<details>
-<summary>Mostrar todos os {{ all_endpoints | length }} endpoints</summary>
-
-| URL | Título | Status | Servidor | Alvo |
+| URL | Status | Título | Servidor | Alvo |
 |-----|--------|--------|----------|------|
 {%- for ep in all_endpoints %}
-| `{{ ep.url }}` | {{ ep.title }} | {{ ep.status }} | {{ ep.server }} | [[{{ ep.target }}/Sync/{{ ep.target }}.md\|{{ ep.target }}]] |
+| [{{ ep.url }}]({{ ep.url }}) | {{ ep.status }} | {{ ep.title }} | {{ ep.server }} | {{ ep.target }} |
 {%- endfor %}
-</details>
 {%- else %}
-*Nenhum endpoint encontrado.*
+*Nenhum endpoint relevante encontrado.*
 {%- endif %}
 
 ---
