@@ -1,0 +1,27 @@
+formulas:
+  Imagens: Screenshots
+  Sem título: ""
+views:
+  - type: cards
+    name: Randon Project
+    filters:
+      and:
+        - '!file.path.contains("Endpoints")'
+        - Tipo.containsAny("Target", "dashboard", "index")
+        - file.folder.contains("${obsdir}/${proj_name}/Pentest/")
+    groupBy:
+      property: file.tags
+      direction: ASC
+    order:
+      - file.name
+      - t_IP
+      - t_openPorts
+    sort:
+      - property: t_IP
+        direction: ASC
+    cardSize: 180
+    imageAspectRatio: 0.6
+    indentProperties: true
+    markers: none
+    rowHeight: medium
+    image: note.cover

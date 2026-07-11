@@ -574,6 +574,14 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
     os.makedirs(pentest_dir, exist_ok=True)
     with open(os.path.join(pentest_dir, "Dashboard_Global.md"), "w", encoding="utf-8") as f:
         f.write(dashboard_md)
+        # Hosts Panel (.base file)
+
+    hosts_md = env.get_template("hosts-panel.j2").render(
+        project_name=proj_name,
+    )
+    with open(os.path.join(pentest_dir, "Hosts_Panel.base"), "w", encoding="utf-8") as f:
+        f.write(hosts_md)
+
     console.print(f" [dim]↳ Render: Dashboard Global + Hosts Panel ({len(important)} importantes, {len(all_endpoints)} endpoints)[/dim]")
 
 
