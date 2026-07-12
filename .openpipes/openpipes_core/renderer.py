@@ -518,7 +518,7 @@ def render_index(proj_path: str, obsdir: str, proj_name: str):
         project_name=proj_name, targets=targets,
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
-    index_dir = _get_vault_path(obsdir, proj_name)
+    index_dir = os.path.join(obsdir, proj_name, "Pentest")
     os.makedirs(index_dir, exist_ok=True)
     with open(os.path.join(index_dir, "Index.md"), "w", encoding="utf-8") as f:
         f.write(index_md)
