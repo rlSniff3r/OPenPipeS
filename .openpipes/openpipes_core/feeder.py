@@ -17,7 +17,7 @@ def _get_proj_path():
     try:
         import subprocess
         cmd = f"source {CONFIG_FILE} && echo -n \"$proj_path|$NMAP_DIR\""
-        result = subprocess.run(cmd, shell=True, cwd=proj_path, executable="/bin/bash")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
         parts = result.stdout.strip().split("|")
         if len(parts) == 2:
             return parts[0], parts[1]
