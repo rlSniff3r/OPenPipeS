@@ -32,5 +32,5 @@ for dir in "$NMAP_DIR"/nmap-*; do
 done
 
 # Consolidate all httpx JSONs into one file for the parser
-jq -s '.[]' "$NMAP_DIR"/nmap-*/httpx-*.json > "$NMAP_DIR/httpx_output.json" 2>/dev/null
+jq -s -c '.[]' "$NMAP_DIR"/nmap-*/httpx-*.json > "$NMAP_DIR/httpx_output.json" 2>/dev/null
 echo "[✔] httpx-runner concluído."

@@ -3,12 +3,12 @@ formulas:
   Sem título: ""
 views:
   - type: cards
-    name: Randon Project
+    name: {{ project_name }} Project
     filters:
       and:
         - '!file.path.contains("Endpoints")'
         - Tipo.containsAny("Target", "dashboard", "index")
-        - file.folder.contains("${obsdir}/${proj_name}/Pentest/")
+        - file.folder.contains("/{{ project_name }}/")
     groupBy:
       property: file.tags
       direction: ASC

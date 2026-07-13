@@ -585,11 +585,6 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
     console.print(f" [dim]↳ Render: Dashboard Global + Hosts Panel ({len(important)} importantes, {len(all_endpoints)} endpoints)[/dim]")
 
 
-def render_index(proj_path: str, obsdir: str, proj_name: str):
-    """Placeholder — index rendering logic."""
-    console.print(f" [dim]↳ Render: Project Index[/dim]")
-
-
 def sync_project(target_name: str = None):
     proj_name, proj_path, obsdir = _get_env_from_config()
     if not proj_name or not proj_path or not obsdir:
