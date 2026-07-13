@@ -65,7 +65,6 @@ def _mark_scanned(proj_path: str, endpoint_ids: list, tool_name: str):
 
 
 def feed_httpx(proj_path: str, nmap_dir: str):
-    """Feed targets with open HTTP ports to httpx."""
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -82,15 +81,27 @@ def feed_httpx(proj_path: str, nmap_dir: str):
         console.print("[yellow]⚠ Nenhum host com portas HTTP.[/yellow]")
         return
 
+    count = 0
     for row in hosts:
         host_id, host_name = row["id"], row["host"]
-        ips = json.loads(row["ips"]) if row["ips"] else []
+
+        # Skip if already scanned by httpx (has JSON results)
         target_dir = os.path.join(nmap_dir, f"nmap-{host_name}")
+        import glob
+        existing = glob.glob(os.path.join(target_dir, "httpx-*.json"))
+        if existing:
+            continue
+
+        ips = json.loads(row["ips"]) if row["ips"] else []
         os.makedirs(target_dir, exist_ok=True)
 
         with db.get_connection(proj_path) as conn:
             c = conn.cursor()
-            c.execute("SELECT port FROM ports WHERE host_id = ? AND state = 'open' AND service IN ('http','https','http-proxy','ssl','unknown')", (host_id,))
+            c.execute(
+                "SELECT port FROM ports WHERE host_id = ? AND state = 'open' "
+                "AND service IN ('http','https','http-proxy','ssl','unknown')",
+                (host_id,),
+            )
             ports = [str(r[0]) for r in c.fetchall()]
 
         with open(os.path.join(target_dir, "httpx_targets.txt"), "w") as f:
@@ -99,8 +110,9 @@ def feed_httpx(proj_path: str, nmap_dir: str):
                 f.write(f"http://{ips[0]}\nhttps://{ips[0]}\n")
         with open(os.path.join(target_dir, "httpx_ports.txt"), "w") as f:
             f.write(",".join(ports))
+        count += 1
 
-    console.print(f" [dim]↳ Feed httpx: {len(hosts)} hosts[/dim]")
+    console.print(f" [dim]↳ Feed httpx: {count} novos hosts[/dim]")
 
 
 def feed_katana(proj_path: str, nmap_dir: str):
@@ -247,7 +259,7 @@ def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
 
 def feed_all(proj_path: str, nmap_dir: str):
     """Run all feeders."""
-    feed_nwrapper(proj_path, nmap_dir)
+    feed_nwrapper(proj_path, nmap_dir, cycle=True)  # ← always cycle mode
     feed_httpx(proj_path, nmap_dir)
     feed_katana(proj_path, nmap_dir)
     feed_ferox(proj_path, nmap_dir)
