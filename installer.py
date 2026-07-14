@@ -95,7 +95,7 @@ def setup_framework_files():
     if not os.path.exists(f"{OPENPIPES_DIR}/secrets.conf") and os.path.exists(secrets_src):
         shutil.copy2(secrets_src, f"{OPENPIPES_DIR}/secrets.conf")
     if os.path.exists(f"{cwd}/.openpipes/.gf"):
-        shutil.copytree(f"{cwd}/.openpipes/.gf", f"{OPENPIPES_DIR}/.gf", dirs_exist_ok=True)
+        shutil.copytree(f"{cwd}/.openpipes/.gf", f"{HOME}/.gf", dirs_exist_ok=True)
 
 
 def install_apt_deps():
