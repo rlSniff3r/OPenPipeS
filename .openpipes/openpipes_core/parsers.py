@@ -181,14 +181,19 @@ def process_httpx_json(cursor, json_file, source_name="httpx"):
                 cursor.execute("""
                     INSERT INTO endpoints
                         (host_id, url, status_code, content_length, content_type,
-                         title, web_server, tech_stack, source_tool)
+                        title, web_server, tech_stack, source_tool)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(url) DO UPDATE SET
-                        status_code=excluded.status_code,
-                        content_length=excluded.content_length,
-                        title=excluded.title,
-                        tech_stack=excluded.tech_stack,
-                        web_server=excluded.web_server
+                        status_code = CASE WHEN excluded.status_code BETWEEN 200 AND 599
+                                        THEN excluded.status_code ELSE status_code END,
+                        content_length = CASE WHEN excluded.content_length > 0
+                                            THEN excluded.content_length ELSE content_length END,
+                        title = CASE WHEN excluded.title IS NOT NULL AND excluded.title != ''
+                                    THEN excluded.title ELSE title END,
+                        tech_stack = CASE WHEN excluded.tech_stack IS NOT NULL AND excluded.tech_stack != '[]'
+                                        THEN excluded.tech_stack ELSE tech_stack END,
+                        web_server = CASE WHEN excluded.web_server IS NOT NULL AND excluded.web_server != ''
+                                        THEN excluded.web_server ELSE web_server END
                 """, (
                     host_id, url,
                     data.get('status_code', 0),
@@ -199,6 +204,7 @@ def process_httpx_json(cursor, json_file, source_name="httpx"):
                     json.dumps(data.get('tech', [])),
                     source_name,
                 ))
+
                 count_endpoints += 1
 
                 # Ensure a port record exists for this endpoint
@@ -459,9 +465,12 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
                                     (host_id, url, status_code, content_length, source_tool)
                                 VALUES (?, ?, ?, ?, ?)
                                 ON CONFLICT(url) DO UPDATE SET
-                                    status_code=excluded.status_code,
-                                    content_length=excluded.content_length
+                                    status_code = CASE WHEN excluded.status_code BETWEEN 200 AND 599
+                                                    THEN excluded.status_code ELSE status_code END,
+                                    content_length = CASE WHEN excluded.content_length > 0
+                                                        THEN excluded.content_length ELSE content_length END
                             """, (host_id, url, status_code, content_length, tool_name))
+
                             if cursor.rowcount > 0:
                                 count += 1
 
@@ -495,11 +504,9 @@ def parse_screenshot(proj_path, nmap_dir):
                     continue
 
                 # Find host_id by target name
-                cursor.execute("SELECT id FROM hosts WHERE host = ?", (target_name,))
-                row = cursor.fetchone()
-                if not row:
+                host_id = get_or_create_host(cursor, target_name)
+                if not host_id:
                     continue
-                host_id = row["id"]
 
                 try:
                     with open(jsonl_file, "r") as f:
