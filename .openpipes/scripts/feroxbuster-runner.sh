@@ -20,9 +20,9 @@ ${BLUE}                           Fuzzing com Wordlist Contextualizada
 v1.0 - Smart Fuzzing${NC}
 Banner
 
-FEROX_THREADS=50
+FEROX_THREADS=70
 FEROX_DEPTH=2
-FEROX_TIMEOUT="10m"
+FEROX_TIMEOUT="6m"
 FALLBACK_WL="/usr/share/wordlists/seclists/Discovery/Web-Content/common.txt"
 
 # ════════════════════════════════════════════════════════════════════════════

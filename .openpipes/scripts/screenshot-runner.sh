@@ -76,8 +76,8 @@ process_target() {
         --screenshot-path "$ss_dir" \
         --write-jsonl \
         --write-jsonl-file "$ss_dir/go_raw.jsonl" \
-        --threads 5 \
-        --timeout 20 \
+        --threads 6 \
+        --timeout 45 \
         --no-http=false \
         2>&1 | tee "$ss_dir/gowitness.log"
 
