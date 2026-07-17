@@ -289,15 +289,36 @@ def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
         console.print("[dim]↳ Feed nwrapper: nada novo.[/dim]")
 
 
+def feed_nuclei(proj_path: str, nmap_dir: str):
+    """Feed unscanned, verified endpoints to nuclei."""
+    rows = _get_unscanned(proj_path, "nuclei")
+    if not rows:
+        console.print("[dim]↳ Feed nuclei: nada novo.[/dim]")
+        return
+    by_host = defaultdict(list)
+    for r in rows:
+        by_host[r["host"]].append(r["url"])
+    total = 0
+    for host, urls in by_host.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        with open(os.path.join(target_dir, "alive_urls.txt"), "w") as f:
+            for url in urls:
+                f.write(url + "\n")
+        total += len(urls)
+    _mark_scanned(proj_path, [r["id"] for r in rows], "nuclei")
+    console.print(f" [dim]↳ Feed nuclei: {total} URLs para {len(by_host)} hosts[/dim]")
+
+
 def feed_all(proj_path: str, nmap_dir: str):
-    """Run all feeders."""
-    feed_nwrapper(proj_path, nmap_dir, cycle=True)  # ← always cycle mode
+    feed_nwrapper(proj_path, nmap_dir, cycle=True)
     feed_httpx(proj_path, nmap_dir)
     feed_katana(proj_path, nmap_dir)
     feed_ferox(proj_path, nmap_dir)
     feed_jsfinder(proj_path, nmap_dir)
     feed_gf(proj_path, nmap_dir)
     feed_screenshot(proj_path, nmap_dir)
+    feed_nuclei(proj_path, nmap_dir)
 
 
 def run():

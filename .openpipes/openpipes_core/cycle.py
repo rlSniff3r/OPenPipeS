@@ -91,7 +91,7 @@ def run_cycle(targets: list = None):
 
     # 2. Run modules
     modules = ["nwrapper", "httpx-runner", "katana-runner", "feroxbuster-runner",
-               "jsfinder-runner", "gf-summary", "screenshot-runner"]
+           "jsfinder-runner", "gf-summary", "screenshot-runner", "nuclei-runner"]
     results = []
     console.print("\n[bold]2. Run[/bold]")
     for mod in modules:

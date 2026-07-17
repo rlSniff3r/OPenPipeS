@@ -363,7 +363,7 @@ def interactive_menu():
   / _ \\|  _ \\ ___ _ __ |  _ \\(_)_ __   ___/ ___|
  | | | | |_) / _ \\ '_ \\| |_) | | '_ \\ / _ \\___ \\
  | |_| |  __/  __/ | | |  __/| | |_) |  __/___) |
-  \___/|_|   \___|_| |_|_|   |_| .__/ \___|____/
+  \\___/|_|   \\___|_| |_|_|   |_| .__/ \\___|____/
                                |_|                                
 Framework de Reconhecimento v2.0
 [/bold blue]"""
@@ -382,7 +382,7 @@ Framework de Reconhecimento v2.0
             "1": "recon", "2": "nwrapper", "3": "cria-alvos",
             "4": "httpx-runner", "5": "katana-runner", "6": "feroxbuster-runner",
             "7": "katana-buster", "8": "jsfinder-runner", "9": "screenshot-runner",
-            "10": "gf-summary", "11": "whois-enricher", "12": "cria-vulnerabilidades",
+            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner",
         }
 
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]MÓDULOS DE PENTEST[/bold cyan]")
