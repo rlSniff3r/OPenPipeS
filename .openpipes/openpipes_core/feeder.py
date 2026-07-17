@@ -65,6 +65,7 @@ def _mark_scanned(proj_path: str, endpoint_ids: list, tool_name: str):
 
 
 def feed_httpx(proj_path: str, nmap_dir: str):
+    """Feed targets with open HTTP ports to httpx. Skips hosts already scanned."""
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -84,12 +85,16 @@ def feed_httpx(proj_path: str, nmap_dir: str):
     count = 0
     for row in hosts:
         host_id, host_name = row["id"], row["host"]
-
-        # Skip if already scanned by httpx (has JSON results)
         target_dir = os.path.join(nmap_dir, f"nmap-{host_name}")
+
+        # Skip if already scanned — remove input files so script skips too
         import glob
         existing = glob.glob(os.path.join(target_dir, "httpx-*.json"))
         if existing:
+            for f in ["httpx_targets.txt", "httpx_ports.txt"]:
+                p = os.path.join(target_dir, f)
+                if os.path.exists(p):
+                    os.remove(p)
             continue
 
         ips = json.loads(row["ips"]) if row["ips"] else []
