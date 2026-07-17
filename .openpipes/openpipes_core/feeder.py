@@ -1,3 +1,4 @@
+import re
 import os
 import json
 from collections import defaultdict
@@ -26,11 +27,35 @@ def _get_proj_path():
     return None, None
 
 
+def _get_scope_domains(proj_path: str) -> list[str]:
+    """Read domains.txt and return list of in-scope domain suffixes."""
+    domains_file = os.path.join(proj_path, "domains.txt")
+    if not os.path.exists(domains_file):
+        return []
+    scope = []
+    with open(domains_file, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            domain = line.strip().lower()
+            if not domain or domain.startswith("#") or re.match(r"^\d+\.", domain):
+                continue
+            scope.append(domain)
+    return scope
+
+
+def _is_in_scope(host: str, scope_domains: list[str]) -> bool:
+    if not scope_domains:
+        return True
+    host = host.lower()
+    for domain in scope_domains:
+        if host == domain or host.endswith("." + domain):
+            return True
+    return False
+
+
 def _get_unscanned(proj_path: str, tool_name: str, status_min: int = 100, status_max: int = 599):
-    """
-    Get endpoints that haven't been processed by this tool yet.
-    Excludes potential false positives.
-    """
+    """Get endpoints not yet processed by this tool, filtered by scope."""
+    scope_domains = _get_scope_domains(proj_path)
+
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -43,7 +68,9 @@ def _get_unscanned(proj_path: str, tool_name: str, status_min: int = 100, status
               AND (e.scanned_by NOT LIKE ? OR e.scanned_by IS NULL)
             ORDER BY h.host, e.url
         """, (f"%{tool_name}%",))
-        return cursor.fetchall()
+
+        # Filter by scope in Python
+        return [r for r in cursor.fetchall() if _is_in_scope(r["host"], scope_domains)]
 
 
 def _mark_scanned(proj_path: str, endpoint_ids: list, tool_name: str):
