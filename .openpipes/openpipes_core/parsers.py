@@ -634,30 +634,48 @@ def parse_jsfinder(proj_path, nmap_dir):
 # ═════════════════════════════════════════════════════════════════════
 
 def parse_nuclei(proj_path, nmap_dir):
-    json_file = os.path.join(nmap_dir, "nuclei_output.json")
-    if not os.path.exists(json_file):
-        console.print(" [dim]↳ Parser Nuclei: Arquivo nuclei_output.json não encontrado.[/dim]")
-        return
+    """Parse nuclei output from per-target JSON files (array or JSONL format)."""
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
-            with open(json_file, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        data = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
+
+            for nmap_folder in sorted(os.listdir(nmap_dir)):
+                if not nmap_folder.startswith("nmap-"):
+                    continue
+                json_file = os.path.join(nmap_dir, nmap_folder, "nuclei_output.json")
+                if not os.path.exists(json_file):
+                    continue
+
+                # Read all content and detect format
+                with open(json_file, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read().strip()
+                if not content:
+                    continue
+
+                # Parse — handles both JSON array and JSONL formats
+                try:
+                    if content.startswith("["):
+                        items = json.loads(content)
+                    else:
+                        items = []
+                        for line in content.split("\n"):
+                            line = line.strip()
+                            if line:
+                                items.append(json.loads(line))
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+                for data in items:
                     host_str = data.get("host") or data.get("ip", "")
                     if not host_str:
                         continue
+
                     ips = [data["ip"]] if data.get("ip") else []
                     host_id = get_or_create_host(cursor, host_str, ips)
                     if not host_id:
                         continue
+
                     info = data.get("info", {}) or {}
                     vuln_name = data.get("template-id") or info.get("name", "unknown")
                     raw_severity = (data.get("severity") or info.get("severity", "info")).lower()
@@ -665,22 +683,19 @@ def parse_nuclei(proj_path, nmap_dir):
                         "critical": "Crítica", "high": "Alta",
                         "medium": "Média", "low": "Baixa", "info": "Info",
                     }.get(raw_severity, raw_severity.capitalize())
+
                     cvss_score = data.get("cvss-score") or info.get("cvss-score")
                     cvss_vector = data.get("cvss-metrics") or info.get("cvss-metrics")
                     cve_raw = data.get("cve-id") or info.get("cve-id", [])
-                    if isinstance(cve_raw, list):
-                        cve_id = ",".join(cve_raw) if cve_raw else ""
-                    else:
-                        cve_id = str(cve_raw) if cve_raw else ""
+                    cve_id = ",".join(cve_raw) if isinstance(cve_raw, list) else str(cve_raw) if cve_raw else ""
                     description = data.get("description") or info.get("description", "")
                     remediation = data.get("remediation") or info.get("remediation", "")
                     matched_at = data.get("matched-at", "")
                     curl_command = data.get("curl-command", "")
                     title = data.get("name") or info.get("name", vuln_name)
                     raw_refs = data.get("reference") or info.get("references") or []
-                    if isinstance(raw_refs, str):
-                        raw_refs = [raw_refs] if raw_refs.strip() else []
-                    reference_urls = json.dumps(raw_refs)
+                    raw_refs = [raw_refs] if isinstance(raw_refs, str) and raw_refs.strip() else raw_refs
+
                     try:
                         cursor.execute("""
                             INSERT INTO vulnerabilities
@@ -698,12 +713,14 @@ def parse_nuclei(proj_path, nmap_dir):
                             float(cvss_score) if cvss_score else None,
                             cvss_vector or None, cve_id or None,
                             vuln_name, description, matched_at,
-                            curl_command, remediation, reference_urls, "nuclei",
+                            curl_command, remediation,
+                            json.dumps(raw_refs), "nuclei",
                         ))
                         if cursor.rowcount > 0:
                             count += 1
                     except Exception:
                         continue
+
     console.print(f" [dim]↳ Parser Nuclei: Inseriu {count} vulnerabilidades.[/dim]")
 
 

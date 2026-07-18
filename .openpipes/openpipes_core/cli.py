@@ -76,10 +76,10 @@ def show_execution_history():
     input("\nPressione ENTER para voltar ao menu...")
 
 
-def run_bash_module(module_name):
+def run_bash_module(module_name, extra_args=None):
     proj_name, proj_path, nmap_dir = get_project_env()
     if proj_name == "DESCONHECIDO" or not proj_path:
-        console.print("\n[bold red]✖ Erro: Projeto não configurado. Rode init-openpipes primeiro.[/bold red]")
+        console.print("\n[bold red]✖ Erro: Projeto não configurado.[/bold red]")
         input("Pressione ENTER para continuar...")
         return
 
@@ -91,6 +91,8 @@ def run_bash_module(module_name):
 
     run_cwd = proj_path
     cmd_args = ""
+    extra_args = extra_args or []
+
     if module_name == "recon":
         if not os.path.exists(os.path.join(proj_path, "domains.txt")):
             console.print(f"\n[bold red]✖ Erro: domains.txt não encontrado em {proj_path}[/bold red]")
@@ -101,14 +103,16 @@ def run_bash_module(module_name):
         os.makedirs(run_cwd, exist_ok=True)
         cmd_args = "-f targets.txt"
 
-    # 1. Auto-migrate schema
-    db.init_db(proj_path)
+    # Append extra CLI arguments (e.g.: -f targets_retry.txt)
+    if extra_args:
+        cmd_args += " " + " ".join(extra_args)
 
-    # 2. Start execution log
+    db.init_db(proj_path)
     exec_id = db.log_module_start(proj_path, module_name)
 
     console.print(f"\n[bold cyan]▶ Iniciando módulo:[/bold cyan] {module_name}")
     console.print(f"[dim]CWD: {run_cwd}[/dim]")
+    console.print(f"[dim]Args: {cmd_args}[/dim]")
     console.print("=" * 50)
 
     try:
@@ -595,12 +599,16 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
     run_parser = subparsers.add_parser("run", help="Executa um módulo bash e rastreia o estado")
     run_parser.add_argument("module", help="Nome do módulo (ex: recon, nwrapper, nuclei-runner)")
+    run_parser.add_argument("args", nargs="*", help="Argumentos extras para o módulo")
     sync_parser = subparsers.add_parser("sync", help="Renderiza Jinja2 templates para o vault do Obsidian")
     sync_parser.add_argument("--target", "-t", help="Renderizar apenas um alvo específico")
     verify_parser = subparsers.add_parser("verify", help="Verifica endpoints com HTTP real")
     verify_parser.add_argument("--limit", type=int, default=None, help="Limite de endpoints")
     feed_parser = subparsers.add_parser("feed", help="Alimenta ferramentas a partir do banco de dados")
     cycle_parser = subparsers.add_parser("cycle", help="Ciclo completo: feed → run → verify → sync")
+    parse_parser = subparsers.add_parser("parse", help="Executa apenas o parser de um módulo")
+    parse_parser.add_argument("module", help="Nome do módulo (ex: nuclei-runner)")
+
 
 
     if len(sys.argv) == 1:
@@ -622,6 +630,15 @@ def main():
         elif args.command == "cycle":
             import cycle
             cycle.run_cycle()
+        elif args.command == "parse":
+            proj_name, proj_path, nmap_dir = get_project_env()
+            if proj_name != "DESCONHECIDO" and proj_path:
+                db.init_db(proj_path)
+                parsers.dispatch(args.module, proj_path, nmap_dir)
+            else:
+                console.print("[red]Erro: Projeto não configurado.[/red]")
+        elif args.command == "run":
+            run_bash_module(args.module, extra_args=args.args)
 
 
 if __name__ == "__main__":
