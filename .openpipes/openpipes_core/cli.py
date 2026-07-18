@@ -597,8 +597,8 @@ def show_database_viewer():
 def main():
     parser = argparse.ArgumentParser(description="OPenPipeS Core Engine")
     subparsers = parser.add_subparsers(dest="command")
-    run_parser = subparsers.add_parser("run", help="Executa um módulo bash e rastreia o estado")
-    run_parser.add_argument("module", help="Nome do módulo (ex: recon, nwrapper, nuclei-runner)")
+    run_parser = subparsers.add_parser("run", help="Executa um módulo bash")
+    run_parser.add_argument("module", help="Nome do módulo")
     run_parser.add_argument("args", nargs="*", help="Argumentos extras para o módulo")
     sync_parser = subparsers.add_parser("sync", help="Renderiza Jinja2 templates para o vault do Obsidian")
     sync_parser.add_argument("--target", "-t", help="Renderizar apenas um alvo específico")
@@ -616,7 +616,7 @@ def main():
     else:
         args = parser.parse_args()
         if args.command == "run":
-            run_bash_module(args.module)
+            run_bash_module(args.module, extra_args=args.args)
         elif args.command == "sync":
             renderer.sync_project(target_name=args.target)
         elif args.command == "verify":
@@ -637,8 +637,15 @@ def main():
                 parsers.dispatch(args.module, proj_path, nmap_dir)
             else:
                 console.print("[red]Erro: Projeto não configurado.[/red]")
-        elif args.command == "run":
-            run_bash_module(args.module, extra_args=args.args)
+        elif args.command == "retry-ports":
+            import feeder
+            proj_path, nmap_dir = feeder._get_proj_path()
+            if proj_path:
+                db.init_db(proj_path)
+                feeder.feed_nwrapper_retry(proj_path, nmap_dir)
+            else:
+                console.print("[red]Erro: Projeto não configurado.[/red]")
+
 
 
 if __name__ == "__main__":
