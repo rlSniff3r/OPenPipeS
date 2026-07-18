@@ -15,18 +15,16 @@ HOME = str(Path.home())
 OPENPIPES_DIR = f"{HOME}/.openpipes"
 OPENPIPES_BIN = f"{OPENPIPES_DIR}/bin"
 OPENPIPES_SCRIPTS = f"{OPENPIPES_DIR}/scripts"
-VENV_CORE = f"{OPENPIPES_DIR}/.venv"            # Core engine venv (cli.py, parsers, renderer)
-VENV_JSFINDER = f"{HOME}/.venv-jsfinder"         # FIXED: matches bash script expectation
+VENV_CORE = f"{OPENPIPES_DIR}/.venv"
+VENV_JSFINDER = f"{HOME}/.venv-jsfinder"
 ERROR_LOG = f"{OPENPIPES_DIR}/install_error.log"
-
 GO_VERSION = "1.21.5"
 AMASS_VERSION = "3.20.0"
-DNSRECON_VERSION = "1.1.3"                      # FIXED: newer version with pkg_resources fix
+DNSRECON_VERSION = "1.1.3"
 
 
 def check_sudo():
-    console.print("[yellow][!] Algumas dependências (como APT e Golang) exigem privilégios de administrador.[/yellow]")
-    console.print("[yellow][!] Por favor, insira sua senha se solicitado:[/yellow]")
+    console.print("[yellow][!] Algumas dependências exigem privilégios de administrador.[/yellow]")
     result = subprocess.run(["sudo", "-v"])
     if result.returncode != 0:
         console.print("[bold red]✖ Falha na autenticação sudo. Abortando.[/bold red]")
@@ -36,16 +34,14 @@ def check_sudo():
 def check_root():
     if os.getuid() == 0:
         console.print("[bold red]✖ Não execute o installer como root![/bold red]")
-        console.print("[dim]Use seu usuário normal. sudo será solicitado quando necessário.[/dim]")
         sys.exit(1)
 
 
 def check_os():
     if not os.path.exists("/etc/debian_version"):
-        console.print("[bold yellow]⚠ Este installer foi testado apenas em Kali/Debian/Ubuntu.[/bold yellow]")
-        resp = input("Deseja continuar mesmo assim? [s/N]: ").strip().lower()
+        console.print("[bold yellow]⚠ Testado apenas em Kali/Debian/Ubuntu.[/bold yellow]")
+        resp = input("Deseja continuar? [s/N]: ").strip().lower()
         if resp != "s":
-            console.print("[dim]Instalação cancelada.[/dim]")
             sys.exit(0)
 
 
@@ -62,17 +58,14 @@ def run_cmd(cmd, shell=True, sudo=False, check=True):
     if result.returncode != 0:
         if not check:
             return result.stdout
-        error_msg = f"Comando falhou: {cmd}\nSaída de Erro:\n{result.stderr}\n"
-        raise RuntimeError(error_msg)
+        raise RuntimeError(f"Comando falhou: {cmd}\n{result.stderr}")
     return result.stdout
 
 
 def setup_directories():
-    dirs = [
-        OPENPIPES_DIR, OPENPIPES_BIN, OPENPIPES_SCRIPTS,
-        f"{OPENPIPES_DIR}/.templates", f"{OPENPIPES_DIR}/tools",
-        f"{HOME}/.openpipes_cache", f"{HOME}/.obsidianFixedMount",
-    ]
+    dirs = [OPENPIPES_DIR, OPENPIPES_BIN, OPENPIPES_SCRIPTS,
+            f"{OPENPIPES_DIR}/.templates", f"{OPENPIPES_DIR}/.gf", f"{OPENPIPES_DIR}/tools",
+            f"{HOME}/.openpipes_cache", f"{HOME}/.obsidianFixedMount"]
     for d in dirs:
         os.makedirs(d, exist_ok=True)
 
@@ -84,6 +77,9 @@ def setup_framework_files():
         run_cmd(f"chmod +x {OPENPIPES_SCRIPTS}/*.sh {OPENPIPES_SCRIPTS}/*.py")
     if os.path.exists(f"{cwd}/.openpipes/.templates"):
         shutil.copytree(f"{cwd}/.openpipes/.templates", f"{OPENPIPES_DIR}/.templates", dirs_exist_ok=True)
+    # NEW: copy .gf pattern files
+    if os.path.exists(f"{cwd}/.openpipes/.gf"):
+        shutil.copytree(f"{cwd}/.openpipes/.gf", f"{OPENPIPES_DIR}/.gf", dirs_exist_ok=True)
     if os.path.exists(f"{cwd}/.openpipes_cache"):
         shutil.copytree(f"{cwd}/.openpipes_cache", f"{HOME}/.openpipes_cache", dirs_exist_ok=True)
     if os.path.exists(f"{cwd}/.openpipes/openpipes_core"):
@@ -94,12 +90,12 @@ def setup_framework_files():
     secrets_src = f"{cwd}/.openpipes/secrets.conf.example"
     if not os.path.exists(f"{OPENPIPES_DIR}/secrets.conf") and os.path.exists(secrets_src):
         shutil.copy2(secrets_src, f"{OPENPIPES_DIR}/secrets.conf")
-    if os.path.exists(f"{cwd}/.openpipes/.gf"):
-        shutil.copytree(f"{cwd}/.openpipes/.gf", f"{HOME}/.gf", dirs_exist_ok=True)
 
 
 def install_apt_deps():
-    deps = "nmap curl wget git jq fzf yq exiftool python3 python3-pip python3-venv python3-setuptools golang-go build-essential whois dnsutils libpcap-dev libssl-dev pkg-config unzip"
+    deps = ("nmap curl wget git jq fzf yq exiftool python3 python3-pip "
+            "python3-venv python3-setuptools golang-go build-essential whois "
+            "dnsutils libpcap-dev libssl-dev pkg-config unzip")
     run_cmd("apt-get update -qq", sudo=True)
     run_cmd(f"apt-get install -y -qq {deps}", sudo=True)
 
@@ -123,7 +119,8 @@ def get_go_env():
 
 def install_go_tool(package):
     go_path, go_env = get_go_env()
-    result = subprocess.run([go_path, "install", package], env=go_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run([go_path, "install", package], env=go_env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"Falha ao compilar {package}:\n{result.stderr}")
 
@@ -154,7 +151,7 @@ def install_dnsrecon():
 
 
 def setup_isolated_venvs():
-    # ── JS Finder venv (LinkFinder) ─────────────────────────────────
+    # JS Finder venv
     if not os.path.exists(VENV_JSFINDER):
         run_cmd(f"python3 -m venv {VENV_JSFINDER}")
     linkfinder_dir = f"{VENV_JSFINDER}/LinkFinder"
@@ -163,70 +160,62 @@ def setup_isolated_venvs():
     run_cmd(f"{VENV_JSFINDER}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_JSFINDER}/bin/pip install -r {linkfinder_dir}/requirements.txt -q")
     run_cmd(f"{VENV_JSFINDER}/bin/pip install {linkfinder_dir} -q")
-    wrapper_code = f'#!/bin/bash\nsource "{VENV_JSFINDER}/bin/activate"\npython -m linkfinder "$@"\ndeactivate\n'
+    wrapper = f'#!/bin/bash\nsource "{VENV_JSFINDER}/bin/activate"\npython -m linkfinder "$@"\ndeactivate\n'
     with open(f"{OPENPIPES_BIN}/linkfinder.py", "w") as f:
-        f.write(wrapper_code)
+        f.write(wrapper)
     run_cmd(f"chmod +x {OPENPIPES_BIN}/linkfinder.py")
 
-    # ── Core Engine venv (cli.py, parsers, renderer, Jinja2) ────────
+    # Core venv
     if not os.path.exists(VENV_CORE):
         run_cmd(f"python3 -m venv {VENV_CORE}")
-    # Always upgrade pip + setuptools (needed by dnsrecon and others)
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
-    # Install requirements.txt (includes jinja2, rich, etc.)
-    req_file = f"{os.getcwd()}/.openpipes/scripts/requirements.txt"
-    if os.path.exists(req_file):
-        run_cmd(f"{VENV_CORE}/bin/pip install -r {req_file} -q")
-    # Ensures Jinja2 specifically is present
-    run_cmd(f"{VENV_CORE}/bin/pip install jinja2 -q")
+    run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq -q")
 
 
 def install_wordlists():
-    seclists_path = "/usr/share/wordlists/seclists"
-    if not os.path.exists(seclists_path):
-        run_cmd(f"git clone --depth 1 https://github.com/danielmiessler/SecLists.git {seclists_path}", sudo=True)
-    big_txt = "/usr/share/wordlists/dirb/big.txt"
+    seclists = "/usr/share/wordlists/seclists"
+    if not os.path.exists(seclists):
+        run_cmd(f"git clone --depth 1 https://github.com/danielmiessler/SecLists.git {seclists}", sudo=True)
     big_parsed = "/usr/share/wordlists/dirb/big-parsed.txt"
-    if os.path.exists(big_txt) and not os.path.exists(big_parsed):
-        run_cmd(f"grep -v '%' {big_txt} > /tmp/big-parsed.txt")
+    if os.path.exists("/usr/share/wordlists/dirb/big.txt") and not os.path.exists(big_parsed):
+        run_cmd("grep -v '%' /usr/share/wordlists/dirb/big.txt > /tmp/big-parsed.txt")
         run_cmd(f"mv /tmp/big-parsed.txt {big_parsed}", sudo=True)
 
 
 def configure_environment():
     rc_files = [f"{HOME}/.bashrc", f"{HOME}/.zshrc"]
     config_block = f"""
-# ========== OpenPipeS Configuration ==========
+# ========== OpenPipeS ==========
 export OPENPIPES_DIR="{HOME}/.openpipes"
-export OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
 export OPENPIPES_BIN="$OPENPIPES_DIR/bin"
 export OPENPIPES_SCRIPTS="$OPENPIPES_DIR/scripts"
+export OPENPIPES_CONFIG="$OPENPIPES_DIR/config.sh"
 export OPENPIPES_TEMPLATES="$OPENPIPES_DIR/.templates"
 export OPENPIPES_TOOLS="$OPENPIPES_DIR/tools"
 export OPENPIPES_CACHE="{HOME}/.openpipes_cache"
-export PATH="$OPENPIPES_BIN:$PATH"
 export CONFIG_FILE="$OPENPIPES_CONFIG"
-export SECRETS_OPENPIPES="$OPENPIPES_DIR/secrets.conf"
+export PATH="$OPENPIPES_BIN:$PATH"
 export GOPATH="{HOME}/go"
 export PATH="$PATH:$GOPATH/bin:{HOME}/.cargo/bin"
 if [ -f "{HOME}/.openpipes/config.sh" ]; then source "{HOME}/.openpipes/config.sh"; fi
 """
-    for rc_file in rc_files:
+    for rc in rc_files:
         try:
-            with open(rc_file, "r") as f:
+            with open(rc) as f:
                 content = f.read()
         except FileNotFoundError:
             content = ""
         if "OPENPIPES_DIR" not in content:
-            with open(rc_file, "a") as f:
+            with open(rc, "a") as f:
                 f.write("\n" + config_block)
 
     symlinks = {
         "recon.sh": "recon", "nwrapper.sh": "nwrapper",
         "httpx-runner.sh": "httpx-runner", "katana-runner.sh": "katana-runner",
-        "katana-buster.sh": "katana-buster", "feroxbuster-runner.sh": "feroxbuster-runner",
+        "feroxbuster-runner.sh": "feroxbuster-runner",
         "jsfinder-runner.sh": "jsfinder-runner", "nuclei-runner.sh": "nuclei-runner",
         "gf-summary.sh": "gf-summary", "whois-enricher.sh": "whois-enricher",
-        "screenshot-runner.sh": "screenshot-runner", "vuln-enricher.sh": "vuln-enricher",
+        "screenshot-runner.sh": "screenshot-runner",
         "init-openpipes.sh": "init-openpipes",
     }
     for src, link in symlinks.items():
@@ -234,66 +223,63 @@ if [ -f "{HOME}/.openpipes/config.sh" ]; then source "{HOME}/.openpipes/config.s
         if os.path.exists(src_path):
             run_cmd(f"ln -sf '{src_path}' '{OPENPIPES_BIN}/{link}'")
 
-    # FIXED: wrapper now points to VENV_CORE (.venv, not .venv-core)
-    core_wrapper = f'#!/bin/bash\nsource "{VENV_CORE}/bin/activate"\npython "{OPENPIPES_DIR}/openpipes_core/cli.py" "$@"\ndeactivate\n'
+    # Core wrapper — points to VENV_CORE (.venv)
+    wrapper = f'#!/bin/bash\nsource "{VENV_CORE}/bin/activate"\npython "{OPENPIPES_DIR}/openpipes_core/cli.py" "$@"\ndeactivate\n'
     with open(f"{OPENPIPES_BIN}/openpipes-core", "w") as f:
-        f.write(core_wrapper)
+        f.write(wrapper)
     run_cmd(f"chmod +x {OPENPIPES_BIN}/openpipes-core")
 
 
 def main():
-    console.print("[bold blue]🚀 OPenPipeS Python Installer (Core Engine)[/bold blue]\n")
+    console.print("[bold blue]🚀 OPenPipeS Installer (Core Engine)[/bold blue]\n")
     check_root()
     check_os()
     check_sudo()
-
-    sudo_stop_event = threading.Event()
-    sudo_thread = threading.Thread(target=keep_sudo_alive, args=(sudo_stop_event,), daemon=True)
-    sudo_thread.start()
+    stop = threading.Event()
+    t = threading.Thread(target=keep_sudo_alive, args=(stop,), daemon=True)
+    t.start()
 
     tasks = [
-        ("Criando estrutura de diretórios...", setup_directories),
-        ("Copiando scripts, templates e cache...", setup_framework_files),
-        ("Instalando dependências APT...", install_apt_deps),
-        ("Instalando Golang 1.21.5...", install_golang),
-        ("Compilando HTTPX (Go)...", lambda: install_go_tool("github.com/projectdiscovery/httpx/cmd/httpx@latest")),
-        ("Compilando Nuclei (Go)...", lambda: install_go_tool("github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")),
-        ("Compilando Katana (Go)...", lambda: install_go_tool("github.com/projectdiscovery/katana/cmd/katana@latest")),
-        ("Compilando GF (Go)...", lambda: install_go_tool("github.com/tomnomnom/gf@latest")),
-        ("Compilando RDAP (Go)...", lambda: install_go_tool("github.com/openrdap/rdap/cmd/rdap@latest")),
-        ("Compilando Gowitness (Go)...", lambda: install_go_tool("github.com/sensepost/gowitness@latest")),
-        ("Instalando Rust e Feroxbuster...", install_rust_and_ferox),
-        ("Instalando Amass 3.20.0...", install_amass),
-        ("Instalando Dnsrecon 1.1.3...", install_dnsrecon),                # UPDATED version
-        ("Configurando VENVs isolados...", setup_isolated_venvs),
-        ("Instalando Wordlists (SecLists + big-parsed)...", install_wordlists),
-        ("Configurando variáveis de ambiente...", configure_environment),
+        ("Criando diretórios...", setup_directories),
+        ("Copiando arquivos...", setup_framework_files),
+        ("Dependências APT...", install_apt_deps),
+        ("Golang...", install_golang),
+        ("HTTPX...", lambda: install_go_tool("github.com/projectdiscovery/httpx/cmd/httpx@latest")),
+        ("Nuclei...", lambda: install_go_tool("github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")),
+        ("Katana...", lambda: install_go_tool("github.com/projectdiscovery/katana/cmd/katana@latest")),
+        ("GF...", lambda: install_go_tool("github.com/tomnomnom/gf@latest")),
+        ("RDAP...", lambda: install_go_tool("github.com/openrdap/rdap/cmd/rdap@latest")),
+        ("Gowitness...", lambda: install_go_tool("github.com/sensepost/gowitness@latest")),
+        ("Rust + Feroxbuster...", install_rust_and_ferox),
+        ("Amass...", install_amass),
+        ("Dnsrecon...", install_dnsrecon),
+        ("VENVs...", setup_isolated_venvs),
+        ("Wordlists...", install_wordlists),
+        ("Configurando ambiente...", configure_environment),
     ]
 
     try:
-        with Progress(
-            SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
-            BarColumn(), TaskProgressColumn(), console=console,
-        ) as progress:
-            main_task = progress.add_task("[cyan]Progresso Total", total=len(tasks))
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+                      BarColumn(), TaskProgressColumn(), console=console) as p:
+            main_task = p.add_task("[cyan]Progresso", total=len(tasks))
             for desc, func in tasks:
-                step_task = progress.add_task(f"[yellow]{desc}", total=None)
+                step = p.add_task(f"[yellow]{desc}", total=None)
                 try:
                     func()
-                    progress.update(step_task, completed=100, description=f"[green]✔ {desc}")
+                    p.update(step, completed=100, description=f"[green]✔ {desc}")
                 except Exception as e:
-                    progress.update(step_task, description=f"[red]✖ Falha: {desc}[/red]")
-                    console.print(f"\n[bold red]Erro Crítico![/bold red] Verifique o log em: [yellow]{ERROR_LOG}[/yellow]")
+                    p.update(step, description=f"[red]✖ {desc}")
                     with open(ERROR_LOG, "w") as f:
                         f.write(str(e))
+                    console.print(f"\n[red]Erro! Log: {ERROR_LOG}[/red]")
                     sys.exit(1)
-                progress.advance(main_task)
-
-        console.print("\n[bold green]✅ Instalação concluída com sucesso![/bold green]")
-        console.print("[cyan]Execute 'source ~/.bashrc' e digite 'openpipes-core' para iniciar![/cyan]")
+                p.advance(main_task)
     finally:
-        sudo_stop_event.set()
-        sudo_thread.join(timeout=2)
+        stop.set()
+        t.join(timeout=2)
+
+    console.print("\n[bold green]✅ Instalação concluída![/bold green]")
+    console.print("[cyan]Execute 'source ~/.bashrc' e digite 'openpipes-core'[/cyan]")
 
 
 if __name__ == "__main__":
