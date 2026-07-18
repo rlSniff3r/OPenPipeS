@@ -21,7 +21,7 @@ cover: "[[Screenshots/{{ target.screenshots[0].file_path }}]]"
 {%- if target.whois %}
 {%- set whois = target.whois | from_json %}
 
-| 🌐 WHOIS | {{ target.name }} |
+| 🌐 Whois | {{ target.name }} |
 |-------|-------|
 {%- for key, value in whois.items() %}
 | {{ key }} | `{{ value }}` |
@@ -43,7 +43,7 @@ _Última atualização_: {{ target.last_updated }}
 | Severidade | Título | CVSS | CVE |
 |------------|--------|------|-----|
 {%- for vuln in target.vulnerabilities %}
-| {{ vuln.severity_emoji }} {{ vuln.severity }} | [[Vulnerabilidades/{{ vuln.filename }}|{{ vuln.title }}]] | {{ vuln.cvss_score or "N/A" }} | {{ vuln.cve_id or "—" }} |
+| {{ vuln.severity_emoji }} {{ vuln.severity }} | [[Vulnerabilidades/{{ vuln.filename }}\|{{ vuln.title }}]] | {{ vuln.cvss_score or "N/A" }} | {{ vuln.cve_id or "—" }} |
 {%- endfor %}
 {%- else %}
 *Nenhuma vulnerabilidade encontrada ainda.*
