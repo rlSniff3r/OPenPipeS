@@ -1,7 +1,7 @@
 import os
 import subprocess
 import time
-import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from rich.console import Console
@@ -19,12 +19,6 @@ CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 BIN_DIR = os.path.join(HOME, ".openpipes", "bin")
 
 
-def _sudo_keepalive(stop_event):
-    while not stop_event.is_set():
-        subprocess.run(["sudo", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        stop_event.wait(120)  # refresh every 2 minutes
-
-
 def _get_env():
     if not os.path.exists(CONFIG_FILE):
         return None, None, None
@@ -37,6 +31,7 @@ def _get_env():
 
 
 def _run_module(name):
+    """Run a bash module and parse its output."""
     script = os.path.join(BIN_DIR, name)
     if not os.path.exists(script):
         return False, f"Script {name} não encontrado"
@@ -48,7 +43,6 @@ def _run_module(name):
         if name == "nwrapper":
             extra_args = f"-f {os.path.join(nmap_dir, 'targets_cycle.txt')}"
         cmd = f"source {CONFIG_FILE} && {script} {extra_args}"
-        # No capture_output — user sees sudo prompts, progress bars, etc.
         result = subprocess.run(cmd, shell=True, cwd=proj_path, executable="/bin/bash")
         exit_code = result.returncode
         db.log_module_finish(proj_path, exec_id, exit_code)
@@ -57,7 +51,6 @@ def _run_module(name):
             parsers.dispatch(name, proj_path, nmap_dir)
         return exit_code == 0, ""
     except KeyboardInterrupt:
-        console.print("\n[yellow]Execução interrompida.[/yellow]")
         db.log_module_finish(proj_path, exec_id, 130)
         return False, "Interrompido"
     except Exception as e:
@@ -67,19 +60,18 @@ def _run_module(name):
 
 def run_cycle(targets: list = None):
     """
-    Full cycle: feed → run modules → verify → sync.
-    Uses cycle-specific targets for nwrapper (only unscanned hosts).
+    Full cycle: feed → run modules (parallel where possible) → verify → sync.
     """
     proj_name, proj_path, nmap_dir = _get_env()
     if not proj_path:
-        console.print("[red]Projeto não configurado.[/red]")
+        console.print("[red]Erro: Projeto não configurado.[/red]")
         return
 
     console.print(Panel(f"[bold cyan]🔄 Cycle — {proj_name}[/bold cyan]"))
     start = time.time()
     db.init_db(proj_path)
 
-    # 1. Feed — cycle mode for nwrapper (only unscanned hosts)
+    # ── Stage 1: Feed ────────────────────────────────────────────────
     console.print("\n[bold]1. Feed[/bold]")
     feeder.feed_nwrapper(proj_path, nmap_dir, cycle=True)
     feeder.feed_httpx(proj_path, nmap_dir)
@@ -88,26 +80,40 @@ def run_cycle(targets: list = None):
     feeder.feed_jsfinder(proj_path, nmap_dir)
     feeder.feed_gf(proj_path, nmap_dir)
     feeder.feed_screenshot(proj_path, nmap_dir)
+    feeder.feed_nuclei(proj_path, nmap_dir)
 
-    # 2. Run modules
-    modules = ["nwrapper", "httpx-runner", "katana-runner", "feroxbuster-runner",
-           "jsfinder-runner", "gf-summary", "screenshot-runner", "nuclei-runner"]
     results = []
-    console.print("\n[bold]2. Run[/bold]")
-    for mod in modules:
-        ok, msg = _run_module(mod)
-        status = "[green]OK[/green]" if ok else "[red]FAIL[/red]"
-        console.print(f"  {status} {mod}")
-        if msg:
-            console.print(f"    {msg}")
-        results.append((mod, ok))
 
-    # 3. Verify
-    console.print("\n[bold]3. Verify[/bold]")
+    # ── Stage 2: Sequential modules ──────────────────────────────────
+    console.print("\n[bold]2. Sequential[/bold]")
+    sequential = ["nwrapper", "httpx-runner"]
+    for mod in sequential:
+        ok, _ = _run_module(mod)
+        results.append((mod, ok))
+        console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} {mod}")
+
+    # ── Stage 3: Parallel modules ────────────────────────────────────
+    console.print("\n[bold]3. Parallel[/bold]")
+    parallel = ["katana-runner", "feroxbuster-runner", "jsfinder-runner",
+                "gf-summary", "screenshot-runner", "nuclei-runner"]
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(_run_module, m): m for m in parallel}
+        for future in as_completed(futures):
+            mod = futures[future]
+            try:
+                ok, _ = future.result()
+            except Exception:
+                ok = False
+            results.append((mod, ok))
+            console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} {mod}")
+
+    # ── Stage 4: Verify ──────────────────────────────────────────────
+    console.print("\n[bold]4. Verify[/bold]")
     verifier.verify_endpoints(proj_path)
 
-    # 4. Sync
-    console.print("\n[bold]4. Sync[/bold]")
+    # ── Stage 5: Sync ────────────────────────────────────────────────
+    console.print("\n[bold]5. Sync[/bold]")
     renderer.sync_project()
 
     elapsed = time.time() - start
