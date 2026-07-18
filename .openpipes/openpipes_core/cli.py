@@ -612,7 +612,9 @@ def main():
     parse_parser.add_argument("module", help="Nome do módulo (ex: nuclei-runner)")
     retry_parser = subparsers.add_parser("retry-ports", help="Feed closed/filtered ports para nwrapper")
     db_parser = subparsers.add_parser("db", help="Interactive database manager")
-
+    vuln_parser = subparsers.add_parser("vuln", help="Gerenciar vulnerabilidades")
+    vuln_parser.add_argument("--manual", action="store_true", help="Inserir vulnerabilidade manualmente via cache")
+    vuln_parser.add_argument("--enrich", action="store_true", help="Enriquecer findings do nuclei com cache/IA")
 
     if len(sys.argv) == 1:
         interactive_menu()
@@ -659,6 +661,25 @@ def main():
         elif args.command == "db":
             import db_viewer
             db_viewer.interactive_db()
+
+        elif args.command == "vuln":
+            proj_name, proj_path, _ = get_project_env()
+            if proj_path:
+                db.init_db(proj_path)
+                import vuln_enricher
+                if args.manual:
+                    vuln_enricher.run_manual(proj_path)
+                elif args.enrich:
+                    vuln_enricher.run_enricher(proj_path)
+                else:
+                    # Default: show menu
+                    console.print("[cyan]1. Enriquecer nuclei findings[/cyan]")
+                    console.print("[cyan]2. Inserir manualmente[/cyan]")
+                    choice = input("Escolha: ")
+                    if choice == "1":
+                        vuln_enricher.run_enricher(proj_path)
+                    elif choice == "2":
+                        vuln_enricher.run_manual(proj_path)
 
 
 if __name__ == "__main__":
