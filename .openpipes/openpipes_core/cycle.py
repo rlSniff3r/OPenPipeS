@@ -86,7 +86,7 @@ def run_cycle(targets: list = None):
 
     # ── Stage 2: Sequential modules ──────────────────────────────────
     console.print("\n[bold]2. Sequential[/bold]")
-    sequential = ["nwrapper", "httpx-runner"]
+    sequential = ["httpx-runner"]
     for mod in sequential:
         ok, _ = _run_module(mod)
         results.append((mod, ok))

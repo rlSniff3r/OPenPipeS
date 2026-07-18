@@ -400,7 +400,7 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]BANCO DE DADOS[/bold cyan]")
         menu_table.add_row("[16]", "[bold cyan]Reparse All (Recria DB dos outputs)[/bold cyan]")
-        menu_table.add_row("[17]", "[bold cyan]Ver Dados do Banco[/bold cyan]")
+        menu_table.add_row("[17]", "[bold cyan]DB Manager (Interactive)[/bold cyan]")
         menu_table.add_row("[18]", "[bold green]Sync Obsidian Vault (Jinja2)[/bold green]")
         menu_table.add_row("[19]", "[bold cyan]Verifier (Valida Endpoints via HTTP)[/bold cyan]")
         menu_table.add_row("[20]", "[bold green]Feed Tools from DB[/bold green]")
@@ -436,7 +436,8 @@ Framework de Reconhecimento v2.0
             run_reparse_all()
 
         elif escolha == "17":
-            show_database_viewer()
+            import db_viewer
+            db_viewer.interactive_db()
 
         elif escolha == "18":
             renderer.sync_project()           # all targets
@@ -610,27 +611,34 @@ def main():
     parse_parser = subparsers.add_parser("parse", help="Executa apenas o parser de um módulo")
     parse_parser.add_argument("module", help="Nome do módulo (ex: nuclei-runner)")
     retry_parser = subparsers.add_parser("retry-ports", help="Feed closed/filtered ports para nwrapper")
+    db_parser = subparsers.add_parser("db", help="Interactive database manager")
 
 
     if len(sys.argv) == 1:
         interactive_menu()
     else:
         args = parser.parse_args()
+
         if args.command == "run":
             run_bash_module(args.module, extra_args=args.extra)
+
         elif args.command == "sync":
             renderer.sync_project(target_name=args.target)
+
         elif args.command == "verify":
             proj_name, proj_path, _ = get_project_env()
             if proj_path:
                 db.init_db(proj_path)
                 verifier.verify_endpoints(proj_path, limit=args.limit)
+
         elif args.command == "feed":    
             import feeder
             feeder.run()
+
         elif args.command == "cycle":
             import cycle
             cycle.run_cycle()
+
         elif args.command == "parse":
             proj_name, proj_path, nmap_dir = get_project_env()
             if proj_name != "DESCONHECIDO" and proj_path:
@@ -638,6 +646,7 @@ def main():
                 parsers.dispatch(args.module, proj_path, nmap_dir)
             else:
                 console.print("[red]Erro: Projeto não configurado.[/red]")
+
         elif args.command == "retry-ports":
             import feeder
             proj_path, nmap_dir = feeder._get_proj_path()
@@ -647,6 +656,9 @@ def main():
             else:
                 console.print("[red]Erro: Projeto não configurado.[/red]")
 
+        elif args.command == "db":
+            import db_viewer
+            db_viewer.interactive_db()
 
 
 if __name__ == "__main__":
