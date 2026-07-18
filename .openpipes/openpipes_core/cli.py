@@ -608,7 +608,7 @@ def main():
     cycle_parser = subparsers.add_parser("cycle", help="Ciclo completo: feed → run → verify → sync")
     parse_parser = subparsers.add_parser("parse", help="Executa apenas o parser de um módulo")
     parse_parser.add_argument("module", help="Nome do módulo (ex: nuclei-runner)")
-
+    retry_parser = subparsers.add_parser("retry-ports", help="Feed closed/filtered ports para nwrapper")
 
 
     if len(sys.argv) == 1:

@@ -289,6 +289,43 @@ def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
         console.print("[dim]↳ Feed nwrapper: nada novo.[/dim]")
 
 
+def feed_nwrapper_retry(proj_path: str, nmap_dir: str):
+    """
+    Feed nwrapper with hosts that have closed/filtered ports for re-scan.
+    Writes targets_retry.txt with specific ports to re-scan.
+    """
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT h.host, p.port, p.protocol
+            FROM hosts h
+            JOIN ports p ON p.host_id = h.id
+            WHERE h.is_alive = 1
+              AND p.state IN ('closed', 'filtered')
+            ORDER BY h.host, p.port
+        """)
+        results = cursor.fetchall()
+
+    if not results:
+        console.print("[dim]↳ Feed nwrapper retry: nenhuma porta fechada/filtrada.[/dim]")
+        return
+
+    # Group by host
+    from collections import defaultdict
+    by_host = defaultdict(list)
+    for r in results:
+        by_host[r["host"]].append(f"{r['port']}/{r['protocol']}")
+
+    out_file = os.path.join(nmap_dir, "targets_retry.txt")
+    with open(out_file, "w") as f:
+        for host, ports in by_host.items():
+            ports_str = ",".join(p.split("/")[0] for p in ports)
+            f.write(f"{host}:{ports_str}\n")
+
+    total_ports = len(results)
+    console.print(f" [dim]↳ Feed nwrapper retry: {len(by_host)} hosts, {total_ports} portas → targets_retry.txt[/dim]")
+
+
 def feed_nuclei(proj_path: str, nmap_dir: str):
     """Feed unscanned, verified endpoints to nuclei."""
     rows = _get_unscanned(proj_path, "nuclei")
