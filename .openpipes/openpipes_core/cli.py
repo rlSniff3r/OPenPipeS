@@ -594,12 +594,13 @@ def show_database_viewer():
 
     input("\nPressione ENTER para voltar ao menu...")
 
+
 def main():
     parser = argparse.ArgumentParser(description="OPenPipeS Core Engine")
     subparsers = parser.add_subparsers(dest="command")
     run_parser = subparsers.add_parser("run", help="Executa um módulo bash")
     run_parser.add_argument("module", help="Nome do módulo")
-    run_parser.add_argument("args", nargs="*", help="Argumentos extras para o módulo")
+    run_parser.add_argument("extra", nargs=argparse.REMAINDER, help="Argumentos extras (ex: -f targets_retry.txt)")
     sync_parser = subparsers.add_parser("sync", help="Renderiza Jinja2 templates para o vault do Obsidian")
     sync_parser.add_argument("--target", "-t", help="Renderizar apenas um alvo específico")
     verify_parser = subparsers.add_parser("verify", help="Verifica endpoints com HTTP real")
@@ -616,7 +617,7 @@ def main():
     else:
         args = parser.parse_args()
         if args.command == "run":
-            run_bash_module(args.module, extra_args=args.args)
+            run_bash_module(args.module, extra_args=args.extra)
         elif args.command == "sync":
             renderer.sync_project(target_name=args.target)
         elif args.command == "verify":
