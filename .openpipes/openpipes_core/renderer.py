@@ -417,11 +417,9 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     os.makedirs(endpoints_dir, exist_ok=True)
     os.makedirs(vulns_dir, exist_ok=True)
 
-    # ── Group endpoints by route, apply FP filter and threshold ──
+    # Group endpoints by route, apply FP filter and threshold
     MIN_ROUTE_SIZE = 3
     groups = _group_endpoints_by_route(report["endpoints"])
-
-    # Filter out false positives
     for gname in list(groups.keys()):
         groups[gname] = [
             ep for ep in groups[gname]
@@ -429,8 +427,6 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
         ]
         if not groups[gname]:
             del groups[gname]
-
-    # Merge small groups (< 3 endpoints) into _agrupadas
     large_groups = {}
     small_eps = []
     for gname, eps in groups.items():
@@ -440,7 +436,6 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
             small_eps.extend(eps)
     if small_eps:
         large_groups["_agrupadas"] = small_eps
-
     groups = large_groups
     group_names = sorted(groups.keys(), key=lambda g: len(groups[g]), reverse=True)
 
@@ -451,7 +446,7 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     with open(os.path.join(vault_dir, f"{host_name}.md"), "w", encoding="utf-8") as f:
         f.write(target_md)
 
-    # 2. Route group files (only for groups with content)
+    # 2. Route group files
     ep_group_template = env.get_template("endpoint-group.j2")
     for group_name, group_eps in groups.items():
         group_md = ep_group_template.render(
@@ -461,20 +456,23 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
         with open(os.path.join(endpoints_dir, f"{group_name}.md"), "w", encoding="utf-8") as f:
             f.write(group_md)
 
-    # 3–7 remain unchanged...
+    # 3. nmap.md
     nmap_dir = _get_nmap_dir(proj_path)
     _render_nmap_file(host_name, nmap_dir, vault_dir)
 
+    # 4. JS Discoveries
     if report["js_discoveries"]:
         js_md = env.get_template("js-discoveries.j2").render(target=report)
         with open(os.path.join(vault_dir, "js-discoveries.md"), "w", encoding="utf-8") as f:
             f.write(js_md)
 
+    # 5. HTTPX Results
     if report["httpx_count"] > 0:
         httpx_md = env.get_template("httpx-results.j2").render(target=report)
         with open(os.path.join(vault_dir, "httpx-results.md"), "w", encoding="utf-8") as f:
             f.write(httpx_md)
 
+    # 6. Vulnerabilities
     vuln_template = env.get_template("vuln.j2")
     vuln_count = 0
     for vuln in report.get("vulnerabilities", []):
@@ -483,6 +481,7 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
             f.write(vuln_md)
         vuln_count += 1
 
+    # 7. Copy screenshots to vault
     nmap_target_dir = os.path.join(nmap_dir, f"nmap-{host_name}", "Screenshots")
     ss_vault_dir = os.path.join(vault_dir, "Screenshots")
     ss_copied = 0
@@ -494,6 +493,25 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
             if os.path.exists(src) and not os.path.exists(dst):
                 shutil.copy2(src, dst)
                 ss_copied += 1
+
+    # 8. Generate dedicated screenshots.md with full gallery
+    if report["screenshots"]:
+        ss_lines = [
+            f"# 📸 Screenshots — {host_name}",
+            f"**Total: {len(report['screenshots'])} capturas**\n",
+        ]
+        for shot in report["screenshots"]:
+            ss_lines.append(f"![[Screenshots/{shot['file_path']}|500]]")
+            if shot.get("source_url"):
+                ss_lines.append(f"[{shot['source_url']}]({shot['source_url']})")
+            if shot.get("title"):
+                ss_lines.append(f"*{shot['title']}*\n")
+        with open(os.path.join(vault_dir, "screenshots.md"), "w", encoding="utf-8") as f:
+            f.write("\n".join(ss_lines))
+
+    # 9. Limit inline screenshots to first 3 in the report
+    report["screenshots"] = report["screenshots"][:3]
+
     if ss_copied > 0:
         console.print(f"  [dim]Copiadas {ss_copied} screenshots para o vault.[/dim]")
 

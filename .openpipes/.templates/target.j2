@@ -21,33 +21,18 @@ cover: "[[Screenshots/{{ target.screenshots[0].file_path }}]]"
 {%- if target.whois %}
 {%- set whois = target.whois | from_json %}
 
-### 🌐 WHOIS
-
-| Campo | Valor |
+| 🌐 WHOIS | {{ target.name }} |
 |-------|-------|
 {%- for key, value in whois.items() %}
 | {{ key }} | `{{ value }}` |
 {%- endfor %}
 {%- endif %}
 
-
-# {{ target.name }}
 {%- if target.is_alive %}
 
-_Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualização: {{ target.last_updated }}_
-{%- endif %}
-
----
-
-## 📸 Screenshots
-{%- if target.screenshots %}
-{%- for shot in target.screenshots %}
-![[Screenshots/{{ shot.file_path }}|500]]
-**URL:** [{{ shot.source_url }}]({{ shot.source_url }})
-{%- if shot.title %} *{{ shot.title }}*{% endif %}
-{%- endfor %}
-{%- else %}
-*Nenhum screenshot disponível.*
+_Status_: 🟢 Ativo
+_IPs_: {{ target.all_ips | join(", ") }}
+_Última atualização_: {{ target.last_updated }}
 {%- endif %}
 
 ---
@@ -62,6 +47,23 @@ _Status: 🟢 Ativo | IPs: {{ target.all_ips | join(", ") }} | Última atualiza�
 {%- endfor %}
 {%- else %}
 *Nenhuma vulnerabilidade encontrada ainda.*
+{%- endif %}
+
+---
+
+## 📸 Screenshots
+{%- if target.screenshots %}
+{%- for shot in target.screenshots %}
+![[Screenshots/{{ shot.file_path }}|500]]
+{%- if shot.source_url %}**URL:** [{{ shot.source_url }}]({{ shot.source_url }}){% endif %}
+{%- if shot.title %} *{{ shot.title }}*{% endif %}
+
+{%- endfor %}
+{%- if target.screenshot_count > 3 %}
+[[screenshots.md|📷 Ver todas as {{ target.screenshot_count }} screenshots]]
+{%- endif %}
+{%- else %}
+*Nenhum screenshot disponível.*
 {%- endif %}
 
 ---
