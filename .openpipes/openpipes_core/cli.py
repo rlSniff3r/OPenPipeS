@@ -608,6 +608,7 @@ def main():
     verify_parser.add_argument("--limit", type=int, default=None, help="Limite de endpoints")
     feed_parser = subparsers.add_parser("feed", help="Alimenta ferramentas a partir do banco de dados")
     cycle_parser = subparsers.add_parser("cycle", help="Ciclo completo: feed → run → verify → sync")
+    cycle_parser.add_argument("--watch", type=float, default=0, help="Modo contínuo: intervalo em horas (ex: --watch 6)")
     parse_parser = subparsers.add_parser("parse", help="Executa apenas o parser de um módulo")
     parse_parser.add_argument("module", help="Nome do módulo (ex: nuclei-runner)")
     retry_parser = subparsers.add_parser("retry-ports", help="Feed closed/filtered ports para nwrapper")
@@ -615,8 +616,10 @@ def main():
     vuln_parser = subparsers.add_parser("vuln", help="Gerenciar vulnerabilidades")
     vuln_parser.add_argument("--manual", action="store_true", help="Inserir vulnerabilidade manualmente via cache")
     vuln_parser.add_argument("--enrich", action="store_true", help="Enriquecer findings do nuclei com cache/IA")
-    cycle_parser = subparsers.add_parser("cycle", help="Ciclo completo: feed → run → verify → sync")
-    cycle_parser.add_argument("--watch", type=float, default=0, help="Modo contínuo: intervalo em horas (ex: --watch 6)")
+    scope_parser = subparsers.add_parser("scope", help="Gerenciar escopo de varredura")
+    scope_sub = scope_parser.add_subparsers(dest="scope_cmd")
+    scope_sub.add_parser("edit", help="Selecionar hosts via fzf")
+    scope_sub.add_parser("show", help="Exibir escopo atual")
 
 
     if len(sys.argv) == 1:
@@ -689,6 +692,13 @@ def main():
                 cycle.run_cycle_watch(args.watch)
             else:
                 cycle.run_cycle()
+
+        elif args.command == "scope":
+            import scope as sc
+            if args.scope_cmd == "edit" or not args.scope_cmd:
+                sc.interactive_scope()
+            elif args.scope_cmd == "show":
+                sc.show_scope()
 
 
 if __name__ == "__main__":

@@ -84,7 +84,7 @@ def get_project_summary(proj_path: str) -> dict:
     }
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, host FROM hosts WHERE is_alive = 1")
+        cursor.execute("SELECT id, host FROM hosts WHERE is_alive = 1 AND in_scope = 1")
         alive_hosts = []
         for row in cursor.fetchall():
             if _is_in_scope(row["host"], scope_domains):
@@ -133,7 +133,7 @@ def get_targets_list(proj_path: str) -> list[dict]:
     targets = []
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, host, ips, is_alive, last_updated FROM hosts WHERE is_alive = 1 ORDER BY host")
+        cursor.execute("SELECT id, host, ips, is_alive, last_updated FROM hosts WHERE is_alive = 1 AND in_scope = 1 ORDER BY host")
         for row in cursor.fetchall():
             if not _is_in_scope(row["host"], scope_domains):
                 continue
@@ -302,7 +302,7 @@ def _get_important_endpoints(proj_path: str, limit: int = 30) -> list[dict]:
         cursor = conn.cursor()
         cursor.execute("""SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
                           FROM endpoints e JOIN hosts h ON h.id = e.host_id
-                          WHERE h.is_alive = 1 AND e.title IS NOT NULL AND e.title != ''
+                          WHERE h.is_alive = 1 AND h.in_scope = 1 AND e.title IS NOT NULL AND e.title != ''
                           AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%'
                                OR e.vulnerability_patterns IS NULL)
                           ORDER BY e.title""")
@@ -328,7 +328,7 @@ def _get_dashboard_endpoints(proj_path: str, limit: int = 100) -> list[dict]:
         cursor = conn.cursor()
         cursor.execute("""SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
                           FROM endpoints e JOIN hosts h ON h.id = e.host_id
-                          WHERE h.is_alive = 1 AND e.status_code IN (200, 401, 403)
+                          WHERE h.is_alive = 1 AND h.in_scope = 1 AND e.status_code IN (200, 401, 403)
                           AND e.title IS NOT NULL AND e.title != '' AND e.title != '-'
                           AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%'
                                OR e.vulnerability_patterns IS NULL)
@@ -415,7 +415,7 @@ def _get_all_vulnerabilities(proj_path: str, limit: int = 100) -> list[dict]:
                    v.created_at, v.id, h.host
             FROM vulnerabilities v
             JOIN hosts h ON h.id = v.host_id
-            WHERE h.is_alive = 1
+            WHERE h.is_alive = 1 AND h.in_scope = 1
             ORDER BY
                 CASE v.severity
                     WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1

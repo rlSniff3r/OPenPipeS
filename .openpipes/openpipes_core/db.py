@@ -95,7 +95,8 @@ def init_db(proj_path):
             )
         """)
         _add_missing_columns(conn, "hosts", {
-            "project_id": "project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE"
+            "project_id": "project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE",
+            "in_scope": "in_scope BOOLEAN DEFAULT 1"
         })
 
         # ── Ports ───────────────────────────────────────────────────────

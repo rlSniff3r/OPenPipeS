@@ -53,9 +53,7 @@ def _is_in_scope(host: str, scope_domains: list[str]) -> bool:
 
 
 def _get_unscanned(proj_path: str, tool_name: str, status_min: int = 100, status_max: int = 599):
-    """Get endpoints not yet processed by this tool, filtered by scope."""
-    scope_domains = _get_scope_domains(proj_path)
-
+    """Get endpoints not yet processed by this tool, filtered by scope and alive."""
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -63,14 +61,13 @@ def _get_unscanned(proj_path: str, tool_name: str, status_min: int = 100, status
             FROM endpoints e
             JOIN hosts h ON h.id = e.host_id
             WHERE h.is_alive = 1
+              AND h.in_scope = 1
               AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%'
                    OR e.vulnerability_patterns IS NULL)
               AND (e.scanned_by NOT LIKE ? OR e.scanned_by IS NULL)
             ORDER BY h.host, e.url
         """, (f"%{tool_name}%",))
-
-        # Filter by scope in Python
-        return [r for r in cursor.fetchall() if _is_in_scope(r["host"], scope_domains)]
+        return cursor.fetchall()
 
 
 def _mark_scanned(proj_path: str, endpoint_ids: list, tool_name: str):
@@ -99,7 +96,7 @@ def feed_httpx(proj_path: str, nmap_dir: str):
             SELECT DISTINCT h.id, h.host, h.ips
             FROM hosts h
             JOIN ports p ON p.host_id = h.id
-            WHERE h.is_alive = 1 AND p.state = 'open'
+            WHERE h.is_alive = 1 AND p.state = 'open' AND h.in_scope = 1
               AND p.service IN ('http','https','http-proxy','ssl','unknown')
             ORDER BY h.host
         """)
@@ -268,7 +265,7 @@ def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
             # Only hosts without any port records
             cursor.execute("""
                 SELECT h.host FROM hosts h
-                WHERE h.is_alive = 1
+                WHERE h.is_alive = 1 AND h.in_scope = 1
                 AND NOT EXISTS (SELECT 1 FROM ports p WHERE p.host_id = h.id)
                 ORDER BY h.host
             """)
