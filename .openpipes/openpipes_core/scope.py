@@ -36,7 +36,7 @@ def _fzf_select(items: list, prompt: str = "Select (TAB):") -> list:
 
 
 def interactive_scope():
-    """Interactive fzf selection of which hosts are in scope."""
+    """Interactive fzf selection — toggle hosts in/out of scope."""
     proj_path = _get_proj_path()
     if not proj_path:
         console.print("[red]Erro: Projeto não configurado.[/red]")
@@ -51,45 +51,47 @@ def interactive_scope():
         console.print("[yellow]⚠ Nenhum host vivo no banco.[/yellow]")
         return
 
-    # Show current state
     in_s = sum(1 for h in hosts if h["in_scope"])
     out_s = len(hosts) - in_s
-    console.print(f"\n[cyan]📋 Escopo atual: {in_s} em escopo, {out_s} fora[/cyan]\n")
+    console.print(f"\n[cyan]📋 Escopo atual: {in_s} em escopo, {out_s} fora[/cyan]")
+    console.print("[dim]Selecione hosts com TAB para TOGGLE (IN ↔ OUT). Confirme com ENTER.[/dim]\n")
 
-    # Build display list — mark current in-scope hosts
+    # Build display list
     display = []
     for h in hosts:
         marker = "[IN]" if h["in_scope"] else "[  ]"
         display.append(f"{marker} {h['host']}")
 
-    console.print("[cyan]Selecione os hosts para INCLUIR no escopo (TAB alterna):[/cyan]")
-    selected = _fzf_select(display, "Scope:")
-    selected_set = set()
-    for s in selected:
-        # Extract hostname after "[IN] " or "[  ] "
-        parts = s.split(" ", 1)
-        if len(parts) == 2:
-            selected_set.add(parts[1].strip())
+    selected = _fzf_select(display, "Toggle (TAB):")
 
-    # Update DB
+    # Extract hostnames from selected items
+    toggled = set()
+    for s in selected:
+        if s.startswith("[IN] ") or s.startswith("[  ] "):
+            toggled.add(s[5:])
+        else:
+            toggled.add(s.strip())
+
+    # Toggle only the explicitly selected hosts
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             for row in hosts:
-                new_val = 1 if row["host"] in selected_set else 0
-                if row["in_scope"] != new_val:
+                if row["host"] in toggled:
+                    new_val = 0 if row["in_scope"] else 1
                     cursor.execute("UPDATE hosts SET in_scope = ? WHERE host = ?",
                                    (new_val, row["host"]))
 
-    # Show summary
+    # Show updated state
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM hosts WHERE is_alive = 1 AND in_scope = 1")
         final_in = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM hosts WHERE is_alive = 1 AND in_scope = 0")
         final_out = cursor.fetchone()[0]
+        changes = len(toggled)
 
-    console.print(f"\n[green]✔ Escopo atualizado: {final_in} em escopo, {final_out} fora[/green]")
+    console.print(f"\n[green]✔ {changes} host(s) alterado(s). Escopo: {final_in} em, {final_out} fora[/green]")
 
 
 def show_scope():

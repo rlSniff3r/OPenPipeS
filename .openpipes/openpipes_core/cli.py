@@ -608,7 +608,9 @@ def main():
     verify_parser.add_argument("--limit", type=int, default=None, help="Limite de endpoints")
     feed_parser = subparsers.add_parser("feed", help="Alimenta ferramentas a partir do banco de dados")
     cycle_parser = subparsers.add_parser("cycle", help="Ciclo completo: feed → run → verify → sync")
-    cycle_parser.add_argument("--watch", type=float, default=0, help="Modo contínuo: intervalo em horas (ex: --watch 6)")
+    cycle_parser.add_argument("--watch", type=float, default=0, help="Modo contínuo: intervalo em horas")
+    cycle_parser.add_argument("--rescan", action="store_true", help="Limpar marcas e re-escanear tudo")
+    cycle_parser.add_argument("--fresh", action="store_true", help="Deletar tudo e começar do zero")
     parse_parser = subparsers.add_parser("parse", help="Executa apenas o parser de um módulo")
     parse_parser.add_argument("module", help="Nome do módulo (ex: nuclei-runner)")
     retry_parser = subparsers.add_parser("retry-ports", help="Feed closed/filtered ports para nwrapper")
@@ -644,8 +646,14 @@ def main():
             feeder.run()
 
         elif args.command == "cycle":
-            import cycle
-            cycle.run_cycle()
+            if args.watch:
+                cycle.run_cycle_watch(args.watch)
+            elif args.fresh:
+                cycle.run_cycle(fresh=True)
+            elif args.rescan:
+                cycle.run_cycle(rescan=True)
+            else:
+                cycle.run_cycle()
 
         elif args.command == "parse":
             proj_name, proj_path, nmap_dir = get_project_env()
