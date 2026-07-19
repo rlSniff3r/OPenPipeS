@@ -27,14 +27,14 @@ KATANA_CONCURRENCY=20
 process_target() {
     local TARGET="$1"
     local WORK_DIR="$NMAP_DIR/nmap-$TARGET"
-    local INPUT_FILE="$WORK_DIR/alive_urls.txt"
+    local INPUT_FILE="$WORK_DIR/katana_urls.txt"
 
     if [ ! -d "$WORK_DIR" ]; then
         echo "[!] Diretório não encontrado: $WORK_DIR"
         return 1
     fi
     if [ ! -s "$INPUT_FILE" ]; then
-        echo "[!] alive_urls.txt vazio ou ausente para $TARGET"
+        echo "[!] katana_urls.txt vazio ou ausente para $TARGET"
         return 1
     fi
 

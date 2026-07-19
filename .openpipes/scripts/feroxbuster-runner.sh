@@ -38,9 +38,9 @@ process_target() {
     fi
 
     # ── Input: alive_urls.txt (escrito pelo feeder.py) ──────────────────
-    local URLS_FILE="$WORK_DIR/alive_urls.txt"
+    local URLS_FILE="$NMAP_DIR/nmap-$TARGET/ferox_urls.txt"
     if [ ! -s "$URLS_FILE" ]; then
-        echo "[!] alive_urls.txt vazio ou ausente para $TARGET"
+        echo "[!] ferox_urls.txt vazio ou ausente para $TARGET"
         return 1
     fi
 

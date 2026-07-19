@@ -44,14 +44,14 @@ process_target() {
     local nmap_folder="$NMAP_DIR/nmap-$target_name"
     local ss_dir="$nmap_folder/Screenshots"
 
-    # Coleta URLs vivas do httpx JSON (prioridade) ou alive_urls.txt
+    # Coleta URLs do feeder (screenshot_urls.txt) ou fallback
     local url_list=""
 
-    if [[ -f "$nmap_folder/httpx-dedup.json" ]]; then
+    if [[ -f "$nmap_folder/screenshot_urls.txt" ]]; then
+        url_list=$(cat "$nmap_folder/screenshot_urls.txt")
+    elif [[ -f "$nmap_folder/httpx-dedup.json" ]]; then
         url_list=$(jq -r '.[] | select(.url != null) | .url' "$nmap_folder/httpx-dedup.json" 2>/dev/null)
-    fi
-
-    if [[ -z "$url_list" && -f "$nmap_folder/alive_urls.txt" ]]; then
+    elif [[ -f "$nmap_folder/alive_urls.txt" ]]; then
         url_list=$(cat "$nmap_folder/alive_urls.txt")
     fi
 

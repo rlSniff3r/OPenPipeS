@@ -4,10 +4,10 @@ source $HOME/.openpipes/config.sh
 for dir in "$NMAP_DIR"/nmap-*; do
     [[ ! -d "$dir" ]] && continue
     target_name="${dir##*/nmap-}"
-    input_file="$dir/alive_urls.txt"
+    input_file="$dir/nuclei_urls.txt"
 
     if [[ ! -s "$input_file" ]]; then
-        echo "[SKIP] $target_name: alive_urls.txt vazio ou ausente."
+        echo "[SKIP] $target_name: nuclei_urls.txt vazio ou ausente."
         continue
     fi
 
@@ -16,8 +16,7 @@ for dir in "$NMAP_DIR"/nmap-*; do
 
     nuclei -l "$input_file" \
         -severity low,medium,high,critical \
-        -json \
-        -o "$nuclei_json"
+        -je "$nuclei_json"
 
     echo "[✔] $target_name finalizado."
 done

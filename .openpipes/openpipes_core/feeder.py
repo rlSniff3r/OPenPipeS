@@ -183,11 +183,11 @@ def _feed_from_unscanned(proj_path: str, nmap_dir: str, tool_name: str, out_file
 
 
 def feed_katana(proj_path: str, nmap_dir: str):
-    _feed_from_unscanned(proj_path, nmap_dir, "katana")
+    _feed_from_unscanned(proj_path, nmap_dir, "katana", "katana_urls.txt")
 
 
 def feed_ferox(proj_path: str, nmap_dir: str):
-    _feed_from_unscanned(proj_path, nmap_dir, "ferox")
+    _feed_from_unscanned(proj_path, nmap_dir, "ferox", "ferox_urls.txt")
 
 
 def feed_jsfinder(proj_path: str, nmap_dir: str):
@@ -217,11 +217,11 @@ def feed_gf(proj_path: str, nmap_dir: str):
 
 
 def feed_screenshot(proj_path: str, nmap_dir: str):
-    _feed_from_unscanned(proj_path, nmap_dir, "screenshot")
+    _feed_from_unscanned(proj_path, nmap_dir, "screenshot", "screenshot_urls.txt")
 
 
 def feed_nuclei(proj_path: str, nmap_dir: str):
-    _feed_from_unscanned(proj_path, nmap_dir, "nuclei")
+    _feed_from_unscanned(proj_path, nmap_dir, "nuclei", "nuclei_urls.txt")
 
 
 def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
