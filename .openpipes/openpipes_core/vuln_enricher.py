@@ -159,10 +159,15 @@ def enrich_nuclei_findings(proj_path: str):
                     cached = _enrich_via_openai(vuln_name, description)
 
                 if cached:
+                    # Calculate CVSS score from vector
+                    cvss_vector = cached.get("cvssv3", "")
+                    score, severity = _calculate_cvss(cvss_vector)
                     cursor.execute("""
                         UPDATE vulnerabilities SET
                             title = ?,
                             cvss_vector = ?,
+                            cvss_score = ?,
+                            severity = ?,
                             description = ?,
                             impact = ?,
                             remediation = ?,
@@ -171,7 +176,9 @@ def enrich_nuclei_findings(proj_path: str):
                         WHERE id = ?
                     """, (
                         cached.get("title", vuln_name),
-                        cached.get("cvssv3", ""),
+                        cvss_vector,
+                        score,
+                        severity or "Média",
                         cached.get("description", description),
                         cached.get("observation", ""),
                         cached.get("remediation", ""),
@@ -183,6 +190,31 @@ def enrich_nuclei_findings(proj_path: str):
                     skipped += 1
 
     console.print(f" [dim]↳ Enricher: {enriched} enriquecidas, {skipped} sem dados.[/dim]")
+
+
+def _calculate_cvss(cvss_vector: str) -> tuple:
+    """Calculate CVSS score from vector string using cvss_calculator CLI.
+    Returns (base_score, severity) or (None, None) on failure."""
+    if not cvss_vector:
+        return None, None
+    try:
+        result = subprocess.run(
+            f"cvss_calculator -3jv '{cvss_vector}'",
+            shell=True, capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            # Parse the JSON output (skip first 7 header lines)
+            json_str = "\n".join(result.stdout.strip().split("\n")[7:])
+            import json
+            data = json.loads(json_str)
+            score = data.get("baseScore")
+            severity = data.get("baseSeverity", "")
+            severity_map = {"CRITICAL": "Crítica", "HIGH": "Alta",
+                           "MEDIUM": "Média", "LOW": "Baixa", "NONE": "Info"}
+            return score, severity_map.get(severity.upper(), severity)
+    except Exception:
+        pass
+    return None, None
 
 
 def add_manual_vulnerability(proj_path: str):

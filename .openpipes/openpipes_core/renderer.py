@@ -406,14 +406,13 @@ def _get_vault_path(obsdir: str, proj_name: str, target_name: str = None) -> str
 
 
 def _get_all_vulnerabilities(proj_path: str, limit: int = 100) -> list[dict]:
-    """Return all vulnerabilities across in-scope hosts, ordered by severity."""
     scope_domains = _get_scope_domains(proj_path)
     vulns = []
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT v.title, v.severity, v.cvss_score, v.cve_id, v.cvss_vector,
-                   v.created_at, v.filename, h.host
+                   v.created_at, v.id, h.host
             FROM vulnerabilities v
             JOIN hosts h ON h.id = v.host_id
             WHERE h.is_alive = 1
@@ -427,14 +426,17 @@ def _get_all_vulnerabilities(proj_path: str, limit: int = 100) -> list[dict]:
         for row in cursor.fetchall():
             if not _is_in_scope(row["host"], scope_domains):
                 continue
+            title = row["title"] or ""
+            safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', title[:40].replace(' ', '_'))
+            filename = f"{row['created_at'][:8] if row['created_at'] else '00000000'}_{safe_title}.md"
             vulns.append({
-                "title": row["title"],
+                "title": title,
                 "severity": row["severity"],
                 "severity_emoji": {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡", "Baixa": "🟢", "Info": "🔵"}.get(row["severity"], "⚪"),
                 "cvss_score": row["cvss_score"],
                 "cve_id": row["cve_id"] or "—",
                 "target": row["host"],
-                "filename": row["filename"],
+                "filename": filename,
                 "created_at": row["created_at"],
             })
             if len(vulns) >= limit:
