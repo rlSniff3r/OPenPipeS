@@ -183,7 +183,7 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
             ep["vulnerability_patterns"] = json.loads(ep["vulnerability_patterns"]) if ep.get("vulnerability_patterns") else []
             endpoints.append(ep)
 
-        cursor.execute("""SELECT title, severity, cvss_score, cvss_vector,
+        cursor.execute("""SELECT title, severity, cvss_score, cvss_vector, cwe_id,
                           cve_id, vuln_name, description, matched_at,
                           curl_command, remediation, impact,
                           reference_urls, source_tool, enriched_by, created_at
