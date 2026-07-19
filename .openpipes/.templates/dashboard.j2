@@ -20,6 +20,20 @@ gerado_em: {{ generated_at }}
 
 ---
 
+## 🛡️ Vulnerabilidades
+
+{%- if all_vulnerabilities %}
+| Severidade | Título | CVSS | CVE | Alvo |
+|------------|--------|------|-----|------|
+{%- for vuln in all_vulnerabilities %}
+| {{ vuln.severity_emoji }} {{ vuln.severity }} | [[{{ vuln.target }}/Vulnerabilidades/{{ vuln.filename }}\|{{ vuln.title }}]] | {{ vuln.cvss_score or "N/A" }} | {{ vuln.cve_id }} | [[{{ vuln.target }}.md\|{{ vuln.target }}]] |
+{%- endfor %}
+{%- else %}
+*Nenhuma vulnerabilidade registrada.*
+{%- endif %}
+
+---
+
 ## 🔴 Vulnerabilidades por Severidade
 {%- set total = summary.severity_breakdown.Crítica + summary.severity_breakdown.Alta + summary.severity_breakdown.Média + summary.severity_breakdown.Baixa + summary.severity_breakdown.Info %}
 {%- if total > 0 %}

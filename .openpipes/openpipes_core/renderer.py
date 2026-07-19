@@ -405,6 +405,43 @@ def _get_vault_path(obsdir: str, proj_name: str, target_name: str = None) -> str
     return base
 
 
+def _get_all_vulnerabilities(proj_path: str, limit: int = 100) -> list[dict]:
+    """Return all vulnerabilities across in-scope hosts, ordered by severity."""
+    scope_domains = _get_scope_domains(proj_path)
+    vulns = []
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT v.title, v.severity, v.cvss_score, v.cve_id, v.cvss_vector,
+                   v.created_at, v.filename, h.host
+            FROM vulnerabilities v
+            JOIN hosts h ON h.id = v.host_id
+            WHERE h.is_alive = 1
+            ORDER BY
+                CASE v.severity
+                    WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1
+                    WHEN 'Média' THEN 2 WHEN 'Baixa' THEN 3
+                    ELSE 4
+                END, v.created_at DESC
+        """)
+        for row in cursor.fetchall():
+            if not _is_in_scope(row["host"], scope_domains):
+                continue
+            vulns.append({
+                "title": row["title"],
+                "severity": row["severity"],
+                "severity_emoji": {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡", "Baixa": "🟢", "Info": "🔵"}.get(row["severity"], "⚪"),
+                "cvss_score": row["cvss_score"],
+                "cve_id": row["cve_id"] or "—",
+                "target": row["host"],
+                "filename": row["filename"],
+                "created_at": row["created_at"],
+            })
+            if len(vulns) >= limit:
+                break
+    return vulns
+
+
 def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -> bool:
     report = get_target_report(proj_path, host_name)
     if not report:
@@ -582,26 +619,30 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
 
     important = _get_important_endpoints(proj_path)
     all_endpoints = _get_dashboard_endpoints(proj_path)
+    all_vulns = _get_all_vulnerabilities(proj_path)
 
     env = _get_jinja_env()
     dashboard_md = env.get_template("dashboard.j2").render(
         project_name=proj_name, summary=summary, targets=targets,
         important_endpoints=important, all_endpoints=all_endpoints,
+        all_vulnerabilities=all_vulns,
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
     pentest_dir = os.path.join(obsdir, proj_name, "Pentest")
     os.makedirs(pentest_dir, exist_ok=True)
+
     with open(os.path.join(pentest_dir, "Dashboard_Global.md"), "w", encoding="utf-8") as f:
         f.write(dashboard_md)
-        # Hosts Panel (.base file)
 
+    # Hosts Panel (.base file)
     hosts_md = env.get_template("hosts-panel.j2").render(
         project_name=proj_name,
+        vault_path=os.path.join(obsdir, proj_name, "Pentest"),
     )
     with open(os.path.join(pentest_dir, "Hosts_Panel.base"), "w", encoding="utf-8") as f:
         f.write(hosts_md)
 
-    console.print(f" [dim]↳ Render: Dashboard Global + Hosts Panel ({len(important)} importantes, {len(all_endpoints)} endpoints)[/dim]")
+    console.print(f" [dim]↳ Render: Dashboard Global ({len(important)} importantes, {len(all_endpoints)} endpoints, {len(all_vulns)} vulns)[/dim]")
 
 
 def sync_project(target_name: str = None):

@@ -38,7 +38,7 @@ tags: [vulnerabilidade, {{ vuln.severity.lower() }}]
 
 > [!tldr] Referências
 {%- if vuln.reference_urls %} {%- for ref in vuln.reference_urls %}
-- {{ ref }} {%- endfor %} {%- else %} Nenhuma referência. {%- endif %}
+> - {{ ref }} {%- endfor %} {%- else %} Nenhuma referência. {%- endif %}
 
 {%- if vuln.cve_id %}
 > [!info] CVE {{ vuln.cve_id }} | CVSS {{ vuln.cvss_score }} ({{ vuln.severity }}) Vector: {{ vuln.cvss_vector or "N/A" }} {%- endif %}
