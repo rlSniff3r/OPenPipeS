@@ -5,6 +5,7 @@ t_IP: "{{ target.ip }}"
 Tipo: {{ vuln.vuln_name }}
 Severidade: {{ vuln.severity }}
 CVSS: {{ vuln.cvss_score or "N/A" }}
+cwe: {{ vuln.cwe_id or "N/A" }}
 cvss_v: {{ vuln.cvss_vector or "N/A" }}
 cve: {{ vuln.cve_id or "N/A" }}
 source_tool: {{ vuln.source_tool or "N/A" }}
