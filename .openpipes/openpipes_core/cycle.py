@@ -125,3 +125,19 @@ def run_cycle(targets: list = None):
     for mod, ok in results:
         table.add_row(mod, "[green]OK[/green]" if ok else "[red]FAIL[/red]")
     console.print(table)
+
+
+def run_cycle_watch(interval_hours: float = 6):
+    """Run cycle in a loop with configurable interval."""
+    console.print(f"[cyan]🔄 Watch mode — interval: {interval_hours}h[/cyan]")
+    while True:
+        start = time.time()
+        run_cycle()
+        elapsed = time.time() - start
+        sleep_sec = max(0, interval_hours * 3600 - elapsed)
+        if sleep_sec > 0:
+            next_time = time.strftime("%H:%M:%S", time.localtime(time.time() + sleep_sec))
+            console.print(f"[dim]⏳ Cycle: {elapsed:.0f}s. Next: ~{next_time} ({sleep_sec/3600:.1f}h)[/dim]")
+            time.sleep(sleep_sec)
+        else:
+            console.print(f"[yellow]⚠ Cycle took {elapsed:.0f}s > {interval_hours}h interval. Starting next immediately.[/yellow]")

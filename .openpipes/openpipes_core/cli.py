@@ -615,6 +615,9 @@ def main():
     vuln_parser = subparsers.add_parser("vuln", help="Gerenciar vulnerabilidades")
     vuln_parser.add_argument("--manual", action="store_true", help="Inserir vulnerabilidade manualmente via cache")
     vuln_parser.add_argument("--enrich", action="store_true", help="Enriquecer findings do nuclei com cache/IA")
+    cycle_parser = subparsers.add_parser("cycle", help="Ciclo completo: feed → run → verify → sync")
+    cycle_parser.add_argument("--watch", type=float, default=0, help="Modo contínuo: intervalo em horas (ex: --watch 6)")
+
 
     if len(sys.argv) == 1:
         interactive_menu()
@@ -680,6 +683,12 @@ def main():
                         vuln_enricher.run_enricher(proj_path)
                     elif choice == "2":
                         vuln_enricher.run_manual(proj_path)
+
+        elif args.command == "cycle":
+            if args.watch:
+                cycle.run_cycle_watch(args.watch)
+            else:
+                cycle.run_cycle()
 
 
 if __name__ == "__main__":
