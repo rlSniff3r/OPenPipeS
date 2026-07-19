@@ -480,7 +480,11 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     groups = large_groups
     group_names = sorted(groups.keys(), key=lambda g: len(groups[g]), reverse=True)
 
-    # 1. Target note
+    # ── Save full screenshots list, limit inline to 3 ────────────────
+    all_screenshots = report["screenshots"]
+    report["screenshots"] = all_screenshots[:3]
+
+    # 1. Target note (inline: max 3 screenshots)
     target_md = env.get_template("target.j2").render(
         target=report, groups=groups, group_names=group_names,
     )
@@ -528,20 +532,20 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     ss_copied = 0
     if os.path.isdir(nmap_target_dir):
         os.makedirs(ss_vault_dir, exist_ok=True)
-        for shot in report.get("screenshots", []):
+        for shot in all_screenshots:  # copy ALL
             src = os.path.join(nmap_target_dir, shot["file_path"])
             dst = os.path.join(ss_vault_dir, shot["file_path"])
             if os.path.exists(src) and not os.path.exists(dst):
                 shutil.copy2(src, dst)
                 ss_copied += 1
 
-    # 8. Generate dedicated screenshots.md with full gallery
-    if report["screenshots"]:
+    # 8. Dedicated screenshots.md with full gallery
+    if all_screenshots:
         ss_lines = [
             f"# 📸 Screenshots — {host_name}",
-            f"**Total: {len(report['screenshots'])} capturas**\n",
+            f"**Total: {len(all_screenshots)} capturas**\n",
         ]
-        for shot in report["screenshots"]:
+        for shot in all_screenshots:
             ss_lines.append(f"![[Screenshots/{shot['file_path']}|500]]")
             if shot.get("source_url"):
                 ss_lines.append(f"[{shot['source_url']}]({shot['source_url']})")
@@ -549,9 +553,6 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
                 ss_lines.append(f"*{shot['title']}*\n")
         with open(os.path.join(vault_dir, "screenshots.md"), "w", encoding="utf-8") as f:
             f.write("\n".join(ss_lines))
-
-    # 9. Limit inline screenshots to first 3 in the report
-    report["screenshots"] = report["screenshots"][:3]
 
     if ss_copied > 0:
         console.print(f"  [dim]Copiadas {ss_copied} screenshots para o vault.[/dim]")

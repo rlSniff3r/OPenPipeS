@@ -128,16 +128,22 @@ def run_cycle(targets: list = None):
 
 
 def run_cycle_watch(interval_hours: float = 6):
-    """Run cycle in a loop with configurable interval."""
     console.print(f"[cyan]🔄 Watch mode — interval: {interval_hours}h[/cyan]")
+    console.print("[dim]Ctrl+C interrompe o ciclo atual, mas o watch continua.[/dim]")
+    console.print("[dim]Ctrl+C duas vezes para sair.[/dim]\n")
     while True:
-        start = time.time()
-        run_cycle()
-        elapsed = time.time() - start
-        sleep_sec = max(0, interval_hours * 3600 - elapsed)
-        if sleep_sec > 0:
-            next_time = time.strftime("%H:%M:%S", time.localtime(time.time() + sleep_sec))
-            console.print(f"[dim]⏳ Cycle: {elapsed:.0f}s. Next: ~{next_time} ({sleep_sec/3600:.1f}h)[/dim]")
-            time.sleep(sleep_sec)
-        else:
-            console.print(f"[yellow]⚠ Cycle took {elapsed:.0f}s > {interval_hours}h interval. Starting next immediately.[/yellow]")
+        try:
+            start = time.time()
+            run_cycle()
+            elapsed = time.time() - start
+            sleep_sec = max(0, interval_hours * 3600 - elapsed)
+            if sleep_sec > 0:
+                next_time = time.strftime("%H:%M:%S", time.localtime(time.time() + sleep_sec))
+                console.print(f"[dim]⏳ Cycle: {elapsed:.0f}s. Next: ~{next_time} ({sleep_sec/3600:.1f}h)[/dim]")
+                time.sleep(sleep_sec)
+            else:
+                console.print(f"[yellow]⚠ Cycle took {elapsed:.0f}s > {interval_hours}h. Starting next immediately.[/yellow]")
+        except KeyboardInterrupt:
+            console.print("\n[yellow]⚠ Ciclo interrompido. Watch continua...[/yellow]")
+            console.print("[dim]Pressione Ctrl+C novamente para sair.[/dim]\n")
+            continue
