@@ -59,6 +59,17 @@ def _get_openai_key() -> Optional[str]:
     return None
 
 
+def _extract_cwe(references: list) -> str:
+    """Extract CWE ID from reference URLs like https://cwe.mitre.org/data/definitions/326.html"""
+    if not references:
+        return ""
+    for ref in references:
+        match = re.search(r'/definitions/(\d+)\.html', ref)
+        if match:
+            return f"CWE-{match.group(1)}"
+    return ""
+
+
 def _enrich_via_openai(vuln_name: str, description: str) -> Optional[dict]:
     """Use OpenAI to generate vulnerability data for uncached findings."""
     api_key = _get_openai_key()
@@ -162,6 +173,7 @@ def enrich_nuclei_findings(proj_path: str):
                     # Calculate CVSS score from vector
                     cvss_vector = cached.get("cvssv3", "")
                     score, severity = _calculate_cvss(cvss_vector)
+                    cwe_id = _extract_cwe(cached.get("references", []))
                     cursor.execute("""
                         UPDATE vulnerabilities SET
                             title = ?,
@@ -172,6 +184,7 @@ def enrich_nuclei_findings(proj_path: str):
                             impact = ?,
                             remediation = ?,
                             reference_urls = ?,
+                            cwe_id = ?,
                             enriched_by = 'cache'
                         WHERE id = ?
                     """, (
@@ -183,6 +196,7 @@ def enrich_nuclei_findings(proj_path: str):
                         cached.get("observation", ""),
                         cached.get("remediation", ""),
                         json.dumps(cached.get("references", [])),
+                        cwe_id,
                         vuln_id,
                     ))
                     enriched += 1

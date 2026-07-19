@@ -193,12 +193,17 @@ def init_db(proj_path):
                     UNIQUE(vuln_name, matched_at, host_id)
                 )
             """)
+            _add_missing_columns(conn, "vulnerabilities", {
+                "cwe_id": "cwe_id TEXT DEFAULT ''",
+            })
+
         else:
             # Add new columns to existing table
             new_cols = {
                 "title":          "title TEXT",
                 "cvss_score":     "cvss_score REAL",
                 "cvss_vector":    "cvss_vector TEXT",
+                "cwe_id":         "cwe_id TEXT DEFAULT ''",
                 "cve_id":         "cve_id TEXT",
                 "remediation":    "remediation TEXT",
                 "impact":         "impact TEXT",

@@ -411,7 +411,7 @@ def _get_all_vulnerabilities(proj_path: str, limit: int = 100) -> list[dict]:
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT v.title, v.severity, v.cvss_score, v.cve_id, v.cvss_vector,
+            SELECT v.title, v.severity, v.cvss_score, v.cwe_id, v.cve_id, v.cvss_vector,
                    v.created_at, v.id, h.host
             FROM vulnerabilities v
             JOIN hosts h ON h.id = v.host_id
@@ -434,6 +434,7 @@ def _get_all_vulnerabilities(proj_path: str, limit: int = 100) -> list[dict]:
                 "severity": row["severity"],
                 "severity_emoji": {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡", "Baixa": "🟢", "Info": "🔵"}.get(row["severity"], "⚪"),
                 "cvss_score": row["cvss_score"],
+                "cwe_id": row["cwe_id"] or "—",
                 "cve_id": row["cve_id"] or "—",
                 "target": row["host"],
                 "filename": filename,
