@@ -109,7 +109,6 @@ def enrich_nuclei_findings(proj_path: str):
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
-            # Get nuclei vulns that haven't been enriched yet
             cursor.execute("""
                 SELECT id, vuln_name, description, title
                 FROM vulnerabilities
@@ -118,21 +117,44 @@ def enrich_nuclei_findings(proj_path: str):
             """)
             to_enrich = cursor.fetchall()
 
-            for row in to_chrich:
+            for row in to_enrich:
                 vuln_id = row["id"]
                 vuln_name = row["vuln_name"] or row["title"]
                 description = row["description"] or ""
                 normalized = _normalize_name(vuln_name)
+                vuln_keywords = set(re.sub(r'[^a-z0-9]+', ' ', normalized).split())
 
-                # Try cache first
-                cached = None
+                # Keyword-based fuzzy matching
+                matched_cache = None
+                best_score = 0.0
+
                 for cache_key, cache_data in cache.items():
-                    if normalized in cache_key or cache_key in normalized:
-                        cached = cache_data
-                        break
+                    cache_keywords = set(re.sub(r'[^a-z0-9]+', ' ', cache_key).split())
+                    overlap = len(vuln_keywords & cache_keywords)
+                    denom = max(len(vuln_keywords), len(cache_keywords))
+                    score = overlap / denom if denom > 0 else 0
+
+                    if score > best_score:
+                        best_score = score
+                        matched_cache = (cache_key, cache_data)
+
+                # Low confidence — ask user via fzf
+                if best_score < 0.5 or best_score is None:
+                    candidates = [
+                        k for k in cache.keys()
+                        if len(set(re.sub(r'[^a-z0-9]+', ' ', k).split()) & vuln_keywords) > 0
+                    ]
+                    if candidates:
+                        from db_viewer import _fzf_select
+                        console.print(f" [yellow]⚠ '{vuln_name}' — selecione a correspondência:[/yellow]")
+                        selected = _fzf_select(sorted(candidates), f"Match:")
+                        if selected:
+                            matched_cache = (selected[0], cache[selected[0]])
+                            best_score = 1.0
+
+                cached = matched_cache[1] if matched_cache and best_score >= 0.3 else None
 
                 if not cached:
-                    # Try OpenAI
                     console.print(f" [yellow]⚠ Sem cache para '{vuln_name}'. Tentando OpenAI...[/yellow]")
                     cached = _enrich_via_openai(vuln_name, description)
 

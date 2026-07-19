@@ -15,7 +15,7 @@ tags: [vulnerabilidade, {{ vuln.severity.lower() }}]
 
 # {{ vuln.severity_emoji }} {{ vuln.title }}
 
-**Alvo:** `{{ target.name }}` ({{ target.ip }})
+**Alvo:** {{ target.name }} ({{ target.ip }})
 **Ferramenta:** {{ vuln.source_tool or "manual" }}
 **Registrado em:** {{ vuln.created_at }}
 
@@ -24,18 +24,21 @@ tags: [vulnerabilidade, {{ vuln.severity.lower() }}]
 {%- if vuln.matched_at %}
 
 > [!example] Evidência
-**Match:** `{{ vuln.matched_at }}`
+**Match:** {{ vuln.matched_at }}
 {%- if vuln.curl_command %}
-**cURL:**
-```bash
+
 {{ vuln.curl_command }}
 {%- endif %} {%- endif %}
 
-[!danger] Impacto {{ vuln.impact or "Impacto não especificado." }}
+> [!danger] Impacto
+{{ vuln.impact or "Impacto não especificado." }}
 
-[!success] Recomendação {{ vuln.remediation or "Nenhuma recomendação fornecida." }}
+> [!success] Recomendação
+{{ vuln.remediation or "Nenhuma recomendação fornecida." }}
 
-[!tldr] Referências {%- if vuln.reference_urls %} {%- for ref in vuln.reference_urls %}
+> [!tldr] Referências
+{%- if vuln.reference_urls %} {%- for ref in vuln.reference_urls %}
+- {{ ref }} {%- endfor %} {%- else %} Nenhuma referência. {%- endif %}
 
-{{ ref }} {%- endfor %} {%- else %} Nenhuma referência. {%- endif %} {%- if vuln.cve_id %}
-[!info] CVE {{ vuln.cve_id }} | CVSS {{ vuln.cvss_score }} ({{ vuln.severity }}) Vector: {{ vuln.cvss_vector or "N/A" }} {%- endif %}
+{%- if vuln.cve_id %}
+> [!info] CVE {{ vuln.cve_id }} | CVSS {{ vuln.cvss_score }} ({{ vuln.severity }}) Vector: {{ vuln.cvss_vector or "N/A" }} {%- endif %}
