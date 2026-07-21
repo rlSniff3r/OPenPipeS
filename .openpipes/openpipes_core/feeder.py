@@ -178,7 +178,6 @@ def _feed_from_unscanned(proj_path: str, nmap_dir: str, tool_name: str, out_file
             for url in filtered:
                 f.write(url + "\n")
         total += len(filtered)
-    _mark_scanned(proj_path, [r["id"] for r in rows], tool_name)
     console.print(f" [dim]↳ Feed {tool_name}: {total} URLs para {len(by_host)} hosts[/dim]")
 
 
@@ -208,7 +207,6 @@ def feed_jsfinder(proj_path: str, nmap_dir: str):
             for url in filtered:
                 f.write(url + "\n")
         total += len(filtered)
-    _mark_scanned(proj_path, [r["id"] for r in js_rows], "jsfinder")
     console.print(f" [dim]↳ Feed jsfinder: {total} novos JS URLs[/dim]")
 
 

@@ -5,6 +5,7 @@ import socket
 import subprocess
 import sqlite3
 import xml.etree.ElementTree as ET
+import glob
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -937,6 +938,69 @@ def flag_false_positives(proj_path: str):
         console.print(f" [dim]↳ False Positive Detection: Marcou {tagged} endpoints como potenciais falsos positivos.[/dim]")
 
 
+def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
+    """Mark endpoints as scanned based on URLs found in the tool's actual output files."""
+    import feeder
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            for nmap_folder in sorted(os.listdir(nmap_dir)):
+                if not nmap_folder.startswith("nmap-"):
+                    continue
+                target_dir = os.path.join(nmap_dir, nmap_folder)
+
+                # Find output files based on tool
+                files = []
+                if tool_name in ("ferox",):
+                    files = glob.glob(os.path.join(target_dir, "ferox_*.jsonl"))
+                elif tool_name in ("katana", "crawled"):
+                    f = os.path.join(target_dir, "crawled_all.jsonl")
+                    if os.path.exists(f):
+                        files = [f]
+                elif tool_name == "jsfinder":
+                    f = os.path.join(target_dir, "jsfinder-results.json")
+                    if os.path.exists(f):
+                        files = [f]
+                elif tool_name == "nuclei":
+                    f = os.path.join(target_dir, "nuclei_output.json")
+                    if os.path.exists(f):
+                        files = [f]
+                elif tool_name == "screenshot":
+                    f = os.path.join(target_dir, "Screenshots", "go.jsonl")
+                    if os.path.exists(f):
+                        files = [f]
+                elif tool_name == "httpx":
+                    f = os.path.join(nmap_dir, "httpx_output.json")
+                    if os.path.exists(f):
+                        files = [f]
+
+                for fpath in files:
+                    try:
+                        with open(fpath) as fh:
+                            for line in fh:
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                try:
+                                    data = json.loads(line)
+                                    # Extract URL from various formats
+                                    url = (data.get("url") or
+                                           data.get("request", {}).get("endpoint", "") or
+                                           data.get("source_js_url", ""))
+                                    if url:
+                                        cursor.execute("""
+                                            UPDATE endpoints SET scanned_by = CASE
+                                                WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
+                                                ELSE scanned_by || ',' || ?
+                                            END
+                                            WHERE url = ?
+                                        """, (tool_name, tool_name, url))
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+
 # ═════════════════════════════════════════════════════════════════════
 # DISPATCH
 # ═════════════════════════════════════════════════════════════════════
@@ -951,24 +1015,28 @@ def dispatch(module_name, proj_path, nmap_dir):
         parse_nmap(proj_path, nmap_dir)
     elif module_name == "httpx-runner":
         parse_httpx(proj_path, nmap_dir)
+        _mark_scanned_by_url(proj_path, nmap_dir, "httpx")
     elif module_name == "feroxbuster-runner":
         parse_url_discovery_jsonl(proj_path, nmap_dir, "ferox")
+        _mark_scanned_by_url(proj_path, nmap_dir, "ferox")
     elif module_name in ("katana-runner", "katana-buster"):
         parse_url_discovery_jsonl(proj_path, nmap_dir, "crawled")
+        _mark_scanned_by_url(proj_path, nmap_dir, "crawled")
     elif module_name == "screenshot-runner":
         parse_screenshot(proj_path, nmap_dir)
+        _mark_scanned_by_url(proj_path, nmap_dir, "screenshot")
     elif module_name == "gf-summary":
         parse_gf(proj_path, nmap_dir)
     elif module_name == "jsfinder-runner":
         parse_jsfinder(proj_path, nmap_dir)
+        _mark_scanned_by_url(proj_path, nmap_dir, "jsfinder")
+    elif module_name == "whois-enricher":
+        parse_whois_from_initial(proj_path, nmap_dir)
     elif module_name == "nuclei-runner":
         parse_nuclei(proj_path, nmap_dir)
-    elif module_name == "whois-enricher":
-        # Parse WHOIS from the 'initial' file (text format with --script=whois-ip)
-        parse_whois_from_initial(proj_path, nmap_dir)
+        _mark_scanned_by_url(proj_path, nmap_dir, "nuclei")
     else:
         console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")
-        return
 
     # Run false positive detection after every parse
     flag_false_positives(proj_path)
