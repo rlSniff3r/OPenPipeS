@@ -20,7 +20,6 @@ VENV_JSFINDER = f"{HOME}/.venv-jsfinder"
 ERROR_LOG = f"{OPENPIPES_DIR}/install_error.log"
 GO_VERSION = "1.21.5"
 AMASS_VERSION = "3.20.0"
-DNSRECON_VERSION = "1.1.3"
 
 
 def check_sudo():
@@ -143,11 +142,14 @@ def install_amass():
 
 
 def install_dnsrecon():
-    if not os.path.exists(f"{OPENPIPES_BIN}/dnsrecon-{DNSRECON_VERSION}"):
-        run_cmd(f"wget -q https://github.com/darkoperator/dnsrecon/archive/refs/tags/{DNSRECON_VERSION}.tar.gz -O /tmp/dnsrecon.tar.gz")
-        run_cmd(f"tar -xzf /tmp/dnsrecon.tar.gz -C {OPENPIPES_BIN}")
-        run_cmd("rm /tmp/dnsrecon.tar.gz")
-        run_cmd(f"ln -sf {OPENPIPES_BIN}/dnsrecon-{DNSRECON_VERSION}/dnsrecon.py {OPENPIPES_BIN}/dnsrecon")
+    """Clone dnsrecon from git and install into the core venv."""
+    repo_url = "https://github.com/darkoperator/dnsrecon.git"
+    clone_dir = "/tmp/dnsrecon-install"
+    if os.path.exists(clone_dir):
+        shutil.rmtree(clone_dir)
+    run_cmd(f"git clone --depth 1 {repo_url} {clone_dir}")
+    run_cmd(f"{VENV_CORE}/bin/pip install -e {clone_dir} -q")
+    shutil.rmtree(clone_dir, ignore_errors=True)
 
 
 def setup_isolated_venvs():
@@ -170,6 +172,9 @@ def setup_isolated_venvs():
         run_cmd(f"python3 -m venv {VENV_CORE}")
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq -q")
+
+    # Ensure Python httpx is NOT installed (it shadows the Go httpx CLI)
+    run_cmd(f"{VENV_CORE}/bin/pip uninstall httpx -y -q 2>/dev/null || true")
 
 
 def install_wordlists():
