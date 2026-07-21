@@ -6,6 +6,7 @@ import subprocess
 import argparse
 import time
 import verifier
+import cycle
 from pathlib import Path
 
 from rich.console import Console
@@ -599,30 +600,49 @@ def show_database_viewer():
 def main():
     parser = argparse.ArgumentParser(description="OPenPipeS Core Engine")
     subparsers = parser.add_subparsers(dest="command")
+
+    # Run
     run_parser = subparsers.add_parser("run", help="Executa um módulo bash")
     run_parser.add_argument("module", help="Nome do módulo")
-    run_parser.add_argument("extra", nargs=argparse.REMAINDER, help="Argumentos extras (ex: -f targets_retry.txt)")
-    sync_parser = subparsers.add_parser("sync", help="Renderiza Jinja2 templates para o vault do Obsidian")
+    run_parser.add_argument("extra", nargs=argparse.REMAINDER, help="Argumentos extras")
+
+    # Sync
+    sync_parser = subparsers.add_parser("sync", help="Renderiza Jinja2 templates para o vault")
     sync_parser.add_argument("--target", "-t", help="Renderizar apenas um alvo específico")
+
+    # Verify
     verify_parser = subparsers.add_parser("verify", help="Verifica endpoints com HTTP real")
     verify_parser.add_argument("--limit", type=int, default=None, help="Limite de endpoints")
+
+    # Feed
     feed_parser = subparsers.add_parser("feed", help="Alimenta ferramentas a partir do banco de dados")
+
+    # Cycle
     cycle_parser = subparsers.add_parser("cycle", help="Ciclo completo: feed → run → verify → sync")
     cycle_parser.add_argument("--watch", type=float, default=0, help="Modo contínuo: intervalo em horas")
     cycle_parser.add_argument("--rescan", action="store_true", help="Limpar marcas e re-escanear tudo")
     cycle_parser.add_argument("--fresh", action="store_true", help="Deletar tudo e começar do zero")
+
+    # Parse
     parse_parser = subparsers.add_parser("parse", help="Executa apenas o parser de um módulo")
     parse_parser.add_argument("module", help="Nome do módulo (ex: nuclei-runner)")
-    retry_parser = subparsers.add_parser("retry-ports", help="Feed closed/filtered ports para nwrapper")
-    db_parser = subparsers.add_parser("db", help="Interactive database manager")
+
+    # DB
+    db_parser = subparsers.add_parser("db", help="Gerenciador de banco de dados interativo")
+
+    # Retry ports
+    retry_parser = subparsers.add_parser("retry-ports", help="Feed portas fechadas/filtradas para nwrapper")
+
+    # Vuln
     vuln_parser = subparsers.add_parser("vuln", help="Gerenciar vulnerabilidades")
     vuln_parser.add_argument("--manual", action="store_true", help="Inserir vulnerabilidade manualmente via cache")
     vuln_parser.add_argument("--enrich", action="store_true", help="Enriquecer findings do nuclei com cache/IA")
+
+    # Scope
     scope_parser = subparsers.add_parser("scope", help="Gerenciar escopo de varredura")
     scope_sub = scope_parser.add_subparsers(dest="scope_cmd")
     scope_sub.add_parser("edit", help="Selecionar hosts via fzf")
     scope_sub.add_parser("show", help="Exibir escopo atual")
-
 
     if len(sys.argv) == 1:
         interactive_menu()
@@ -641,7 +661,7 @@ def main():
                 db.init_db(proj_path)
                 verifier.verify_endpoints(proj_path, limit=args.limit)
 
-        elif args.command == "feed":    
+        elif args.command == "feed":
             import feeder
             feeder.run()
 
@@ -663,6 +683,10 @@ def main():
             else:
                 console.print("[red]Erro: Projeto não configurado.[/red]")
 
+        elif args.command == "db":
+            import db_viewer
+            db_viewer.interactive_db()
+
         elif args.command == "retry-ports":
             import feeder
             proj_path, nmap_dir = feeder._get_proj_path()
@@ -671,10 +695,6 @@ def main():
                 feeder.feed_nwrapper_retry(proj_path, nmap_dir)
             else:
                 console.print("[red]Erro: Projeto não configurado.[/red]")
-
-        elif args.command == "db":
-            import db_viewer
-            db_viewer.interactive_db()
 
         elif args.command == "vuln":
             proj_name, proj_path, _ = get_project_env()
@@ -686,7 +706,6 @@ def main():
                 elif args.enrich:
                     vuln_enricher.run_enricher(proj_path)
                 else:
-                    # Default: show menu
                     console.print("[cyan]1. Enriquecer nuclei findings[/cyan]")
                     console.print("[cyan]2. Inserir manualmente[/cyan]")
                     choice = input("Escolha: ")
@@ -694,12 +713,8 @@ def main():
                         vuln_enricher.run_enricher(proj_path)
                     elif choice == "2":
                         vuln_enricher.run_manual(proj_path)
-
-        elif args.command == "cycle":
-            if args.watch:
-                cycle.run_cycle_watch(args.watch)
             else:
-                cycle.run_cycle()
+                console.print("[red]Erro: Projeto não configurado.[/red]")
 
         elif args.command == "scope":
             import scope as sc

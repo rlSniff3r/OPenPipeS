@@ -58,14 +58,34 @@ def _run_module(name):
         return False, str(e)
 
 
-def run_cycle(targets: list = None):
+def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
     """
     Full cycle: feed → run modules (parallel where possible) → verify → sync.
+    Re-feeds endpoint-dependent tools after httpx completes.
     """
     proj_name, proj_path, nmap_dir = _get_env()
     if not proj_path:
         console.print("[red]Erro: Projeto não configurado.[/red]")
         return
+
+    if fresh:
+        console.print("[red]⚠ Fresh mode: deletando banco de dados e resultados...[/red]")
+        db_path = os.path.join(proj_path, ".openpipes.db")
+        if os.path.exists(db_path):
+            os.remove(db_path)
+        import shutil
+        for folder in os.listdir(nmap_dir):
+            fpath = os.path.join(nmap_dir, folder)
+            if folder.startswith("nmap-") and os.path.isdir(fpath):
+                shutil.rmtree(fpath)
+        console.print("[green]✔ Banco e resultados deletados. Execute recon + nwrapper manualmente.[/green]")
+        return
+
+    if rescan:
+        console.print("[yellow]⚠ Rescan: limpando marcas de varredura...[/yellow]")
+        with db.get_connection(proj_path) as conn:
+            conn.execute("UPDATE endpoints SET scanned_by = ''")
+        console.print("[green]✔ Marcas limpas. Ferramentas re-alimentadas.[/green]")
 
     console.print(Panel(f"[bold cyan]🔄 Cycle — {proj_name}[/bold cyan]"))
     start = time.time()
@@ -84,13 +104,20 @@ def run_cycle(targets: list = None):
 
     results = []
 
-    # ── Stage 2: Sequential modules ──────────────────────────────────
+    # ── Stage 2: Sequential (httpx — others depend on it) ────────────
     console.print("\n[bold]2. Sequential[/bold]")
-    sequential = ["httpx-runner"]
-    for mod in sequential:
-        ok, _ = _run_module(mod)
-        results.append((mod, ok))
-        console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} {mod}")
+    ok, _ = _run_module("httpx-runner")
+    results.append(("httpx-runner", ok))
+    console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} httpx-runner")
+
+    # ── Stage 2.5: Re-feed endpoint-dependent tools ──────────────────
+    console.print("\n[bold]2.5 Re-feed[/bold]")
+    feeder.feed_katana(proj_path, nmap_dir)
+    feeder.feed_ferox(proj_path, nmap_dir)
+    feeder.feed_jsfinder(proj_path, nmap_dir)
+    feeder.feed_gf(proj_path, nmap_dir)
+    feeder.feed_screenshot(proj_path, nmap_dir)
+    feeder.feed_nuclei(proj_path, nmap_dir)
 
     # ── Stage 3: Parallel modules ────────────────────────────────────
     console.print("\n[bold]3. Parallel[/bold]")
@@ -147,3 +174,4 @@ def run_cycle_watch(interval_hours: float = 6):
             console.print("\n[yellow]⚠ Ciclo interrompido. Watch continua...[/yellow]")
             console.print("[dim]Pressione Ctrl+C novamente para sair.[/dim]\n")
             continue
+
