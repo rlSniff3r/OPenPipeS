@@ -284,6 +284,10 @@ def feed_all(proj_path: str, nmap_dir: str):
     feed_screenshot(proj_path, nmap_dir)
     feed_nuclei(proj_path, nmap_dir)
 
+    # NEW: build contextual wordlists for feroxbuster
+    import context_wordlist_builder
+    context_wordlist_builder.build_context_wordlist(proj_path, nmap_dir)
+
 
 def run():
     proj_path, nmap_dir = _get_proj_path()

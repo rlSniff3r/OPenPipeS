@@ -279,7 +279,7 @@ def add_manual_vulnerability(proj_path: str):
     cvss_vector = vuln_data.get("cvssv3", "")
     if cvss_vector:
         import re
-        score_match = re.search(r'CVSS:3[^/]*/([^/]+/[^/]+)', cvss_vector)
+        score_match = re.search(r'CVSS:3.1[^/]*/([^/]+/[^/]+)', cvss_vector)
         if score_match:
             # We could calculate the score, but storing the vector is enough for display
             pass

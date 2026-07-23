@@ -93,6 +93,33 @@ def interactive_scope():
 
     console.print(f"\n[green]✔ {changes} host(s) alterado(s). Escopo: {final_in} em, {final_out} fora[/green]")
 
+    # Delete vault folders for out-of-scope hosts
+    _cleanup_out_of_scope_vault(proj_path)
+
+
+def _cleanup_out_of_scope_vault(proj_path: str):
+    """Delete Obsidian vault folders for hosts toggled out of scope."""
+    import shutil, subprocess
+    cfg = os.path.join(Path.home(), ".openpipes", "config.sh")
+    cmd = f"source {cfg} && echo -n \"$obsdir|$proj_name\""
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+    parts = r.stdout.strip().split("|")
+    if len(parts) != 2:
+        return
+    obsdir, proj_name = parts[0], parts[1]
+
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT host FROM hosts WHERE is_alive = 1 AND in_scope = 0")
+        removed = 0
+        for row in cursor.fetchall():
+            vault_path = os.path.join(obsdir, proj_name, "Pentest", "Alvos", row["host"])
+            if os.path.exists(vault_path):
+                shutil.rmtree(vault_path)
+                removed += 1
+        if removed:
+            console.print(f" [dim]🗑️ {removed} pasta(s) de alvo removidas do vault.[/dim]")
+
 
 def show_scope():
     """Display current scope status."""

@@ -89,6 +89,40 @@ def setup_framework_files():
     secrets_src = f"{cwd}/.openpipes/secrets.conf.example"
     if not os.path.exists(f"{OPENPIPES_DIR}/secrets.conf") and os.path.exists(secrets_src):
         shutil.copy2(secrets_src, f"{OPENPIPES_DIR}/secrets.conf")
+    # Create tech wordlists directory with starter files
+    tech_dir = f"{OPENPIPES_DIR}/wordlists/tech"
+    os.makedirs(tech_dir, exist_ok=True)
+
+    starters = {
+        "wordpress.txt": ["wp-admin", "wp-content", "wp-includes", "wp-json", "wp-login", "xmlrpc.php"],
+        "laravel.txt": ["artisan", ".env", "storage", "vendor", "public", "resources"],
+        "django.txt": ["admin", "static", "media", "api", "graphql"],
+        "nextjs.txt": ["_next/static", "_next/data", "api", "public"],
+        "nginx.txt": ["nginx_status", "health", "status"],
+        "apache.txt": ["server-status", "server-info", "icons"],
+        "tomcat.txt": ["manager/html", "manager/status", "examples"],
+        "iis.txt": ["App_Browsers", "App_Code", "App_Data", "bin"],
+        "akamai.txt": ["akamai", "edgekey", "purl", "akamaized"],
+        "cloudflare.txt": ["cdn-cgi", "__cfduid"],
+    }
+
+    for fname, words in starters.items():
+        fpath = os.path.join(tech_dir, fname)
+        if not os.path.exists(fpath):
+            with open(fpath, "w") as f:
+                f.write("\n".join(words) + "\n")
+
+    # Generic base wordlist
+    generic_path = f"{OPENPIPES_DIR}/wordlists/generic.txt"
+    if not os.path.exists(generic_path):
+        # Copy from repo if available, otherwise create with defaults
+        generic_src = os.path.join(cwd, "wordlists", "generic.txt")
+        if os.path.exists(generic_src):
+            shutil.copy2(generic_src, generic_path)
+        else:
+            with open(generic_path, "w") as f:
+                f.write("admin\nlogin\nconfig\nbackup\napi\nv1\napi/v1\n")
+
 
 
 def install_apt_deps():

@@ -1,10 +1,10 @@
 #!/bin/bash
-set -euo pipefail
+#set -euo pipefail
 source $HOME/.openpipes/config.sh
 venv="$HOME/.venv-jsfinder/bin/activate"
 varreduraDir="$NMAP_DIR"
 
-force=false
+force=true
 [[ "$*" == *"--force"* ]] && force=true
 
 echo "[*] Ativando ambiente virtual do LinkFinder..."

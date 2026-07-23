@@ -622,6 +622,7 @@ def main():
     cycle_parser.add_argument("--watch", type=float, default=0, help="Modo contínuo: intervalo em horas")
     cycle_parser.add_argument("--rescan", action="store_true", help="Limpar marcas e re-escanear tudo")
     cycle_parser.add_argument("--fresh", action="store_true", help="Deletar tudo e começar do zero")
+    cycle_parser.add_argument("--select", action="store_true", help="Selecionar módulos via fzf")
 
     # Parse
     parse_parser = subparsers.add_parser("parse", help="Executa apenas o parser de um módulo")
@@ -672,6 +673,10 @@ def main():
                 cycle.run_cycle(fresh=True)
             elif args.rescan:
                 cycle.run_cycle(rescan=True)
+            elif args.select:
+                proj_name, proj_path, _ = get_project_env()
+                if proj_path:
+                    cycle.select_modules(proj_path)
             else:
                 cycle.run_cycle()
 

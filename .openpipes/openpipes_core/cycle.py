@@ -18,6 +18,52 @@ HOME = str(Path.home())
 CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 BIN_DIR = os.path.join(HOME, ".openpipes", "bin")
 
+MODULES_FILE = ".openpipes_modules"
+ALL_MODULES = {
+    "sequential": ["httpx-runner"],
+    "parallel": ["katana-runner", "feroxbuster-runner", "jsfinder-runner",
+                  "gf-summary", "screenshot-runner", "nuclei-runner"],
+}
+
+
+def _fzf_select(items: list, prompt: str = "Select (TAB):") -> list:
+    import subprocess
+    if not items:
+        return []
+    try:
+        r = subprocess.run(
+            f"echo '{chr(10).join(items)}' | fzf -m --prompt='{prompt} ' --height=20",
+            shell=True, capture_output=True, text=True,
+        )
+        if r.returncode == 0:
+            return [line.strip() for line in r.stdout.strip().split(chr(10)) if line.strip()]
+    except Exception:
+        pass
+    return []
+
+
+def select_modules(proj_path: str):
+    """Interactive fzf to choose which modules run in the cycle."""
+    all_mods = ALL_MODULES["sequential"] + ALL_MODULES["parallel"]
+    selected = _fzf_select(all_mods, "Cycle modules (TAB):")
+    mods_file = os.path.join(proj_path, MODULES_FILE)
+    if selected:
+        with open(mods_file, "w") as f:
+            for m in selected:
+                f.write(m + "\n")
+        console.print(f"[green]✔ {len(selected)} módulo(s) selecionados.[/green]")
+    elif os.path.exists(mods_file):
+        os.remove(mods_file)
+        console.print("[yellow]✔ Todos os módulos ativados (arquivo de seleção removido).[/yellow]")
+
+
+def _load_selected_modules(proj_path: str) -> set:
+    mods_file = os.path.join(proj_path, MODULES_FILE)
+    if not os.path.exists(mods_file):
+        return set()  # empty = all modules
+    with open(mods_file) as f:
+        return set(line.strip() for line in f if line.strip())
+
 
 def _get_env():
     if not os.path.exists(CONFIG_FILE):
@@ -59,10 +105,6 @@ def _run_module(name):
 
 
 def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
-    """
-    Full cycle: feed → run modules (parallel where possible) → verify → sync.
-    Re-feeds endpoint-dependent tools after httpx completes.
-    """
     proj_name, proj_path, nmap_dir = _get_env()
     if not proj_path:
         console.print("[red]Erro: Projeto não configurado.[/red]")
@@ -87,11 +129,15 @@ def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
             conn.execute("UPDATE endpoints SET scanned_by = ''")
         console.print("[green]✔ Marcas limpas. Ferramentas re-alimentadas.[/green]")
 
+    selected = _load_selected_modules(proj_path)
+
     console.print(Panel(f"[bold cyan]🔄 Cycle — {proj_name}[/bold cyan]"))
+    if selected:
+        console.print(f" [dim]Módulos selecionados: {len(selected)}[/dim]")
     start = time.time()
     db.init_db(proj_path)
 
-    # ── Stage 1: Feed ────────────────────────────────────────────────
+    # Stage 1: Feed
     console.print("\n[bold]1. Feed[/bold]")
     feeder.feed_nwrapper(proj_path, nmap_dir, cycle=True)
     feeder.feed_httpx(proj_path, nmap_dir)
@@ -104,42 +150,49 @@ def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
 
     results = []
 
-    # ── Stage 2: Sequential (httpx — others depend on it) ────────────
+    # Stage 2: Sequential (httpx — if selected)
     console.print("\n[bold]2. Sequential[/bold]")
-    ok, _ = _run_module("httpx-runner")
-    results.append(("httpx-runner", ok))
-    console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} httpx-runner")
+    if not selected or "httpx-runner" in selected:
+        ok, _ = _run_module("httpx-runner")
+        results.append(("httpx-runner", ok))
+        console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} httpx-runner')
 
-    # ── Stage 2.5: Re-feed endpoint-dependent tools ──────────────────
-    console.print("\n[bold]2.5 Re-feed[/bold]")
-    feeder.feed_katana(proj_path, nmap_dir)
-    feeder.feed_ferox(proj_path, nmap_dir)
-    feeder.feed_jsfinder(proj_path, nmap_dir)
-    feeder.feed_gf(proj_path, nmap_dir)
-    feeder.feed_screenshot(proj_path, nmap_dir)
-    feeder.feed_nuclei(proj_path, nmap_dir)
+        # Re-feed endpoint-dependent tools after httpx
+        console.print("\n[bold]2.5 Re-feed[/bold]")
+        feeder.feed_katana(proj_path, nmap_dir)
+        feeder.feed_ferox(proj_path, nmap_dir)
+        feeder.feed_jsfinder(proj_path, nmap_dir)
+        feeder.feed_gf(proj_path, nmap_dir)
+        feeder.feed_screenshot(proj_path, nmap_dir)
+        feeder.feed_nuclei(proj_path, nmap_dir)
+    else:
+        console.print("  [dim]httpx-runner: skip[/dim]")
 
-    # ── Stage 3: Parallel modules ────────────────────────────────────
+    # Stage 3: Parallel (filtered by selection)
     console.print("\n[bold]3. Parallel[/bold]")
-    parallel = ["katana-runner", "feroxbuster-runner", "jsfinder-runner",
-                "gf-summary", "screenshot-runner", "nuclei-runner"]
+    parallel_all = ["katana-runner", "feroxbuster-runner", "jsfinder-runner",
+                    "gf-summary", "screenshot-runner", "nuclei-runner"]
+    parallel = [m for m in parallel_all if not selected or m in selected]
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(_run_module, m): m for m in parallel}
-        for future in as_completed(futures):
-            mod = futures[future]
-            try:
-                ok, _ = future.result()
-            except Exception:
-                ok = False
-            results.append((mod, ok))
-            console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} {mod}")
+    if parallel:
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(_run_module, m): m for m in parallel}
+            for future in as_completed(futures):
+                mod = futures[future]
+                try:
+                    ok, _ = future.result()
+                except Exception:
+                    ok = False
+                results.append((mod, ok))
+                console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} {mod}")
+    else:
+        console.print("  [dim]Nenhum módulo paralelo selecionado.[/dim]")
 
-    # ── Stage 4: Verify ──────────────────────────────────────────────
+    # Stage 4: Verify
     console.print("\n[bold]4. Verify[/bold]")
     verifier.verify_endpoints(proj_path)
 
-    # ── Stage 5: Sync ────────────────────────────────────────────────
+    # Stage 5: Sync
     console.print("\n[bold]5. Sync[/bold]")
     renderer.sync_project()
 
