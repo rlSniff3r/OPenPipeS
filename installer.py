@@ -291,8 +291,8 @@ def main():
         ("Gowitness...", lambda: install_go_tool("github.com/sensepost/gowitness@latest")),
         ("Rust + Feroxbuster...", install_rust_and_ferox),
         ("Amass...", install_amass),
-        ("Dnsrecon...", install_dnsrecon),
         ("VENVs...", setup_isolated_venvs),
+        ("Dnsrecon...", install_dnsrecon),
         ("Wordlists...", install_wordlists),
         ("Configurando ambiente...", configure_environment),
     ]
