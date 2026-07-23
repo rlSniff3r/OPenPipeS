@@ -155,7 +155,7 @@ def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
     if not selected or "httpx-runner" in selected:
         ok, _ = _run_module("httpx-runner")
         results.append(("httpx-runner", ok))
-        console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} httpx-runner')
+        console.print(f"  {'[green]OK[/green]' if ok else '[red]FAIL[/red]'} httpx-runner")
 
         # Re-feed endpoint-dependent tools after httpx
         console.print("\n[bold]2.5 Re-feed[/bold]")
@@ -227,4 +227,3 @@ def run_cycle_watch(interval_hours: float = 6):
             console.print("\n[yellow]⚠ Ciclo interrompido. Watch continua...[/yellow]")
             console.print("[dim]Pressione Ctrl+C novamente para sair.[/dim]\n")
             continue
-

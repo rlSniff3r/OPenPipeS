@@ -88,6 +88,7 @@ def _get_unscanned(proj_path: str, tool_name: str, status_min: int = 100, status
             JOIN hosts h ON h.id = e.host_id
             WHERE h.is_alive = 1
               AND h.in_scope = 1
+              AND (e.source_tool IS NULL OR e.source_tool != 'recon_httpx')
               AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%'
                    OR e.vulnerability_patterns IS NULL)
               AND (e.scanned_by NOT LIKE ? OR e.scanned_by IS NULL)
