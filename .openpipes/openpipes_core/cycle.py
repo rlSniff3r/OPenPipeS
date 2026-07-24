@@ -124,10 +124,25 @@ def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
         return
 
     if rescan:
-        console.print("[yellow]⚠ Rescan: limpando marcas de varredura...[/yellow]")
+        console.print("[yellow]⚠ Rescan: limpando marcas e outputs antigos...[/yellow]")
         with db.get_connection(proj_path) as conn:
             conn.execute("UPDATE endpoints SET scanned_by = ''")
-        console.print("[green]✔ Marcas limpas. Ferramentas re-alimentadas.[/green]")
+        # Delete old tool output files so parsers don't re-mark from stale data
+        import glob
+        patterns = ["httpx_output.json", "*/httpx-*.json", "*/ferox_*.jsonl",
+                    "*/crawled_all.jsonl", "*/katana_urls.txt", "*/ferox_urls.txt",
+                    "*/screenshot_urls.txt", "*/nuclei_urls.txt", "*/gf_urls.txt",
+                    "*/js_urls.txt", "*/jsfinder-results.json",
+                    "*/Screenshots/go.jsonl", "*/nuclei_output.json"]
+        deleted = 0
+        for pat in patterns:
+            for f in glob.glob(os.path.join(nmap_dir, pat)):
+                try:
+                    os.remove(f)
+                    deleted += 1
+                except Exception:
+                    pass
+        console.print(f"[green]✔ {deleted} arquivos de output removidos, scanned_by limpo.[/green]")
 
     selected = _load_selected_modules(proj_path)
 

@@ -129,6 +129,8 @@ def feed_httpx(proj_path: str, nmap_dir: str):
             ORDER BY h.host
         """)
         hosts = cursor.fetchall()
+    scope_domains = _get_scope_domains(proj_path)
+    hosts = [h for h in hosts if _is_in_scope(h["host"], scope_domains)]
     if not hosts:
         console.print("[yellow]⚠ Nenhum host com portas HTTP.[/yellow]")
         return
@@ -240,6 +242,8 @@ def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
             cursor.execute("SELECT host FROM hosts WHERE is_alive = 1 AND in_scope = 1 ORDER BY host")
             out_file = os.path.join(nmap_dir, "targets.txt")
         hosts = [r["host"] for r in cursor.fetchall()]
+    scope_domains = _get_scope_domains(proj_path)
+    hosts = [h for h in hosts if _is_in_scope(h, scope_domains)]
     if hosts:
         os.makedirs(nmap_dir, exist_ok=True)
         with open(out_file, "w") as f:
@@ -262,6 +266,8 @@ def feed_nwrapper_retry(proj_path: str, nmap_dir: str):
             ORDER BY h.host, p.port
         """)
         results = cursor.fetchall()
+    scope_domains = _get_scope_domains(proj_path)
+    results = [r for r in results if _is_in_scope(r["host"], scope_domains)]
     if not results:
         console.print("[dim]↳ Feed nwrapper retry: nenhuma porta fechada/filtrada.[/dim]")
         return
