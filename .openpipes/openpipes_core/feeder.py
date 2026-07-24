@@ -30,12 +30,14 @@ def _get_proj_path():
 
 
 def _normalize_url(url: str) -> str:
-    """Remove default ports (80, 443) to avoid duplicates."""
+    """Remove default ports and trailing slashes to match DB format."""
+    if not url:
+        return url
     parsed = urlparse(url)
     if (parsed.scheme == "http" and parsed.port == 80) or \
        (parsed.scheme == "https" and parsed.port == 443):
-        return f"{parsed.scheme}://{parsed.hostname}{parsed.path}"
-    return url
+        url = f"{parsed.scheme}://{parsed.hostname}{parsed.path}"
+    return url.rstrip("/")
 
 
 def _filter_urls_by_host(urls: list, host: str) -> list:

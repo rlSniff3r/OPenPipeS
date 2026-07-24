@@ -939,8 +939,8 @@ def flag_false_positives(proj_path: str):
 
 
 def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
-    """Mark endpoints as scanned based on URLs found in the tool's actual output files."""
-    import feeder
+    """Mark endpoints as scanned based on URLs found in the tool's output files.
+    Normalizes URLs to match DB format. Skips if tool already marked."""
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
@@ -949,7 +949,6 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
                     continue
                 target_dir = os.path.join(nmap_dir, nmap_folder)
 
-                # Find output files based on tool
                 files = []
                 if tool_name in ("ferox",):
                     files = glob.glob(os.path.join(target_dir, "ferox_*.jsonl"))
@@ -983,22 +982,24 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
                                     continue
                                 try:
                                     data = json.loads(line)
-                                    # Extract URL from various formats
                                     url = (data.get("url") or
                                            data.get("request", {}).get("endpoint", "") or
                                            data.get("source_js_url", ""))
-                                    if url:
-                                        cursor.execute("""
-                                            UPDATE endpoints SET scanned_by = CASE
-                                                WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
-                                                ELSE scanned_by || ',' || ?
-                                            END
-                                            WHERE url = ?
-                                        """, (tool_name, tool_name, url))
+                                    if not url:
+                                        continue
+                                    url = _normalize_url(url)
+                                    cursor.execute("""
+                                        UPDATE endpoints SET scanned_by = CASE
+                                            WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
+                                            WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
+                                            ELSE scanned_by
+                                        END
+                                        WHERE url = ?
+                                    """, (tool_name, f"%{tool_name}%", tool_name, url))
                                 except Exception:
-                                    pass
+                                    continue
                     except Exception:
-                        pass
+                        continue
 
 
 # ═════════════════════════════════════════════════════════════════════
