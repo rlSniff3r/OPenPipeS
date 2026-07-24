@@ -21,6 +21,16 @@ CONFIG_FILE = os.path.expanduser("~/.openpipes/config.sh")
 # FUNÇÕES AUXILIARES
 # ═════════════════════════════════════════════════════════════════════
 
+def _normalize_url(url: str) -> str:
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if (parsed.scheme == "http" and parsed.port == 80) or \
+       (parsed.scheme == "https" and parsed.port == 443):
+        url = f"{parsed.scheme}://{parsed.hostname}{parsed.path}"
+    return url.rstrip("/")
+
+
 def get_obsdir():
     """Descobre o caminho do cofre do Obsidian lendo o config.sh"""
     if os.path.exists(CONFIG_FILE):
