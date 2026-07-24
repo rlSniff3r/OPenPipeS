@@ -1004,8 +1004,8 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
                                             WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
                                             ELSE scanned_by
                                         END
-                                        WHERE url = ?
-                                    """, (tool_name, f"%{tool_name}%", tool_name, url))
+                                        WHERE url LIKE ?
+                                    """, (tool_name, f"%{tool_name}%", tool_name, f"{url}%"))
                                 except Exception:
                                     continue
                     except Exception:

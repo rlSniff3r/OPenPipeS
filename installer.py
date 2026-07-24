@@ -76,7 +76,6 @@ def setup_framework_files():
         run_cmd(f"chmod +x {OPENPIPES_SCRIPTS}/*.sh {OPENPIPES_SCRIPTS}/*.py")
     if os.path.exists(f"{cwd}/.openpipes/.templates"):
         shutil.copytree(f"{cwd}/.openpipes/.templates", f"{OPENPIPES_DIR}/.templates", dirs_exist_ok=True)
-    # NEW: copy .gf pattern files
     if os.path.exists(f"{cwd}/.openpipes/.gf"):
         shutil.copytree(f"{cwd}/.openpipes/.gf", f"{OPENPIPES_DIR}/.gf", dirs_exist_ok=True)
     if os.path.exists(f"{cwd}/.openpipes_cache"):
@@ -89,10 +88,9 @@ def setup_framework_files():
     secrets_src = f"{cwd}/.openpipes/secrets.conf.example"
     if not os.path.exists(f"{OPENPIPES_DIR}/secrets.conf") and os.path.exists(secrets_src):
         shutil.copy2(secrets_src, f"{OPENPIPES_DIR}/secrets.conf")
-    # Create tech wordlists directory with starter files
+
     tech_dir = f"{OPENPIPES_DIR}/wordlists/tech"
     os.makedirs(tech_dir, exist_ok=True)
-
     starters = {
         "wordpress.txt": ["wp-admin", "wp-content", "wp-includes", "wp-json", "wp-login", "xmlrpc.php"],
         "laravel.txt": ["artisan", ".env", "storage", "vendor", "public", "resources"],
@@ -105,24 +103,15 @@ def setup_framework_files():
         "akamai.txt": ["akamai", "edgekey", "purl", "akamaized"],
         "cloudflare.txt": ["cdn-cgi", "__cfduid"],
     }
-
     for fname, words in starters.items():
         fpath = os.path.join(tech_dir, fname)
         if not os.path.exists(fpath):
             with open(fpath, "w") as f:
                 f.write("\n".join(words) + "\n")
-
-    # Generic base wordlist
     generic_path = f"{OPENPIPES_DIR}/wordlists/generic.txt"
     if not os.path.exists(generic_path):
-        # Copy from repo if available, otherwise create with defaults
-        generic_src = os.path.join(cwd, "wordlists", "generic.txt")
-        if os.path.exists(generic_src):
-            shutil.copy2(generic_src, generic_path)
-        else:
-            with open(generic_path, "w") as f:
-                f.write("admin\nlogin\nconfig\nbackup\napi\nv1\napi/v1\n")
-
+        with open(generic_path, "w") as f:
+            f.write("admin\nlogin\nconfig\nbackup\napi\nv1\napi/v1\n")
 
 
 def install_apt_deps():
@@ -176,13 +165,14 @@ def install_amass():
 
 
 def install_dnsrecon():
-    """Clone dnsrecon from git and install into the core venv."""
+    """Clone dnsrecon from git and install into the core venv (non-editable)."""
     repo_url = "https://github.com/darkoperator/dnsrecon.git"
     clone_dir = "/tmp/dnsrecon-install"
     if os.path.exists(clone_dir):
         shutil.rmtree(clone_dir)
     run_cmd(f"git clone --depth 1 {repo_url} {clone_dir}")
-    run_cmd(f"{VENV_CORE}/bin/pip install -e {clone_dir} -q")
+    # FIXED: removed -e flag — copies files into venv permanently
+    run_cmd(f"{VENV_CORE}/bin/pip install {clone_dir} -q")
     shutil.rmtree(clone_dir, ignore_errors=True)
 
 
@@ -206,8 +196,7 @@ def setup_isolated_venvs():
         run_cmd(f"python3 -m venv {VENV_CORE}")
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq -q")
-
-    # Ensure Python httpx is NOT installed (it shadows the Go httpx CLI)
+    # Remove Python httpx (shadows Go httpx CLI)
     run_cmd(f"{VENV_CORE}/bin/pip uninstall httpx -y -q 2>/dev/null || true")
 
 
