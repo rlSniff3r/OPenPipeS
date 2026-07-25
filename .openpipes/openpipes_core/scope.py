@@ -7,13 +7,11 @@ from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Header, Footer, DataTable, Button, Label, Rule
 
-# Usa o mesmo arquivo db.py que já mapeamos antes
 import db
 
 HOME = str(Path.home())
 CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 
-# ================= FUNÇÕES DE AMBIENTE DO SEU SCRIPT =================
 
 def _get_proj_path():
     """Lê o caminho do projeto no config.sh."""
@@ -25,6 +23,7 @@ def _get_proj_path():
         return r.stdout.strip() or None
     except Exception:
         return None
+
 
 def _get_env_vars():
     """Lê as variáveis de ambiente necessárias para o cleanup."""
@@ -40,7 +39,6 @@ def _get_env_vars():
         pass
     return None, None, None
 
-# ================= APLICAÇÃO TEXTUAL =================
 
 class ScopeManagerApp(App):
     CSS = """
@@ -106,15 +104,11 @@ class ScopeManagerApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         
-        # Criação de um layout de Painel Duplo Incrível
         with Horizontal():
-            
-            # PAINEL ESQUERDO: Tabela interativa
             with Vertical(id="left-pane"):
                 yield Label("🎯 Gerenciador de Escopo de Varredura", classes="panel-title")
                 yield DataTable(id="hosts-table", cursor_type="row")
             
-            # PAINEL DIREITO: Ações e Métricas
             with Vertical(id="right-pane"):
                 yield Label("📊 Métricas em Tempo Real", classes="panel-title")
                 yield Label("Total de Hosts: --", id="lbl-total", classes="metric")
@@ -128,7 +122,6 @@ class ScopeManagerApp(App):
                 
                 yield Rule()
                 yield Label("Operações de Disco:")
-                # Botão para substituir a ação automática do seu script e dar controle visual[cite: 4]
                 yield Button("Limpar Vaults & Inputs (Fora do Escopo)", id="cleanup-btn")
                 yield Label("", id="lbl-cleanup-status")
 
@@ -139,14 +132,13 @@ class ScopeManagerApp(App):
             self.query_one("#lbl-action-title", Label).update("[red]Erro: Projeto não configurado.[/red]")
             return
         
-        # Inicializa as colunas da tabela replicando o seu padrão do rich[cite: 4]
         dt = self.query_one("#hosts-table", DataTable)
         dt.add_columns("Host", "Vivo", "Escopo")
         
         self.load_data()
 
     def load_data(self) -> None:
-        """Carrega e renderiza os hosts do banco de dados[cite: 4]."""
+        """Carrega e renderiza os hosts do banco de dados."""
         dt = self.query_one("#hosts-table", DataTable)
         dt.clear()
         
@@ -157,7 +149,6 @@ class ScopeManagerApp(App):
         try:
             with db.get_connection(self.proj_path) as conn:
                 cursor = conn.cursor()
-                # Query fiel ao seu script original[cite: 4]
                 cursor.execute("""
                     SELECT id, host, is_alive, in_scope FROM hosts
                     ORDER BY in_scope DESC, host
@@ -167,7 +158,6 @@ class ScopeManagerApp(App):
                 total_count = len(hosts)
                 
                 for h in hosts:
-                    # Usando seus emojis originais[cite: 4]
                     status = "🟢" if h["is_alive"] else "⚫"
                     scope = "✅" if h["in_scope"] else "❌"
                     
@@ -176,45 +166,47 @@ class ScopeManagerApp(App):
                     else:
                         out_count += 1
                         
-                    # A chave da linha será o ID do banco
                     dt.add_row(h["host"], status, scope, key=str(h["id"]))
                     
         except Exception as e:
             self.query_one("#lbl-action-title", Label).update(f"[red]Erro no BD: {e}[/red]")
             return
 
-        # Atualiza o painel direito com as métricas[cite: 4]
         self.query_one("#lbl-total", Label).update(f"Total de Hosts: {total_count}")
         self.query_one("#lbl-in", Label).update(f"No Escopo: [green]{in_count}[/green]")
         self.query_one("#lbl-out", Label).update(f"Fora do Escopo: [red]{out_count}[/red]")
 
+    def _refresh_selection(self) -> None:
+        """Re-read the currently selected row and update the UI panel."""
+        dt = self.query_one("#hosts-table", DataTable)
+        if dt.cursor_row is None:
+            return
+        row_key = dt.get_row_key_at(dt.cursor_row)
+        if row_key is None:
+            return
+        self.selected_host_id = int(row_key.value)
+
+        with db.get_connection(self.proj_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT host, in_scope FROM hosts WHERE id = ?", (self.selected_host_id,))
+            row = cursor.fetchone()
+            if row:
+                self.selected_host_name = row["host"]
+                self.selected_host_scope = row["in_scope"]
+                lbl = self.query_one("#lbl-action-title", Label)
+                btn = self.query_one("#toggle-btn", Button)
+                lbl.update(f"Host: [bold]{self.selected_host_name}[/bold]")
+                btn.disabled = False
+                if self.selected_host_scope:
+                    btn.label = "Remover do Escopo ❌"
+                    btn.variant = "warning"
+                else:
+                    btn.label = "Adicionar ao Escopo ✅"
+                    btn.variant = "success"
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Quando o usuário clica ou foca em um host."""
-        self.selected_host_id = int(event.row_key.value)
-        
-        try:
-            with db.get_connection(self.proj_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT host, in_scope FROM hosts WHERE id = ?", (self.selected_host_id,))
-                row = cursor.fetchone()
-                if row:
-                    self.selected_host_name = row["host"]
-                    self.selected_host_scope = row["in_scope"]
-                    
-                    lbl_title = self.query_one("#lbl-action-title", Label)
-                    btn = self.query_one("#toggle-btn", Button)
-                    
-                    lbl_title.update(f"Host: [bold]{self.selected_host_name}[/bold]")
-                    btn.disabled = False
-                    
-                    if self.selected_host_scope:
-                        btn.label = "Remover do Escopo ❌"
-                        btn.variant = "warning"
-                    else:
-                        btn.label = "Adicionar ao Escopo ✅"
-                        btn.variant = "success"
-        except Exception:
-            pass
+        self._refresh_selection()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "toggle-btn":
@@ -223,7 +215,7 @@ class ScopeManagerApp(App):
             self.run_cleanup()
 
     def action_toggle_scope(self) -> None:
-        """Inverte o valor in_scope no banco para o host selecionado[cite: 4]."""
+        """Inverte o valor in_scope no banco para o host selecionado."""
         if not self.selected_host_id:
             return
             
@@ -232,28 +224,21 @@ class ScopeManagerApp(App):
             with db.get_connection(self.proj_path) as conn:
                 with db.transaction(conn):
                     cursor = conn.cursor()
-                    # UPDATE adaptado do seu script[cite: 4]
                     cursor.execute("UPDATE hosts SET in_scope = ? WHERE id = ?", (new_val, self.selected_host_id))
             
-            # Recarrega a tabela e re-seleciona a linha visualmente
             self.load_data()
-            
-            # Atualiza o painel para refletir a nova seleção
-            dt = self.query_one("#hosts-table", DataTable)
-            # Aciona o evento como se tivessemos clicado de novo na mesma linha
-            self.on_data_table_row_selected(DataTable.RowSelected(dt, dt.get_row_at(dt.cursor_row)))
+            self._refresh_selection()
             
         except Exception as e:
             self.query_one("#lbl-action-title", Label).update(f"[red]Erro ao atualizar: {e}[/red]")
 
     def run_cleanup(self) -> None:
-        """Executa a limpeza implacável dos vaults baseada no seu script original[cite: 4]."""
+        """Executa a limpeza dos vaults e arquivos de input para hosts fora do escopo."""
         obsdir, proj_name, nmap_dir = _get_env_vars()
         if not obsdir or not proj_name or not nmap_dir:
             self.query_one("#lbl-cleanup-status", Label).update("[red]Erro ao ler config.sh[/red]")
             return
 
-        # Lista exata de arquivos que seu script deletava[cite: 4]
         target_files = [
             "httpx_targets.txt", "httpx_ports.txt",
             "katana_urls.txt", "ferox_urls.txt",
@@ -272,13 +257,11 @@ class ScopeManagerApp(App):
                 for row in cursor.fetchall():
                     host = row["host"]
                     
-                    # 1. Deletando pasta no Obsidian Vault[cite: 4]
                     vault_path = os.path.join(obsdir, proj_name, "Pentest", "Alvos", host)
                     if os.path.exists(vault_path):
                         shutil.rmtree(vault_path)
                         removed_vaults += 1
                         
-                    # 2. Deletando arquivos de input de ferramentas[cite: 4]
                     target_dir = os.path.join(nmap_dir, f"nmap-{host}")
                     for fname in target_files:
                         fpath = os.path.join(target_dir, fname)
@@ -291,6 +274,15 @@ class ScopeManagerApp(App):
             
         except Exception as e:
             self.query_one("#lbl-cleanup-status", Label).update(f"[red]Erro na limpeza: {e}[/red]")
+
+
+# === Wrapper for CLI integration ===
+
+def run_scope_manager(proj_path: str):
+    """Wrapper called from cli.py."""
+    app = ScopeManagerApp()
+    app.run()
+
 
 if __name__ == "__main__":
     app = ScopeManagerApp()
