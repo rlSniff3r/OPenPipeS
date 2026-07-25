@@ -276,15 +276,10 @@ def add_manual_vulnerability(proj_path: str):
     if selected_ep and selected_ep[0] != "SKIP":
         endpoint_id = int(selected_ep[0].split(" | ")[0])
 
-    # Parse CVSS score from vector
-    cvss_score = None
+    # Calculate CVSS score from vector
     cvss_vector = vuln_data.get("cvssv3", "")
-    if cvss_vector:
-        import re
-        score_match = re.search(r'CVSS:3.1[^/]*/([^/]+/[^/]+)', cvss_vector)
-        if score_match:
-            # We could calculate the score, but storing the vector is enough for display
-            pass
+    score, severity = _calculate_cvss(cvss_vector)
+    cwe_id = _extract_cwe(vuln_data.get("references", []))
 
     # Insert into DB
     with db.get_connection(proj_path) as conn:
@@ -292,13 +287,14 @@ def add_manual_vulnerability(proj_path: str):
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO vulnerabilities
-                    (host_id, endpoint_id, title, severity, cvss_vector,
-                     description, impact, remediation, reference_urls,
+                    (host_id, endpoint_id, title, severity, cvss_score, cvss_vector,
+                     cwe_id, description, impact, remediation, reference_urls,
                      source_tool, enriched_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'user')
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'user')
             """, (
                 host_id, endpoint_id, vuln_data.get("title", ""),
-                "Média", cvss_vector,
+                severity or "Média", score, cvss_vector,
+                cwe_id,
                 vuln_data.get("description", ""),
                 vuln_data.get("observation", ""),
                 vuln_data.get("remediation", ""),
