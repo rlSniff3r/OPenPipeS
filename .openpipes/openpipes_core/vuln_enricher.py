@@ -4,6 +4,7 @@ import re
 import requests
 from pathlib import Path
 from typing import Optional
+from rich.console import Console
 
 from textual import work
 from textual.app import App, ComposeResult
@@ -409,6 +410,24 @@ Responda apenas com o JSON, sem formatação extra."""
             status_lbl.update(f"[green]✔ Vulnerabilidade '{cache_key}' inserida com sucesso (ID={vuln_id}).[/green]")
         except Exception as e:
             status_lbl.update(f"[red]Erro ao inserir: {e}[/red]")
+
+console = Console()
+
+def run_enricher(proj_path: str, re_enrich: bool = False):
+    """Wrapper called from cli.py."""
+    if re_enrich:
+        console.print("[yellow]⚠ Re-enrich: limpando marcas de enriquecimento...[/yellow]")
+        with db.get_connection(proj_path) as conn:
+            conn.execute("UPDATE vulnerabilities SET enriched_by = '' WHERE source_tool = 'nuclei'")
+    app = VulnEnricherApp()
+    app.run()
+
+
+def run_manual(proj_path: str):
+    """Wrapper called from cli.py."""
+    app = VulnEnricherApp()
+    app.run()
+
 
 if __name__ == "__main__":
     app = VulnEnricherApp()
