@@ -155,12 +155,23 @@ def enrich_nuclei_findings(proj_path: str):
                         k for k in cache.keys()
                         if len(set(re.sub(r'[^a-z0-9]+', ' ', k).split()) & vuln_keywords) > 0
                     ]
-                    if candidates:
-                        from db_viewer import _fzf_select
-                        console.print(f" [yellow]⚠ '{vuln_name}' — selecione a correspondência:[/yellow]")
-                        selected = _fzf_select(sorted(candidates), f"Match:")
-                        if selected:
-                            matched_cache = (selected[0], cache[selected[0]])
+                    # Add option to browse full cache
+                    candidates.append("─── Browse all ───")
+                    from db_viewer import _fzf_select
+                    console.print(f" [yellow]⚠ '{vuln_name}' — selecione:[/yellow]")
+                    selected = _fzf_select(sorted(candidates), f"Match:")
+                    if selected:
+                        sel = selected[0]
+                        if sel == "─── Browse all ───":
+                            # Show full cache
+                            all_cache = sorted(cache.keys())
+                            all_cache.append("─── Cancel ───")
+                            selected2 = _fzf_select(all_cache, "Browse cache:")
+                            if selected2 and selected2[0] != "─── Cancel ───":
+                                matched_cache = (selected2[0], cache[selected2[0]])
+                                best_score = 1.0
+                        else:
+                            matched_cache = (sel, cache[sel])
                             best_score = 1.0
 
                 cached = matched_cache[1] if matched_cache and best_score >= 0.3 else None
@@ -174,30 +185,29 @@ def enrich_nuclei_findings(proj_path: str):
                     cvss_vector = cached.get("cvssv3", "")
                     score, severity = _calculate_cvss(cvss_vector)
                     cwe_id = _extract_cwe(cached.get("references", []))
+                    
+                    # Keep nuclei's CVE if cache doesn't have one
+                    new_cve = cached.get("cve_id", "")
+                    if not new_cve:
+                        # Re-fetch the existing CVE from DB to preserve it
+                        cursor.execute("SELECT cve_id FROM vulnerabilities WHERE id = ?", (vuln_id,))
+                        existing = cursor.fetchone()
+                        new_cve = existing["cve_id"] if existing and existing["cve_id"] else ""
+                    
                     cursor.execute("""
                         UPDATE vulnerabilities SET
-                            title = ?,
-                            cvss_vector = ?,
-                            cvss_score = ?,
-                            severity = ?,
-                            description = ?,
-                            impact = ?,
-                            remediation = ?,
-                            reference_urls = ?,
-                            cwe_id = ?,
-                            enriched_by = 'cache'
+                            title = ?, cvss_vector = ?, cvss_score = ?, severity = ?,
+                            description = ?, impact = ?, remediation = ?,
+                            reference_urls = ?, cwe_id = ?, cve_id = ?, enriched_by = 'cache'
                         WHERE id = ?
                     """, (
                         cached.get("title", vuln_name),
-                        cvss_vector,
-                        score,
-                        severity or "Média",
+                        cvss_vector, score, severity or "Média",
                         cached.get("description", description),
                         cached.get("observation", ""),
                         cached.get("remediation", ""),
                         json.dumps(cached.get("references", [])),
-                        cwe_id,
-                        vuln_id,
+                        cwe_id, new_cve, vuln_id,
                     ))
                     enriched += 1
                 else:
@@ -307,8 +317,11 @@ def add_manual_vulnerability(proj_path: str):
     console.print(f" [green]✔ Vulnerabilidade inserida (id={vuln_id}). Execute 'sync' para gerar o arquivo.[/green]")
 
 
-def run_enricher(proj_path: str):
-    """Run enricher on all unenriched nuclei findings."""
+def run_enricher(proj_path: str, re_enrich: bool = False):
+    if re_enrich:
+        console.print("[yellow]⚠ Re-enrich: limpando marcas de enriquecimento...[/yellow]")
+        with db.get_connection(proj_path) as conn:
+            conn.execute("UPDATE vulnerabilities SET enriched_by = '' WHERE source_tool = 'nuclei'")
     enrich_nuclei_findings(proj_path)
 
 

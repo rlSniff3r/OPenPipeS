@@ -638,6 +638,7 @@ def main():
     vuln_parser = subparsers.add_parser("vuln", help="Gerenciar vulnerabilidades")
     vuln_parser.add_argument("--manual", action="store_true", help="Inserir vulnerabilidade manualmente via cache")
     vuln_parser.add_argument("--enrich", action="store_true", help="Enriquecer findings do nuclei com cache/IA")
+    vuln_parser.add_argument("--re-enrich", action="store_true", help="Re-enriquecer todas (ignora cache)")
 
     # Scope
     scope_parser = subparsers.add_parser("scope", help="Gerenciar escopo de varredura")
@@ -708,8 +709,8 @@ def main():
                 import vuln_enricher
                 if args.manual:
                     vuln_enricher.run_manual(proj_path)
-                elif args.enrich:
-                    vuln_enricher.run_enricher(proj_path)
+                elif args.enrich or args.re_enrich:
+                    vuln_enricher.run_enricher(proj_path, re_enrich=args.re_enrich)
                 else:
                     console.print("[cyan]1. Enriquecer nuclei findings[/cyan]")
                     console.print("[cyan]2. Inserir manualmente[/cyan]")
