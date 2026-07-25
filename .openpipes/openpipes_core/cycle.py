@@ -111,6 +111,8 @@ def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
         return
 
     if fresh:
+        import backup
+        backup.backup_fresh(proj_path, nmap_dir)
         console.print("[red]⚠ Fresh mode: deletando banco de dados e resultados...[/red]")
         db_path = os.path.join(proj_path, ".openpipes.db")
         if os.path.exists(db_path):
@@ -124,6 +126,8 @@ def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
         return
 
     if rescan:
+        import backup
+        backup.backup_rescan(proj_path, nmap_dir)
         console.print("[yellow]⚠ Rescan: limpando marcas e outputs antigos...[/yellow]")
         with db.get_connection(proj_path) as conn:
             conn.execute("UPDATE endpoints SET scanned_by = ''")

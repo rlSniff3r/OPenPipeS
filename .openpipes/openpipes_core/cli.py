@@ -647,6 +647,14 @@ def main():
     scope_sub.add_parser("edit", help="Selecionar hosts via fzf")
     scope_sub.add_parser("show", help="Exibir escopo atual")
 
+    # Backup
+    backup_parser = subparsers.add_parser("backup", help="Gerenciar backups")
+    backup_sub = backup_parser.add_subparsers(dest="backup_cmd")
+    backup_sub.add_parser("create", help="Criar backup manual")
+    backup_sub.add_parser("list", help="Listar backups")
+    backup_sub.add_parser("restore", help="Restaurar backup")
+
+
     if len(sys.argv) == 1:
         interactive_menu()
     else:
@@ -730,6 +738,24 @@ def main():
                 sc.interactive_scope()
             elif args.scope_cmd == "show":
                 sc.show_scope()
+
+        elif args.command == "backup":
+            import backup as bk
+            if args.backup_cmd == "create":
+                proj_name, proj_path, nmap_dir = get_project_env()
+                if proj_path:
+                    bk.backup_manual(proj_path, nmap_dir, "full")
+            elif args.backup_cmd == "list":
+                bk.list_backups()
+            elif args.backup_cmd == "restore":
+                proj_name, proj_path, nmap_dir = get_project_env()
+                if proj_path:
+                    backups = bk.list_backups()
+                    if backups:
+                        from db_viewer import _fzf_select
+                        selected = _fzf_select(backups, "Select backup:")
+                        if selected:
+                            bk.restore(selected[0], proj_path, nmap_dir)
 
 
 if __name__ == "__main__":
