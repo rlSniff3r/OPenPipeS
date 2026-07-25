@@ -179,6 +179,9 @@ def _feed_from_unscanned(proj_path: str, nmap_dir: str, tool_name: str, out_file
         target_dir = os.path.join(nmap_dir, f"nmap-{host}")
         os.makedirs(target_dir, exist_ok=True)
         filtered = _filter_urls_by_host(urls, host)
+        # Fallback: if no endpoints, feed base URL
+        if not filtered:
+            filtered = [f"https://{host}", f"http://{host}"]
         with open(os.path.join(target_dir, out_file), "w") as f:
             for url in filtered:
                 f.write(url + "\n")

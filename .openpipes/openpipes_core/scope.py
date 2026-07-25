@@ -98,27 +98,49 @@ def interactive_scope():
 
 
 def _cleanup_out_of_scope_vault(proj_path: str):
-    """Delete Obsidian vault folders for hosts toggled out of scope."""
+    """Delete vault folders AND tool input files for out-of-scope hosts."""
     import shutil, subprocess
     cfg = os.path.join(Path.home(), ".openpipes", "config.sh")
-    cmd = f"source {cfg} && echo -n \"$obsdir|$proj_name\""
+    cmd = f"source {cfg} && echo -n \"$obsdir|$proj_name|$NMAP_DIR\""
     r = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
     parts = r.stdout.strip().split("|")
-    if len(parts) != 2:
+    if len(parts) < 3:
         return
-    obsdir, proj_name = parts[0], parts[1]
+    obsdir, proj_name, nmap_dir = parts[0], parts[1], parts[2]
+
+    # Files to delete per out-of-scope host
+    target_files = [
+        "httpx_targets.txt", "httpx_ports.txt",
+        "katana_urls.txt", "ferox_urls.txt",
+        "js_urls.txt", "gf_urls.txt",
+        "screenshot_urls.txt", "nuclei_urls.txt",
+        "alive_urls.txt", "context_wordlist.txt",
+    ]
 
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT host FROM hosts WHERE is_alive = 1 AND in_scope = 0")
-        removed = 0
+        removed_files = 0
+        removed_vaults = 0
         for row in cursor.fetchall():
-            vault_path = os.path.join(obsdir, proj_name, "Pentest", "Alvos", row["host"])
+            host = row["host"]
+            # Vault folder
+            vault_path = os.path.join(obsdir, proj_name, "Pentest", "Alvos", host)
             if os.path.exists(vault_path):
                 shutil.rmtree(vault_path)
-                removed += 1
-        if removed:
-            console.print(f" [dim]🗑️ {removed} pasta(s) de alvo removidas do vault.[/dim]")
+                removed_vaults += 1
+            # Tool input files
+            target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+            for fname in target_files:
+                fpath = os.path.join(target_dir, fname)
+                if os.path.exists(fpath):
+                    os.remove(fpath)
+                    removed_files += 1
+
+        if removed_vaults:
+            console.print(f" [dim]🗑️ {removed_vaults} pasta(s) de vault removidas.[/dim]")
+        if removed_files:
+            console.print(f" [dim]🗑️ {removed_files} arquivo(s) de input removidos.[/dim]")
 
 
 def show_scope():
