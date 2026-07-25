@@ -199,6 +199,18 @@ def setup_isolated_venvs():
     # Remove Python httpx (shadows Go httpx CLI)
     run_cmd(f"{VENV_CORE}/bin/pip uninstall httpx -y -q 2>/dev/null || true")
 
+    # Aggressively remove Python httpx (shadows Go httpx CLI)
+    # Remove binary
+    httpx_bin = os.path.join(VENV_CORE, "bin", "httpx")
+    if os.path.exists(httpx_bin):
+        os.remove(httpx_bin)
+    # Remove package from site-packages
+    lib_dir = os.path.join(VENV_CORE, "lib")
+    for root, dirs, files in os.walk(lib_dir):
+        for d in dirs:
+            if d == "httpx" or d.startswith("httpx-"):
+                shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+
 
 def install_wordlists():
     seclists = "/usr/share/wordlists/seclists"
@@ -251,8 +263,19 @@ if [ -f "{HOME}/.openpipes/config.sh" ]; then source "{HOME}/.openpipes/config.s
         if os.path.exists(src_path):
             run_cmd(f"ln -sf '{src_path}' '{OPENPIPES_BIN}/{link}'")
 
-    # Core wrapper — points to VENV_CORE (.venv)
-    wrapper = f'#!/bin/bash\nsource "{VENV_CORE}/bin/activate"\npython "{OPENPIPES_DIR}/openpipes_core/cli.py" "$@"\ndeactivate\n'
+    # Core wrapper with httpx shadow protection
+    wrapper = f"""#!/bin/bash
+# Remove Python httpx if it sneaked into the venv (shadows Go httpx CLI)
+VENV_BIN="{VENV_CORE}/bin/httpx"
+if [ -f "$VENV_BIN" ] && ! strings "$VENV_BIN" 2>/dev/null | grep -q "ProjectDiscovery"; then
+    rm -f "$VENV_BIN"
+    find "{VENV_CORE}/lib" -name "httpx" -type d -exec rm -rf {{}} + 2>/dev/null || true
+fi
+
+source "{VENV_CORE}/bin/activate"
+python "{OPENPIPES_DIR}/openpipes_core/cli.py" "$@"
+deactivate
+"""
     with open(f"{OPENPIPES_BIN}/openpipes-core", "w") as f:
         f.write(wrapper)
     run_cmd(f"chmod +x {OPENPIPES_BIN}/openpipes-core")
