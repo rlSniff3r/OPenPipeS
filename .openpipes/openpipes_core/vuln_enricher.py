@@ -1,33 +1,30 @@
 import os
 import json
 import re
-import subprocess
+import requests
 from pathlib import Path
 from typing import Optional
 
-import requests
-from rich.console import Console
-from rich.prompt import Prompt, Confirm
-from rich.panel import Panel
+from textual import work
+from textual.app import App, ComposeResult
+from textual.containers import Vertical, Horizontal, VerticalScroll, Container
+from textual.widgets import Header, Footer, DataTable, Button, Select, Input, Label, TabbedContent, TabPane, Rule
 
 import db
 
-console = Console()
 HOME = str(Path.home())
 CACHE_DIR = os.path.join(HOME, ".openpipes_cache")
 SECRETS_FILE = os.path.join(HOME, ".openpipes", "secrets.conf")
 
+# ================= FUNÇÕES DO SEU SCRIPT ORIGINAL =================
 
 def _normalize_name(name: str) -> str:
-    """Convert nuclei template name to cache filename format."""
     name = name.lower().strip()
     name = re.sub(r'[^a-z0-9]+', '_', name)
-    name = name.strip('_')
-    return name
-
+    return name.strip('_')
 
 def _load_cache() -> dict[str, dict]:
-    """Load all vulnerability templates from cache. Returns {normalized_name: data}."""
+    """Lê os templates JSON do cache."""
     cache = {}
     if not os.path.exists(CACHE_DIR):
         return cache
@@ -36,7 +33,7 @@ def _load_cache() -> dict[str, dict]:
             continue
         fpath = os.path.join(CACHE_DIR, fname)
         try:
-            with open(fpath, "r") as f:
+            with open(fpath, "r", encoding="utf-8") as f:
                 data = json.load(f)
             key = fname.replace(".json", "")
             cache[key] = data
@@ -44,9 +41,8 @@ def _load_cache() -> dict[str, dict]:
             continue
     return cache
 
-
 def _get_openai_key() -> Optional[str]:
-    """Read OpenAI API key from secrets.conf."""
+    """Lê a API key do secrets.conf."""
     if not os.path.exists(SECRETS_FILE):
         return None
     try:
@@ -58,9 +54,8 @@ def _get_openai_key() -> Optional[str]:
         pass
     return None
 
-
 def _extract_cwe(references: list) -> str:
-    """Extract CWE ID from reference URLs like https://cwe.mitre.org/data/definitions/326.html"""
+    """Extrai o ID da CWE baseando-se na URL."""
     if not references:
         return ""
     for ref in references:
@@ -69,155 +64,8 @@ def _extract_cwe(references: list) -> str:
             return f"CWE-{match.group(1)}"
     return ""
 
-
-def _enrich_via_openai(vuln_name: str, description: str) -> Optional[dict]:
-    """Use OpenAI to generate vulnerability data for uncached findings."""
-    api_key = _get_openai_key()
-    if not api_key:
-        return None
-
-    prompt = f"""Gere um JSON com dados de vulnerabilidade para: "{vuln_name}"
-Descrição: {description}
-Formato:
-{{
-  "title": "Nome da Vulnerabilidade",
-  "cvssv3": "CVSS:3.1/...",
-  "description": "Descrição detalhada em português",
-  "observation": "Impacto técnico",
-  "remediation": "Recomendação de correção",
-  "references": ["url1", "url2"]
-}}
-Responda apenas com o JSON, sem formatação extra."""
-
-    try:
-        r = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "gpt-3.5-turbo",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-            },
-            timeout=30,
-        )
-        if r.status_code == 200:
-            content = r.json()["choices"][0]["message"]["content"]
-            # Extract JSON from response
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-    except Exception:
-        pass
-    return None
-
-
-def enrich_nuclei_findings(proj_path: str):
-    """Enrich nuclei vulnerabilities with data from cache or OpenAI."""
-    cache = _load_cache()
-    enriched = 0
-    skipped = 0
-
-    with db.get_connection(proj_path) as conn:
-        with db.transaction(conn):
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, vuln_name, description, title
-                FROM vulnerabilities
-                WHERE source_tool = 'nuclei'
-                  AND (enriched_by IS NULL OR enriched_by = '')
-            """)
-            to_enrich = cursor.fetchall()
-
-            for row in to_enrich:
-                vuln_id = row["id"]
-                vuln_name = row["vuln_name"] or row["title"]
-                description = row["description"] or ""
-                normalized = _normalize_name(vuln_name)
-                vuln_keywords = set(re.sub(r'[^a-z0-9]+', ' ', normalized).split())
-
-                # Keyword-based fuzzy matching
-                matched_cache = None
-                best_score = 0.0
-
-                for cache_key, cache_data in cache.items():
-                    cache_keywords = set(re.sub(r'[^a-z0-9]+', ' ', cache_key).split())
-                    overlap = len(vuln_keywords & cache_keywords)
-                    denom = max(len(vuln_keywords), len(cache_keywords))
-                    score = overlap / denom if denom > 0 else 0
-
-                    if score > best_score:
-                        best_score = score
-                        matched_cache = (cache_key, cache_data)
-
-                # Low confidence — ask user via fzf
-                if best_score < 0.5 or best_score is None:
-                    candidates = [
-                        k for k in cache.keys()
-                        if len(set(re.sub(r'[^a-z0-9]+', ' ', k).split()) & vuln_keywords) > 0
-                    ]
-                    # Add option to browse full cache
-                    candidates.append("─── Browse all ───")
-                    from db_viewer import _fzf_select
-                    console.print(f" [yellow]⚠ '{vuln_name}' — selecione:[/yellow]")
-                    selected = _fzf_select(sorted(candidates), f"Match:")
-                    if selected:
-                        sel = selected[0]
-                        if sel == "─── Browse all ───":
-                            # Show full cache
-                            all_cache = sorted(cache.keys())
-                            all_cache.append("─── Cancel ───")
-                            selected2 = _fzf_select(all_cache, "Browse cache:")
-                            if selected2 and selected2[0] != "─── Cancel ───":
-                                matched_cache = (selected2[0], cache[selected2[0]])
-                                best_score = 1.0
-                        else:
-                            matched_cache = (sel, cache[sel])
-                            best_score = 1.0
-
-                cached = matched_cache[1] if matched_cache and best_score >= 0.3 else None
-
-                if not cached:
-                    console.print(f" [yellow]⚠ Sem cache para '{vuln_name}'. Tentando OpenAI...[/yellow]")
-                    cached = _enrich_via_openai(vuln_name, description)
-
-                if cached:
-                    # Calculate CVSS score from vector
-                    cvss_vector = cached.get("cvssv3", "")
-                    score, severity = _calculate_cvss(cvss_vector)
-                    cwe_id = _extract_cwe(cached.get("references", []))
-                    
-                    # Keep nuclei's CVE if cache doesn't have one
-                    new_cve = cached.get("cve_id", "")
-                    if not new_cve:
-                        # Re-fetch the existing CVE from DB to preserve it
-                        cursor.execute("SELECT cve_id FROM vulnerabilities WHERE id = ?", (vuln_id,))
-                        existing = cursor.fetchone()
-                        new_cve = existing["cve_id"] if existing and existing["cve_id"] else ""
-                    
-                    cursor.execute("""
-                        UPDATE vulnerabilities SET
-                            title = ?, cvss_vector = ?, cvss_score = ?, severity = ?,
-                            description = ?, impact = ?, remediation = ?,
-                            reference_urls = ?, cwe_id = ?, cve_id = ?, enriched_by = 'cache'
-                        WHERE id = ?
-                    """, (
-                        cached.get("title", vuln_name),
-                        cvss_vector, score, severity or "Média",
-                        cached.get("description", description),
-                        cached.get("observation", ""),
-                        cached.get("remediation", ""),
-                        json.dumps(cached.get("references", [])),
-                        cwe_id, new_cve, vuln_id,
-                    ))
-                    enriched += 1
-                else:
-                    skipped += 1
-
-    console.print(f" [dim]↳ Enricher: {enriched} enriquecidas, {skipped} sem dados.[/dim]")
-
-
 def _calculate_cvss(cvss_vector: str) -> tuple:
-    """Calculate CVSS score from vector using the cvss Python library."""
+    """Usa a biblioteca cvss para gerar score e severidade."""
     if not cvss_vector:
         return None, None
     try:
@@ -232,87 +80,336 @@ def _calculate_cvss(cvss_vector: str) -> tuple:
         pass
     return None, None
 
+def _get_proj_path():
+    """Busca o caminho do projeto atual."""
+    config_file = os.path.join(HOME, ".openpipes", "config.sh")
+    if os.path.exists(config_file):
+        try:
+            import subprocess
+            cmd = f"source {config_file} && echo -n \"$proj_path\""
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+            if result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            pass
+    return os.getcwd()
 
-def add_manual_vulnerability(proj_path: str):
-    """Interactive manual vulnerability insertion via fzf cache selection."""
-    from db_viewer import _fzf_select
+# ================= APLICAÇÃO TEXTUAL =================
 
-    # Select target host
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, host FROM hosts WHERE is_alive = 1 ORDER BY host")
-        hosts = [f"{row[0]} | {row[1]}" for row in cursor.fetchall()]
+class VulnEnricherApp(App):
+    CSS = """
+    Screen { padding: 1; }
+    DataTable { height: 1fr; border: solid $primary; margin-bottom: 1; }
+    .action-panel { height: auto; border: round $secondary; padding: 1; margin-bottom: 1;}
+    .controls { height: auto; margin-bottom: 1; align: left middle; }
+    .btn-row { layout: horizontal; align: left middle; height: auto; margin-top: 1; }
+    Button { margin-right: 1; }
+    Label.bold { text-style: bold; color: $accent; }
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.proj_path = _get_proj_path()
+        self.cache_data = _load_cache()
+        
+        # Variáveis de estado para a aba 1 (Enriquecimento)
+        self.pending_vulns = []
+        self.selected_vuln_id = None
+        self.selected_vuln_data = None
+        
+    def compose(self) -> ComposeResult:
+        yield Header()
+        
+        with TabbedContent():
+            # ======= ABA 1: ENRIQUECIMENTO PENDENTE =======
+            with TabPane("Enriquecimento de Vulnerabilidades", id="tab-enrich"):
+                yield Label(f"Projeto atual: {self.proj_path}\n", classes="bold")
+                yield DataTable(id="table-pending", cursor_type="row")
+                
+                # Painel de ações que aparece quando você clica numa linha
+                with Vertical(id="panel-enrich", classes="action-panel"):
+                    yield Label("Selecione uma vulnerabilidade acima para resolver.", id="enrich-info", classes="bold")
+                    yield Label("Cache sugerido:")
+                    yield Select([], id="select-cache-match")
+                    
+                    with Horizontal(classes="btn-row"):
+                        yield Button("Aplicar Cache Selecionado", id="btn-apply-cache", variant="success")
+                        yield Button("Gerar com OpenAI", id="btn-openai", variant="primary")
+                        yield Label("", id="enrich-status")
+            
+            # ======= ABA 2: INSERÇÃO MANUAL =======
+            with TabPane("Inserir Vulnerabilidade Manual", id="tab-manual"):
+                yield Label("1. Selecione o Host Alvo (Apenas hosts ativos):")
+                yield Select([], id="select-host")
+                
+                yield Label("\n2. Selecione a Vulnerabilidade (Cache):")
+                # Carrega as chaves do cache como opções
+                cache_options = [(k, k) for k in sorted(self.cache_data.keys())]
+                yield Select(cache_options, id="select-vuln")
+                
+                yield Label("\n3. Selecione o Endpoint (Opcional):")
+                yield Select([("Nenhum (Aplicar ao Host inteiro)", "SKIP")], id="select-endpoint", value="SKIP")
+                
+                with Horizontal(classes="btn-row"):
+                    yield Button("Inserir Vulnerabilidade", id="btn-insert-manual", variant="success")
+                    yield Label("", id="manual-status")
 
-    selected_host = _fzf_select(hosts, "Select target host:")
-    if not selected_host:
-        return
-    host_id = int(selected_host[0].split(" | ")[0])
+        yield Footer()
 
-    # Select vulnerability from cache via fzf
-    cache_files = sorted(os.listdir(CACHE_DIR)) if os.path.exists(CACHE_DIR) else []
-    if not cache_files:
-        console.print("[yellow]⚠ Cache vazio. Use o modo manual.[/yellow]")
-        return
+    def on_mount(self) -> None:
+        """Inicializa as tabelas e dados quando o TUI abre."""
+        # Esconde o painel de ações de enriquecimento no início
+        self.query_one("#panel-enrich").display = False
+        
+        self.load_pending_vulns()
+        self.load_active_hosts()
 
-    selected = _fzf_select(cache_files, "Select vulnerability (TAB to preview):")
-    if not selected:
-        return
-    cache_file = os.path.join(CACHE_DIR, selected[0])
-    with open(cache_file, "r") as f:
-        vuln_data = json.load(f)
+    # ================= LOGICA DA ABA 1: ENRIQUECIMENTO =================
 
-    # Select the specific endpoint (optional)
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, url FROM endpoints WHERE host_id = ? LIMIT 500",
-            (host_id,),
-        )
-        endpoints = [f"{row[0]} | {row[1][:80]}" for row in cursor.fetchall()]
-    endpoints.insert(0, "SKIP")
+    def load_pending_vulns(self):
+        """Carrega vulnerabilidades do nuclei que precisam de enriquecimento[cite: 3]."""
+        dt = self.query_one("#table-pending", DataTable)
+        dt.clear(columns=True)
+        dt.add_columns("ID", "Título/Nome", "Descrição", "Status")
+        self.pending_vulns = []
+        
+        try:
+            with db.get_connection(self.proj_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, vuln_name, description, title
+                    FROM vulnerabilities
+                    WHERE source_tool = 'nuclei'
+                      AND (enriched_by IS NULL OR enriched_by = '')
+                """)
+                rows = cursor.fetchall()
+                
+                for r in rows:
+                    vuln_id = r["id"]
+                    v_name = r["vuln_name"] or r["title"]
+                    desc = str(r["description"] or "")[:50] + "..."
+                    self.pending_vulns.append({"id": vuln_id, "name": v_name, "desc": r["description"]})
+                    
+                    dt.add_row(str(vuln_id), str(v_name), desc, "Pendente", key=str(vuln_id))
+                    
+        except Exception as e:
+            dt.add_row("Erro", str(e), "", "")
 
-    selected_ep = _fzf_select(endpoints, "Select endpoint (optional):")
-    endpoint_id = None
-    if selected_ep and selected_ep[0] != "SKIP":
-        endpoint_id = int(selected_ep[0].split(" | ")[0])
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Quando o usuário clica numa linha pendente."""
+        if event.control.id != "table-pending": return
+        
+        self.selected_vuln_id = int(event.row_key.value)
+        self.selected_vuln_data = next((v for v in self.pending_vulns if v["id"] == self.selected_vuln_id), None)
+        
+        if not self.selected_vuln_data: return
+        
+        # Mostra o painel
+        self.query_one("#panel-enrich").display = True
+        self.query_one("#enrich-info", Label).update(f"Resolvendo: {self.selected_vuln_data['name']}")
+        self.query_one("#enrich-status", Label).update("")
+        
+        # Faz o fuzzy match exato do seu script original[cite: 3]
+        vuln_name = self.selected_vuln_data["name"]
+        normalized = _normalize_name(vuln_name)
+        vuln_keywords = set(re.sub(r'[^a-z0-9]+', ' ', normalized).split())
+        
+        candidates = []
+        for cache_key in self.cache_data.keys():
+            cache_keywords = set(re.sub(r'[^a-z0-9]+', ' ', cache_key).split())
+            overlap = len(vuln_keywords & cache_keywords)
+            denom = max(len(vuln_keywords), len(cache_keywords))
+            score = overlap / denom if denom > 0 else 0
+            candidates.append((score, cache_key))
+            
+        candidates.sort(reverse=True, key=lambda x: x[0])
+        
+        # Atualiza o dropdown com os candidatos ordenados por relevância
+        select = self.query_one("#select-cache-match", Select)
+        options = [(f"[{score:.2f}] {key}", key) for score, key in candidates]
+        select.set_options(options)
+        if options:
+            select.value = options[0][1] # Seleciona o de maior score por padrão
 
-    # Calculate CVSS score from vector
-    cvss_vector = vuln_data.get("cvssv3", "")
-    score, severity = _calculate_cvss(cvss_vector)
-    cwe_id = _extract_cwe(vuln_data.get("references", []))
+    def apply_enrichment(self, cached_data: dict, source: str):
+        """Aplica os dados gerados (Cache ou OpenAI) no banco de dados[cite: 2, 3]."""
+        if not self.selected_vuln_id: return
+        
+        cvss_vector = cached_data.get("cvssv3", "")
+        score, severity = _calculate_cvss(cvss_vector)
+        cwe_id = _extract_cwe(cached_data.get("references", []))
+        
+        try:
+            with db.get_connection(self.proj_path) as conn:
+                with db.transaction(conn):
+                    cursor = conn.cursor()
+                    # Mantem a CVE original se o cache nao possuir[cite: 3]
+                    cursor.execute("SELECT cve_id FROM vulnerabilities WHERE id = ?", (self.selected_vuln_id,))
+                    existing = cursor.fetchone()
+                    new_cve = cached_data.get("cve_id", "")
+                    if not new_cve and existing and existing["cve_id"]:
+                        new_cve = existing["cve_id"]
+                        
+                    cursor.execute("""
+                        UPDATE vulnerabilities SET
+                            title = ?, cvss_vector = ?, cvss_score = ?, severity = ?,
+                            description = ?, impact = ?, remediation = ?,
+                            reference_urls = ?, cwe_id = ?, cve_id = ?, enriched_by = ?
+                        WHERE id = ?
+                    """, (
+                        cached_data.get("title", self.selected_vuln_data["name"]),
+                        cvss_vector, score, severity or "Média",
+                        cached_data.get("description", self.selected_vuln_data["desc"]),
+                        cached_data.get("observation", ""),
+                        cached_data.get("remediation", ""),
+                        json.dumps(cached_data.get("references", [])),
+                        cwe_id, new_cve, source, self.selected_vuln_id
+                    ))
+            
+            # Remove da tabela visual
+            dt = self.query_one("#table-pending", DataTable)
+            dt.remove_row(str(self.selected_vuln_id))
+            self.query_one("#panel-enrich").display = False
+            
+        except Exception as e:
+            self.query_one("#enrich-status", Label).update(f"[red]Erro no DB: {e}[/red]")
 
-    # Insert into DB
-    with db.get_connection(proj_path) as conn:
-        with db.transaction(conn):
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO vulnerabilities
-                    (host_id, endpoint_id, title, severity, cvss_score, cvss_vector,
-                     cwe_id, description, impact, remediation, reference_urls,
-                     source_tool, enriched_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'user')
-            """, (
-                host_id, endpoint_id, vuln_data.get("title", ""),
-                severity or "Média", score, cvss_vector,
-                cwe_id,
-                vuln_data.get("description", ""),
-                vuln_data.get("observation", ""),
-                vuln_data.get("remediation", ""),
-                json.dumps(vuln_data.get("references", [])),
-            ))
-            vuln_id = cursor.lastrowid
+    @work(exclusive=True, thread=True)
+    def fetch_openai_enrichment(self, vuln_name: str, description: str):
+        """Roda a IA em background (thread) para não travar o TUI."""
+        api_key = _get_openai_key()
+        if not api_key:
+            self.call_from_thread(self.query_one("#enrich-status", Label).update, "[red]Erro: OPENAI_API_KEY não encontrada em secrets.conf.[/red]")
+            return
+            
+        prompt = f"""Gere um JSON com dados de vulnerabilidade para: "{vuln_name}"
+Descrição: {description}
+Formato:
+{{
+  "title": "Nome da Vulnerabilidade",
+  "cvssv3": "CVSS:3.1/...",
+  "description": "Descrição detalhada em português",
+  "observation": "Impacto técnico",
+  "remediation": "Recomendação de correção",
+  "references": ["url1", "url2"]
+}}
+Responda apenas com o JSON, sem formatação extra."""
 
-    console.print(f" [green]✔ Vulnerabilidade inserida (id={vuln_id}). Execute 'sync' para gerar o arquivo.[/green]")
+        try:
+            r = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "gpt-3.5-turbo",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                },
+                timeout=30,
+            )
+            if r.status_code == 200:
+                content = r.json()["choices"][0]["message"]["content"]
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    parsed_json = json.loads(json_match.group())
+                    # Chama a função de atualização na thread principal do UI
+                    self.call_from_thread(self.apply_enrichment, parsed_json, 'openai')
+                    return
+            self.call_from_thread(self.query_one("#enrich-status", Label).update, "[yellow]Falha ao obter JSON válido da OpenAI.[/yellow]")
+        except Exception as e:
+            self.call_from_thread(self.query_one("#enrich-status", Label).update, f"[red]Erro na API OpenAI: {e}[/red]")
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Controla os botões das duas abas."""
+        # Botões da Aba 1 (Enriquecimento)
+        if event.button.id == "btn-apply-cache":
+            selected_cache_key = self.query_one("#select-cache-match", Select).value
+            if selected_cache_key and selected_cache_key in self.cache_data:
+                self.apply_enrichment(self.cache_data[selected_cache_key], 'cache')
+                
+        elif event.button.id == "btn-openai":
+            if self.selected_vuln_data:
+                self.query_one("#enrich-status", Label).update("[yellow]⏳ Solicitando IA da OpenAI. Aguarde...[/yellow]")
+                # Dispara a Thread
+                self.fetch_openai_enrichment(self.selected_vuln_data["name"], self.selected_vuln_data["desc"])
 
-def run_enricher(proj_path: str, re_enrich: bool = False):
-    if re_enrich:
-        console.print("[yellow]⚠ Re-enrich: limpando marcas de enriquecimento...[/yellow]")
-        with db.get_connection(proj_path) as conn:
-            conn.execute("UPDATE vulnerabilities SET enriched_by = '' WHERE source_tool = 'nuclei'")
-    enrich_nuclei_findings(proj_path)
+        # Botão da Aba 2 (Inserção Manual)
+        elif event.button.id == "btn-insert-manual":
+            self.insert_manual_vulnerability()
 
+    # ================= LOGICA DA ABA 2: INSERÇÃO MANUAL =================
 
-def run_manual(proj_path: str):
-    """Interactive manual vulnerability insertion."""
-    add_manual_vulnerability(proj_path)
+    def load_active_hosts(self):
+        """Popula o select de hosts apenas com os ativos (is_alive = 1)[cite: 3]."""
+        try:
+            with db.get_connection(self.proj_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, host FROM hosts WHERE is_alive = 1 ORDER BY host")
+                options = [(f"{r['host']} (ID: {r['id']})", str(r["id"])) for r in cursor.fetchall()]
+                self.query_one("#select-host", Select).set_options(options)
+        except Exception:
+            pass
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Ao trocar o Host, carrega os endpoints vinculados a ele dinamicamente[cite: 3]."""
+        if event.control.id == "select-host" and event.value:
+            host_id = event.value
+            try:
+                with db.get_connection(self.proj_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT id, url FROM endpoints WHERE host_id = ? LIMIT 500", (host_id,))
+                    options = [("Nenhum (Aplicar ao Host inteiro)", "SKIP")]
+                    for r in cursor.fetchall():
+                        options.append((str(r["url"])[:80], str(r["id"])))
+                    self.query_one("#select-endpoint", Select).set_options(options)
+                    self.query_one("#select-endpoint", Select).value = "SKIP"
+            except Exception:
+                pass
+
+    def insert_manual_vulnerability(self):
+        """Lógica de inserção manual convertida do script original[cite: 2, 3]."""
+        host_id_str = self.query_one("#select-host", Select).value
+        cache_key = self.query_one("#select-vuln", Select).value
+        ep_id_str = self.query_one("#select-endpoint", Select).value
+        
+        status_lbl = self.query_one("#manual-status", Label)
+        
+        if not host_id_str or not cache_key:
+            status_lbl.update("[red]⚠ Selecione um host e uma vulnerabilidade.[/red]")
+            return
+            
+        host_id = int(host_id_str)
+        endpoint_id = int(ep_id_str) if ep_id_str != "SKIP" else None
+        
+        vuln_data = self.cache_data.get(cache_key, {})
+        cvss_vector = vuln_data.get("cvssv3", "")
+        score, severity = _calculate_cvss(cvss_vector)
+        cwe_id = _extract_cwe(vuln_data.get("references", []))
+        
+        try:
+            with db.get_connection(self.proj_path) as conn:
+                with db.transaction(conn):
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO vulnerabilities
+                            (host_id, endpoint_id, title, severity, cvss_score, cvss_vector,
+                             cwe_id, description, impact, remediation, reference_urls,
+                             source_tool, enriched_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'user')
+                    """, (
+                        host_id, endpoint_id, vuln_data.get("title", ""),
+                        severity or "Média", score, cvss_vector,
+                        cwe_id,
+                        vuln_data.get("description", ""),
+                        vuln_data.get("observation", ""),
+                        vuln_data.get("remediation", ""),
+                        json.dumps(vuln_data.get("references", [])),
+                    ))
+                    vuln_id = cursor.lastrowid
+                    
+            status_lbl.update(f"[green]✔ Vulnerabilidade '{cache_key}' inserida com sucesso (ID={vuln_id}).[/green]")
+        except Exception as e:
+            status_lbl.update(f"[red]Erro ao inserir: {e}[/red]")
+
+if __name__ == "__main__":
+    app = VulnEnricherApp()
+    app.run()

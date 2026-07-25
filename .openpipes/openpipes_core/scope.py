@@ -1,180 +1,297 @@
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
+from textual.app import App, ComposeResult
+from textual.containers import Vertical, Horizontal
+from textual.widgets import Header, Footer, DataTable, Button, Label, Rule
+
+# Usa o mesmo arquivo db.py que já mapeamos antes
 import db
-from rich.console import Console
-from rich.table import Table
-from rich.prompt import Prompt
 
-console = Console()
+HOME = str(Path.home())
+CONFIG_FILE = os.path.join(HOME, ".openpipes", "config.sh")
 
+# ================= FUNÇÕES DE AMBIENTE DO SEU SCRIPT =================
 
 def _get_proj_path():
-    cfg = os.path.join(Path.home(), ".openpipes", "config.sh")
-    if not os.path.exists(cfg):
+    """Lê o caminho do projeto no config.sh."""
+    if not os.path.exists(CONFIG_FILE):
         return None
-    cmd = f"source {cfg} && echo -n \"$proj_path\""
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
-    return r.stdout.strip() or None
-
-
-def _fzf_select(items: list, prompt: str = "Select (TAB):") -> list:
-    if not items:
-        return []
     try:
-        items_str = "\n".join(str(i) for i in items)
-        r = subprocess.run(
-            f"echo '{items_str}' | fzf -m --prompt='{prompt} ' --height=20",
-            shell=True, capture_output=True, text=True,
-        )
-        if r.returncode == 0:
-            return [line.strip() for line in r.stdout.strip().split("\n") if line.strip()]
+        cmd = f"source {CONFIG_FILE} && echo -n \"$proj_path\""
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+        return r.stdout.strip() or None
+    except Exception:
+        return None
+
+def _get_env_vars():
+    """Lê as variáveis de ambiente necessárias para o cleanup."""
+    if not os.path.exists(CONFIG_FILE):
+        return None, None, None
+    try:
+        cmd = f"source {CONFIG_FILE} && echo -n \"$obsdir|$proj_name|$NMAP_DIR\""
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+        parts = r.stdout.strip().split("|")
+        if len(parts) >= 3:
+            return parts[0], parts[1], parts[2]
     except Exception:
         pass
-    return []
+    return None, None, None
 
+# ================= APLICAÇÃO TEXTUAL =================
 
-def interactive_scope():
-    """Interactive fzf selection — toggle hosts in/out of scope."""
-    proj_path = _get_proj_path()
-    if not proj_path:
-        console.print("[red]Erro: Projeto não configurado.[/red]")
-        return
+class ScopeManagerApp(App):
+    CSS = """
+    Screen {
+        layout: horizontal;
+        padding: 1;
+    }
+    
+    #left-pane {
+        width: 65%;
+        height: 100%;
+        border-right: solid $primary;
+        padding-right: 1;
+    }
+    
+    #right-pane {
+        width: 35%;
+        height: 100%;
+        padding-left: 1;
+        align: center top;
+    }
+    
+    DataTable {
+        height: 1fr;
+        border: solid $secondary;
+    }
+    
+    .panel-title {
+        text-style: bold;
+        color: $accent;
+        margin-bottom: 1;
+        content-align: center middle;
+    }
+    
+    .metric {
+        margin-bottom: 1;
+    }
+    
+    Button {
+        width: 100%;
+        margin-top: 1;
+    }
+    
+    #cleanup-btn {
+        margin-top: 2;
+        background: $error;
+        color: $text;
+    }
+    """
 
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT host, in_scope FROM hosts WHERE is_alive = 1 ORDER BY host")
-        hosts = cursor.fetchall()
-
-    if not hosts:
-        console.print("[yellow]⚠ Nenhum host vivo no banco.[/yellow]")
-        return
-
-    in_s = sum(1 for h in hosts if h["in_scope"])
-    out_s = len(hosts) - in_s
-    console.print(f"\n[cyan]📋 Escopo atual: {in_s} em escopo, {out_s} fora[/cyan]")
-    console.print("[dim]Selecione hosts com TAB para TOGGLE (IN ↔ OUT). Confirme com ENTER.[/dim]\n")
-
-    # Build display list
-    display = []
-    for h in hosts:
-        marker = "[IN]" if h["in_scope"] else "[  ]"
-        display.append(f"{marker} {h['host']}")
-
-    selected = _fzf_select(display, "Toggle (TAB):")
-
-    # Extract hostnames from selected items
-    toggled = set()
-    for s in selected:
-        if s.startswith("[IN] ") or s.startswith("[  ] "):
-            toggled.add(s[5:])
-        else:
-            toggled.add(s.strip())
-
-    # Toggle only the explicitly selected hosts
-    with db.get_connection(proj_path) as conn:
-        with db.transaction(conn):
-            cursor = conn.cursor()
-            for row in hosts:
-                if row["host"] in toggled:
-                    new_val = 0 if row["in_scope"] else 1
-                    cursor.execute("UPDATE hosts SET in_scope = ? WHERE host = ?",
-                                   (new_val, row["host"]))
-
-    # Show updated state
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM hosts WHERE is_alive = 1 AND in_scope = 1")
-        final_in = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM hosts WHERE is_alive = 1 AND in_scope = 0")
-        final_out = cursor.fetchone()[0]
-        changes = len(toggled)
-
-    console.print(f"\n[green]✔ {changes} host(s) alterado(s). Escopo: {final_in} em, {final_out} fora[/green]")
-
-    # Delete vault folders for out-of-scope hosts
-    _cleanup_out_of_scope_vault(proj_path)
-
-
-def _cleanup_out_of_scope_vault(proj_path: str):
-    """Delete vault folders AND tool input files for out-of-scope hosts."""
-    import shutil, subprocess
-    cfg = os.path.join(Path.home(), ".openpipes", "config.sh")
-    cmd = f"source {cfg} && echo -n \"$obsdir|$proj_name|$NMAP_DIR\""
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
-    parts = r.stdout.strip().split("|")
-    if len(parts) < 3:
-        return
-    obsdir, proj_name, nmap_dir = parts[0], parts[1], parts[2]
-
-    # Files to delete per out-of-scope host
-    target_files = [
-        "httpx_targets.txt", "httpx_ports.txt",
-        "katana_urls.txt", "ferox_urls.txt",
-        "js_urls.txt", "gf_urls.txt",
-        "screenshot_urls.txt", "nuclei_urls.txt",
-        "alive_urls.txt", "context_wordlist.txt",
+    BINDINGS = [
+        ("q", "quit", "Sair"),
+        ("space", "toggle_scope", "Inverter Escopo do Host"),
     ]
 
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT host FROM hosts WHERE is_alive = 1 AND in_scope = 0")
-        removed_files = 0
+    def __init__(self):
+        super().__init__()
+        self.proj_path = _get_proj_path()
+        self.selected_host_id = None
+        self.selected_host_name = None
+        self.selected_host_scope = None
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        
+        # Criação de um layout de Painel Duplo Incrível
+        with Horizontal():
+            
+            # PAINEL ESQUERDO: Tabela interativa
+            with Vertical(id="left-pane"):
+                yield Label("🎯 Gerenciador de Escopo de Varredura", classes="panel-title")
+                yield DataTable(id="hosts-table", cursor_type="row")
+            
+            # PAINEL DIREITO: Ações e Métricas
+            with Vertical(id="right-pane"):
+                yield Label("📊 Métricas em Tempo Real", classes="panel-title")
+                yield Label("Total de Hosts: --", id="lbl-total", classes="metric")
+                yield Label("No Escopo: --", id="lbl-in", classes="metric")
+                yield Label("Fora do Escopo: --", id="lbl-out", classes="metric")
+                
+                yield Rule()
+                
+                yield Label("Selecione um host na tabela...", id="lbl-action-title", classes="panel-title")
+                yield Button("Inverter Escopo (Espaço)", id="toggle-btn", variant="primary", disabled=True)
+                
+                yield Rule()
+                yield Label("Operações de Disco:")
+                # Botão para substituir a ação automática do seu script e dar controle visual[cite: 4]
+                yield Button("Limpar Vaults & Inputs (Fora do Escopo)", id="cleanup-btn")
+                yield Label("", id="lbl-cleanup-status")
+
+        yield Footer()
+
+    def on_mount(self) -> None:
+        if not self.proj_path:
+            self.query_one("#lbl-action-title", Label).update("[red]Erro: Projeto não configurado.[/red]")
+            return
+        
+        # Inicializa as colunas da tabela replicando o seu padrão do rich[cite: 4]
+        dt = self.query_one("#hosts-table", DataTable)
+        dt.add_columns("Host", "Vivo", "Escopo")
+        
+        self.load_data()
+
+    def load_data(self) -> None:
+        """Carrega e renderiza os hosts do banco de dados[cite: 4]."""
+        dt = self.query_one("#hosts-table", DataTable)
+        dt.clear()
+        
+        in_count = 0
+        out_count = 0
+        total_count = 0
+        
+        try:
+            with db.get_connection(self.proj_path) as conn:
+                cursor = conn.cursor()
+                # Query fiel ao seu script original[cite: 4]
+                cursor.execute("""
+                    SELECT id, host, is_alive, in_scope FROM hosts
+                    ORDER BY in_scope DESC, host
+                """)
+                hosts = cursor.fetchall()
+                
+                total_count = len(hosts)
+                
+                for h in hosts:
+                    # Usando seus emojis originais[cite: 4]
+                    status = "🟢" if h["is_alive"] else "⚫"
+                    scope = "✅" if h["in_scope"] else "❌"
+                    
+                    if h["in_scope"]:
+                        in_count += 1
+                    else:
+                        out_count += 1
+                        
+                    # A chave da linha será o ID do banco
+                    dt.add_row(h["host"], status, scope, key=str(h["id"]))
+                    
+        except Exception as e:
+            self.query_one("#lbl-action-title", Label).update(f"[red]Erro no BD: {e}[/red]")
+            return
+
+        # Atualiza o painel direito com as métricas[cite: 4]
+        self.query_one("#lbl-total", Label).update(f"Total de Hosts: {total_count}")
+        self.query_one("#lbl-in", Label).update(f"No Escopo: [green]{in_count}[/green]")
+        self.query_one("#lbl-out", Label).update(f"Fora do Escopo: [red]{out_count}[/red]")
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Quando o usuário clica ou foca em um host."""
+        self.selected_host_id = int(event.row_key.value)
+        
+        try:
+            with db.get_connection(self.proj_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT host, in_scope FROM hosts WHERE id = ?", (self.selected_host_id,))
+                row = cursor.fetchone()
+                if row:
+                    self.selected_host_name = row["host"]
+                    self.selected_host_scope = row["in_scope"]
+                    
+                    lbl_title = self.query_one("#lbl-action-title", Label)
+                    btn = self.query_one("#toggle-btn", Button)
+                    
+                    lbl_title.update(f"Host: [bold]{self.selected_host_name}[/bold]")
+                    btn.disabled = False
+                    
+                    if self.selected_host_scope:
+                        btn.label = "Remover do Escopo ❌"
+                        btn.variant = "warning"
+                    else:
+                        btn.label = "Adicionar ao Escopo ✅"
+                        btn.variant = "success"
+        except Exception:
+            pass
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "toggle-btn":
+            self.action_toggle_scope()
+        elif event.button.id == "cleanup-btn":
+            self.run_cleanup()
+
+    def action_toggle_scope(self) -> None:
+        """Inverte o valor in_scope no banco para o host selecionado[cite: 4]."""
+        if not self.selected_host_id:
+            return
+            
+        new_val = 0 if self.selected_host_scope else 1
+        try:
+            with db.get_connection(self.proj_path) as conn:
+                with db.transaction(conn):
+                    cursor = conn.cursor()
+                    # UPDATE adaptado do seu script[cite: 4]
+                    cursor.execute("UPDATE hosts SET in_scope = ? WHERE id = ?", (new_val, self.selected_host_id))
+            
+            # Recarrega a tabela e re-seleciona a linha visualmente
+            self.load_data()
+            
+            # Atualiza o painel para refletir a nova seleção
+            dt = self.query_one("#hosts-table", DataTable)
+            # Aciona o evento como se tivessemos clicado de novo na mesma linha
+            self.on_data_table_row_selected(DataTable.RowSelected(dt, dt.get_row_at(dt.cursor_row)))
+            
+        except Exception as e:
+            self.query_one("#lbl-action-title", Label).update(f"[red]Erro ao atualizar: {e}[/red]")
+
+    def run_cleanup(self) -> None:
+        """Executa a limpeza implacável dos vaults baseada no seu script original[cite: 4]."""
+        obsdir, proj_name, nmap_dir = _get_env_vars()
+        if not obsdir or not proj_name or not nmap_dir:
+            self.query_one("#lbl-cleanup-status", Label).update("[red]Erro ao ler config.sh[/red]")
+            return
+
+        # Lista exata de arquivos que seu script deletava[cite: 4]
+        target_files = [
+            "httpx_targets.txt", "httpx_ports.txt",
+            "katana_urls.txt", "ferox_urls.txt",
+            "js_urls.txt", "gf_urls.txt",
+            "screenshot_urls.txt", "nuclei_urls.txt",
+            "alive_urls.txt", "context_wordlist.txt",
+        ]
+
         removed_vaults = 0
-        for row in cursor.fetchall():
-            host = row["host"]
-            # Vault folder
-            vault_path = os.path.join(obsdir, proj_name, "Pentest", "Alvos", host)
-            if os.path.exists(vault_path):
-                shutil.rmtree(vault_path)
-                removed_vaults += 1
-            # Tool input files
-            target_dir = os.path.join(nmap_dir, f"nmap-{host}")
-            for fname in target_files:
-                fpath = os.path.join(target_dir, fname)
-                if os.path.exists(fpath):
-                    os.remove(fpath)
-                    removed_files += 1
+        removed_files = 0
 
-        if removed_vaults:
-            console.print(f" [dim]🗑️ {removed_vaults} pasta(s) de vault removidas.[/dim]")
-        if removed_files:
-            console.print(f" [dim]🗑️ {removed_files} arquivo(s) de input removidos.[/dim]")
+        try:
+            with db.get_connection(self.proj_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT host FROM hosts WHERE is_alive = 1 AND in_scope = 0")
+                for row in cursor.fetchall():
+                    host = row["host"]
+                    
+                    # 1. Deletando pasta no Obsidian Vault[cite: 4]
+                    vault_path = os.path.join(obsdir, proj_name, "Pentest", "Alvos", host)
+                    if os.path.exists(vault_path):
+                        shutil.rmtree(vault_path)
+                        removed_vaults += 1
+                        
+                    # 2. Deletando arquivos de input de ferramentas[cite: 4]
+                    target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+                    for fname in target_files:
+                        fpath = os.path.join(target_dir, fname)
+                        if os.path.exists(fpath):
+                            os.remove(fpath)
+                            removed_files += 1
 
+            status = f"[green]Limpeza concluída![/green]\nVaults removidos: {removed_vaults}\nArquivos removidos: {removed_files}"
+            self.query_one("#lbl-cleanup-status", Label).update(status)
+            
+        except Exception as e:
+            self.query_one("#lbl-cleanup-status", Label).update(f"[red]Erro na limpeza: {e}[/red]")
 
-def show_scope():
-    """Display current scope status."""
-    proj_path = _get_proj_path()
-    if not proj_path:
-        console.print("[red]Erro: Projeto não configurado.[/red]")
-        return
-
-    with db.get_connection(proj_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT host, is_alive, in_scope FROM hosts
-            ORDER BY in_scope DESC, host
-        """)
-        hosts = cursor.fetchall()
-
-    if not hosts:
-        console.print("[yellow]⚠ Nenhum host no banco.[/yellow]")
-        return
-
-    table = Table(title="Escopo de Varredura")
-    table.add_column("Host", style="cyan")
-    table.add_column("Vivo", justify="center")
-    table.add_column("Escopo", justify="center")
-
-    in_count = 0
-    for h in hosts:
-        status = "🟢" if h["is_alive"] else "⚫"
-        scope = "✅" if h["in_scope"] else "❌"
-        if h["in_scope"]:
-            in_count += 1
-        table.add_row(h["host"], status, scope)
-
-    console.print(table)
-    console.print(f"\n[cyan]Total: {len(hosts)} hosts | {in_count} em escopo[/cyan]")
-    input("\nPressione ENTER para voltar...")
+if __name__ == "__main__":
+    app = ScopeManagerApp()
+    app.run()
