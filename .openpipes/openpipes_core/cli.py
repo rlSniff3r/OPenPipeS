@@ -639,6 +639,7 @@ def main():
     vuln_parser.add_argument("--manual", action="store_true", help="Inserir vulnerabilidade manualmente via cache")
     vuln_parser.add_argument("--enrich", action="store_true", help="Enriquecer findings do nuclei com cache/IA")
     vuln_parser.add_argument("--re-enrich", action="store_true", help="Re-enriquecer todas (ignora cache)")
+    vuln_parser.add_argument("--create", action="store_true", help="Criar nova vulnerabilidade via TUI")
 
     # Scope
     scope_parser = subparsers.add_parser("scope", help="Gerenciar escopo de varredura")
@@ -707,18 +708,19 @@ def main():
             if proj_path:
                 db.init_db(proj_path)
                 import vuln_enricher
-                if args.manual:
+                if args.create:
+                    import vuln_create
+                    app = vuln_create.JSONFormApp()
+                    app.run()
+                    # After creating JSON, automatically run manual insertion
+                    vuln_enricher.run_manual(proj_path)
+                elif args.manual:
                     vuln_enricher.run_manual(proj_path)
                 elif args.enrich or args.re_enrich:
                     vuln_enricher.run_enricher(proj_path, re_enrich=args.re_enrich)
                 else:
-                    console.print("[cyan]1. Enriquecer nuclei findings[/cyan]")
-                    console.print("[cyan]2. Inserir manualmente[/cyan]")
-                    choice = input("Escolha: ")
-                    if choice == "1":
-                        vuln_enricher.run_enricher(proj_path)
-                    elif choice == "2":
-                        vuln_enricher.run_manual(proj_path)
+                    # Show help
+                    parser.parse_args(["vuln", "--help"])
             else:
                 console.print("[red]Erro: Projeto não configurado.[/red]")
 
