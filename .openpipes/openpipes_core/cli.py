@@ -629,7 +629,7 @@ def main():
     parse_parser.add_argument("module", help="Nome do módulo (ex: nuclei-runner)")
 
     # DB
-    db_parser = subparsers.add_parser("db", help="Gerenciador de banco de dados interativo")
+    db_parser = subparsers.add_parser("db", help="Gerenciar banco de dados (TUI)")
 
     # Retry ports
     retry_parser = subparsers.add_parser("retry-ports", help="Feed portas fechadas/filtradas para nwrapper")
@@ -699,8 +699,9 @@ def main():
                 console.print("[red]Erro: Projeto não configurado.[/red]")
 
         elif args.command == "db":
-            import db_viewer
-            db_viewer.interactive_db()
+            from db_viewer import DatabaseManagerApp
+            app = DatabaseManagerApp()
+            app.run()
 
         elif args.command == "retry-ports":
             import feeder
