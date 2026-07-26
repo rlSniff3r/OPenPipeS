@@ -215,6 +215,8 @@ def setup_isolated_venvs():
         run_cmd(f"python3 -m venv {VENV_CORE}")
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq textual cvss -q")
+
+    # Remove Python httpx (shadows Go httpx CLI)
     run_cmd(f"{VENV_CORE}/bin/pip uninstall httpx -y -q 2>/dev/null || true")
     httpx_bin = os.path.join(VENV_CORE, "bin", "httpx")
     if os.path.exists(httpx_bin):
@@ -224,6 +226,11 @@ def setup_isolated_venvs():
         for d in dirs:
             if d == "httpx" or d.startswith("httpx-"):
                 shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+
+    # Remove stale dnsrecon binary from core venv
+    dnsrecon_bin = os.path.join(VENV_CORE, "bin", "dnsrecon")
+    if os.path.exists(dnsrecon_bin):
+        os.remove(dnsrecon_bin)
 
     # Remove legacy .venv-core if it exists
     legacy = f"{OPENPIPES_DIR}/.venv-core"
