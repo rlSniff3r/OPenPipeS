@@ -98,8 +98,10 @@ for domain in $(grep -v '^#' "$DOMAIN_FILE" | grep -v '^$'); do
     host $sub | tee -a $domain/hosts-allsubs
     host -t cname $sub | tee -a $domain/cname-allsubs
   done
-  httpx -l $domain/allsubs -p 80,443,4443,8080,8000,10443,8443 -title -tech-detect -status-code -probe -ip -json -o $domain/allsubs.httpx.json
-  httpx -l $domain/allsubs -p 80,443,4443,8080,8000,10443,8443 -title -tech-detect -status-code -probe -ip -o $domain/allsubs.httpx
+  #httpx -l $domain/allsubs -p 80,443,4443,8080,8000,10443,8443 -title -tech-detect -status-code -probe -ip -json -o $domain/allsubs.httpx.json
+  #httpx -l $domain/allsubs -p 80,443,4443,8080,8000,10443,8443 -title -tech-detect -status-code -probe -ip -o $domain/allsubs.httpx
+  httpx -l $domain/allsubs -p 80,443 -title -tech-detect -status-code -probe -ip -json -o $domain/allsubs.httpx.json
+  httpx -l $domain/allsubs -p 80,443 -title -tech-detect -status-code -probe -ip -o $domain/allsubs.httpx
   cat $domain/hosts-allsubs | egrep "has address" | grep "$domain" | cut -d " " -f4 | sort -u > valid-subs.txt
   for ip in $(cat valid-subs.txt); do
     rdap $ip > $ip.rdap

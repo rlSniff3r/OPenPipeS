@@ -55,7 +55,10 @@ class DatabaseManagerApp(App):
     #delete-btn, #clear-cell-btn { display: none; margin-left: 1;}
     """
     
-    BINDINGS = [("q", "quit", "Sair")]
+    BINDINGS = [
+        ("q", "quit", "Sair"),
+        ("t", "toggle_cursor", "Alternar Modo (Linha/Célula)"), # Novo atalho
+    ]
 
     def __init__(self):
         super().__init__()
@@ -113,6 +116,17 @@ class DatabaseManagerApp(App):
             self.build_dynamic_form(event.value)
 
     # NOVO: Agora interceptamos o clique na CÉLULA, não apenas na linha
+    def action_toggle_cursor(self) -> None:
+            """Alterna o cursor da tabela entre Linha Inteira e Célula."""
+            dt = self.query_one("#data-table", DataTable)
+            
+            if dt.cursor_type == "cell":
+                dt.cursor_type = "row"
+                self.query_one("#status-msg-list", Label).update("[cyan]Modo de cursor alterado para: Linha Inteira[/cyan]")
+            else:
+                dt.cursor_type = "cell"
+                self.query_one("#status-msg-list", Label).update("[cyan]Modo de cursor alterado para: Célula Individual[/cyan]")
+
     def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
         table = self.query_one("#data-table", DataTable)
         

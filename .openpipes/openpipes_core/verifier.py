@@ -24,22 +24,6 @@ def _structural_hash(html: str) -> str:
     structure = re.sub(r'\sid=["\'][^"\']+["\']', ' id=""', structure)
     return hashlib.md5(structure.encode()).hexdigest()
 
-
-def verify_endpoints(proj_path: str, limit: int = None):
-    """
-    Read unverified endpoints (response_hash IS NULL),
-    make real HTTP requests, fingerprint, tag false positives.
-    """
-    # Mark recon_httpx endpoints as verified-but-empty (guessed ports)
-    with db.get_connection(proj_path) as conn:
-        conn.execute("""
-            UPDATE endpoints SET
-                response_hash = '',
-                verified_at = CURRENT_TIMESTAMP
-            WHERE source_tool = 'recon_httpx'
-              AND response_hash IS NULL
-        """)
-
     # Get truly unverified endpoints
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()

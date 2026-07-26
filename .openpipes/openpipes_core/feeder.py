@@ -90,7 +90,6 @@ def _get_unscanned(proj_path: str, tool_name: str, status_min: int = 100, status
             JOIN hosts h ON h.id = e.host_id
             WHERE h.is_alive = 1
               AND h.in_scope = 1
-              AND (e.source_tool IS NULL OR e.source_tool != 'recon_httpx')
               AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%'
                    OR e.vulnerability_patterns IS NULL)
               AND (e.scanned_by NOT LIKE ? OR e.scanned_by IS NULL)
@@ -125,7 +124,8 @@ def feed_httpx(proj_path: str, nmap_dir: str):
             JOIN ports p ON p.host_id = h.id
             WHERE h.is_alive = 1 AND h.in_scope = 1
               AND p.state = 'open'
-              AND p.service IN ('http','https','http-proxy','ssl','unknown')
+              AND p.service IN ('http','https','http-proxy','ssl','unknown',
+                                'ssl/http','ssl/https','ssl/http-proxy','ssl/unknown','upnp')
             ORDER BY h.host
         """)
         hosts = cursor.fetchall()
@@ -138,20 +138,15 @@ def feed_httpx(proj_path: str, nmap_dir: str):
     for row in hosts:
         host_id, host_name = row["id"], row["host"]
         target_dir = os.path.join(nmap_dir, f"nmap-{host_name}")
-        existing = glob.glob(os.path.join(target_dir, "httpx-*.json"))
-        if existing:
-            for f in ["httpx_targets.txt", "httpx_ports.txt"]:
-                p = os.path.join(target_dir, f)
-                if os.path.exists(p):
-                    os.remove(p)
-            continue
-        ips = json.loads(row["ips"]) if row["ips"] else []
         os.makedirs(target_dir, exist_ok=True)
+
+        ips = json.loads(row["ips"]) if row["ips"] else []
         with db.get_connection(proj_path) as conn:
             c = conn.cursor()
             c.execute(
                 "SELECT port FROM ports WHERE host_id = ? AND state = 'open' "
-                "AND service IN ('http','https','http-proxy','ssl','unknown')",
+                "AND service IN ('http','https','http-proxy','ssl','unknown',"
+                "'ssl/http','ssl/https','ssl/http-proxy','ssl/unknown','upnp')",
                 (host_id,),
             )
             ports = [str(r[0]) for r in c.fetchall()]
@@ -163,6 +158,7 @@ def feed_httpx(proj_path: str, nmap_dir: str):
             f.write(",".join(ports))
         count += 1
     console.print(f" [dim]↳ Feed httpx: {count} novos hosts[/dim]")
+
 
 
 def _feed_from_unscanned(proj_path: str, nmap_dir: str, tool_name: str, out_file: str = "alive_urls.txt"):
