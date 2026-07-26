@@ -177,6 +177,8 @@ def install_dnsrecon():
 
 
 def setup_isolated_venvs():
+    import shutil  # ← MOVED TO TOP, before any usage
+
     # === JS Finder venv ===
     if not os.path.exists(VENV_JSFINDER):
         run_cmd(f"python3 -m venv {VENV_JSFINDER}")
@@ -196,22 +198,16 @@ def setup_isolated_venvs():
     if not os.path.exists(VENV_DNSRECON):
         run_cmd(f"python3 -m venv {VENV_DNSRECON}")
     run_cmd(f"{VENV_DNSRECON}/bin/pip install --upgrade pip setuptools wheel -q")
-
-    # Install dnsrecon from git
     clone_dir = "/tmp/dnsrecon-install"
     if os.path.exists(clone_dir):
         shutil.rmtree(clone_dir, ignore_errors=True)
     run_cmd(f"git clone https://github.com/darkoperator/dnsrecon.git {clone_dir}")
     run_cmd(f"{VENV_DNSRECON}/bin/pip install {clone_dir} -q")
     shutil.rmtree(clone_dir, ignore_errors=True)
-
-    # Create wrapper script in bin so `dnsrecon` command is found first
     wrapper = f'#!/bin/bash\nsource "{VENV_DNSRECON}/bin/activate"\nexec dnsrecon "$@"\n'
     with open(f"{OPENPIPES_BIN}/dnsrecon", "w") as f:
         f.write(wrapper)
     run_cmd(f"chmod +x {OPENPIPES_BIN}/dnsrecon")
-
-    # Remove dnsrecon from core venv (it's now isolated)
     run_cmd(f"{VENV_CORE}/bin/pip uninstall dnsrecon -y -q 2>/dev/null || true")
 
     # === Core venv ===
@@ -219,10 +215,7 @@ def setup_isolated_venvs():
         run_cmd(f"python3 -m venv {VENV_CORE}")
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq textual cvss -q")
-
-    # Remove Python httpx from core venv (shadows Go httpx CLI)
     run_cmd(f"{VENV_CORE}/bin/pip uninstall httpx -y -q 2>/dev/null || true")
-    import shutil
     httpx_bin = os.path.join(VENV_CORE, "bin", "httpx")
     if os.path.exists(httpx_bin):
         os.remove(httpx_bin)
