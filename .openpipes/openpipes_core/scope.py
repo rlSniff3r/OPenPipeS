@@ -178,13 +178,8 @@ class ScopeManagerApp(App):
 
     def _refresh_selection(self) -> None:
         """Re-read the currently selected row and update the UI panel."""
-        dt = self.query_one("#hosts-table", DataTable)
-        if dt.cursor_row is None:
+        if self.selected_host_id is None:
             return
-        row_key = dt.get_row_key_at(dt.cursor_row)
-        if row_key is None:
-            return
-        self.selected_host_id = int(row_key.value)
 
         with db.get_connection(self.proj_path) as conn:
             cursor = conn.cursor()
@@ -206,6 +201,7 @@ class ScopeManagerApp(App):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Quando o usuário clica ou foca em um host."""
+        self.selected_host_id = int(event.row_key.value)
         self._refresh_selection()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -278,7 +274,7 @@ class ScopeManagerApp(App):
 
 # === Wrapper for CLI integration ===
 
-def run_scope_manager(proj_path: str):
+def interactive_scope(proj_path: str = None):
     """Wrapper called from cli.py."""
     app = ScopeManagerApp()
     app.run()
