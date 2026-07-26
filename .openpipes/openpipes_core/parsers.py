@@ -187,6 +187,7 @@ def process_httpx_json(cursor, json_file, source_name="httpx"):
             if host_id and not data.get('failed', False):
                 cursor.execute('UPDATE hosts SET is_alive = 1 WHERE id = ?', (host_id,))
 
+
             url = data.get('url', '')
             if url:
                 cursor.execute("""
@@ -320,6 +321,7 @@ def parse_nmap(proj_path, nmap_dir):
                             cursor.execute('UPDATE hosts SET whois_data = ? WHERE id = ?', (whois_data.strip(), host_id))
                             count_whois += 1
 
+                        # ── Insert ports from nmap ──
                         ports_node = host_node.find('ports')
                         if ports_node is not None:
                             for port in ports_node.findall('port'):
@@ -337,6 +339,37 @@ def parse_nmap(proj_path, nmap_dir):
                                         state=excluded.state, service=excluded.service, version=excluded.version
                                 """, (host_id, portid, protocol, state, service_name, f"{product} {version}".strip()))
                                 count_ports += 1
+
+                        # ── Propagate to sibling hostnames sharing this IP ──
+                        if ip and host_id:
+                            cursor.execute("SELECT id FROM hosts WHERE ips LIKE ? AND id != ?",
+                                           (f'%"{ip}"%', host_id))
+                            siblings = cursor.fetchall()
+                            if siblings:
+                                sibling_ids = [s['id'] for s in siblings]
+                                # Mark all siblings as alive
+                                placeholders = ','.join('?' for _ in sibling_ids)
+                                cursor.execute(f"""
+                                    UPDATE hosts SET is_alive = 1
+                                    WHERE id IN ({placeholders})
+                                """, sibling_ids)
+                                # Copy ports from scanned host to siblings
+                                cursor.execute(
+                                    "SELECT port, protocol, state, service, version FROM ports WHERE host_id = ?",
+                                    (host_id,)
+                                )
+                                ports_data = cursor.fetchall()
+                                for sid in sibling_ids:
+                                    for p in ports_data:
+                                        cursor.execute("""
+                                            INSERT INTO ports (host_id, port, protocol, state, service, version)
+                                            VALUES (?, ?, ?, ?, ?, ?)
+                                            ON CONFLICT(host_id, port, protocol) DO UPDATE SET
+                                                state = excluded.state,
+                                                service = excluded.service,
+                                                version = excluded.version
+                                        """, (sid, p['port'], p['protocol'], p['state'],
+                                              p['service'] or '', p['version'] or ''))
 
     console.print(f" [dim]↳ Parser Nmap: Inseriu {count_ports} portas abertas e extraiu {count_whois} dados de WHOIS.[/dim]")
 
