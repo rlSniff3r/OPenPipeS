@@ -215,27 +215,26 @@ def setup_isolated_venvs():
         run_cmd(f"python3 -m venv {VENV_CORE}")
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq textual cvss -q")
+    run_cmd(f"{VENV_CORE}/bin/pip uninstall dnsrecon httpx -y -q 2>/dev/null || true")
 
-    # Remove Python httpx (shadows Go httpx CLI)
-    run_cmd(f"{VENV_CORE}/bin/pip uninstall httpx -y -q 2>/dev/null || true")
+    # Physically remove any dnsrecon files from core venv
+    dnsrecon_bin = os.path.join(VENV_CORE, "bin", "dnsrecon")
+    if os.path.exists(dnsrecon_bin):
+        os.remove(dnsrecon_bin)
+    lib_dir = os.path.join(VENV_CORE, "lib")
+    for root, dirs, files in os.walk(lib_dir):
+        for d in dirs:
+            if d == "dnsrecon" or d.startswith("dnsrecon-"):
+                shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+
+    # Remove Python httpx library + binary from core venv
     httpx_bin = os.path.join(VENV_CORE, "bin", "httpx")
     if os.path.exists(httpx_bin):
         os.remove(httpx_bin)
-    lib_dir = os.path.join(VENV_CORE, "lib")
     for root, dirs, files in os.walk(lib_dir):
         for d in dirs:
             if d == "httpx" or d.startswith("httpx-"):
                 shutil.rmtree(os.path.join(root, d), ignore_errors=True)
-
-    # Remove stale dnsrecon binary from core venv
-    dnsrecon_bin = os.path.join(VENV_CORE, "bin", "dnsrecon")
-    if os.path.exists(dnsrecon_bin):
-        os.remove(dnsrecon_bin)
-
-    # Remove legacy .venv-core if it exists
-    legacy = f"{OPENPIPES_DIR}/.venv-core"
-    if os.path.exists(legacy):
-        shutil.rmtree(legacy, ignore_errors=True)
 
 
 def install_wordlists():
@@ -289,16 +288,12 @@ if [ -f "{HOME}/.openpipes/config.sh" ]; then source "{HOME}/.openpipes/config.s
         if os.path.exists(src_path):
             run_cmd(f"ln -sf '{src_path}' '{OPENPIPES_BIN}/{link}'")
 
-    # Core wrapper with httpx shadow protection
+    # Core wrapper with PATH reordering
     wrapper = f"""#!/bin/bash
-# Remove Python httpx if it sneaked into the venv (shadows Go httpx CLI)
-VENV_BIN="{VENV_CORE}/bin/httpx"
-if [ -f "$VENV_BIN" ] && ! strings "$VENV_BIN" 2>/dev/null | grep -q "ProjectDiscovery"; then
-    rm -f "$VENV_BIN"
-    find "{VENV_CORE}/lib" -name "httpx" -type d -exec rm -rf {{}} + 2>/dev/null || true
-fi
-
 source "{VENV_CORE}/bin/activate"
+# Ensure OPENPIPES_BIN and GOPATH/bin come BEFORE .venv/bin in PATH
+export PATH="$OPENPIPES_BIN:$GOPATH/bin:$PATH"
+
 python "{OPENPIPES_DIR}/openpipes_core/cli.py" "$@"
 deactivate
 """
