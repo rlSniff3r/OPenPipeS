@@ -64,7 +64,7 @@ def _ensure_port(cursor, host_id, port, protocol="tcp", service=None):
         pass
 
 
-def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None):
+def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None, skip_ip_correlation=False):
     if not host_target:
         return None
 
@@ -116,24 +116,26 @@ def get_or_create_host(cursor, host_target, ips_to_add=None, cnames_to_add=None)
             )
         return host_id
 
-    # Before creating a new host, check if any IP already belongs to an existing host
-    for ip in ips_to_add:
-        if is_ipv4(ip):
-            cursor.execute("SELECT id, ips FROM hosts WHERE ips LIKE ?", (f'%"{ip}"%',))
-            existing = cursor.fetchone()
-            if existing:
-                host_id = existing['id']
-                try:
-                    current_ips = json.loads(existing['ips']) if existing['ips'] else []
-                except Exception:
-                    current_ips = []
-                merged_ips = list(set(current_ips + [ip for ip in ips_to_add if is_ipv4(ip)]))
-                cursor.execute(
-                    'UPDATE hosts SET ips = ? WHERE id = ?',
-                    (json.dumps(merged_ips), host_id),
-                )
-                return host_id
+    # ── IP correlation for orphan IPs (skipped when skip_ip_correlation=True) ──
+    if not skip_ip_correlation:
+        for ip in ips_to_add:
+            if is_ipv4(ip):
+                cursor.execute("SELECT id, ips FROM hosts WHERE ips LIKE ?", (f'%"{ip}"%',))
+                existing = cursor.fetchone()
+                if existing:
+                    host_id = existing['id']
+                    try:
+                        current_ips = json.loads(existing['ips']) if existing['ips'] else []
+                    except Exception:
+                        current_ips = []
+                    merged_ips = list(set(current_ips + [ip for ip in ips_to_add if is_ipv4(ip)]))
+                    cursor.execute(
+                        'UPDATE hosts SET ips = ? WHERE id = ?',
+                        (json.dumps(merged_ips), host_id),
+                    )
+                    return host_id
 
+    # ── Create new host entry ──
     initial_ips = json.dumps([ip for ip in ips_to_add if ip and ip != clean_host and not is_ipv4(clean_host)])
     initial_cnames = json.dumps([c for c in cnames_to_add if c and c != clean_host])
     cursor.execute(
@@ -183,7 +185,7 @@ def process_httpx_json(cursor, json_file, source_name="httpx"):
             if host_str and ips and not is_ipv4(host_str):
                 resolved_in_httpx[host_str] = ips
 
-            host_id = get_or_create_host(cursor, host_str, ips, cnames)
+            host_id = get_or_create_host(cursor, host_str, ips, cnames, skip_ip_correlation=True)
             if host_id and not data.get('failed', False):
                 cursor.execute('UPDATE hosts SET is_alive = 1 WHERE id = ?', (host_id,))
 
@@ -296,6 +298,10 @@ def parse_nmap(proj_path, nmap_dir):
                     except Exception:
                         continue
 
+                    # Extract original target from folder name
+                    folder_name = os.path.basename(root)  # "nmap-www.randon.com.br"
+                    original_target = folder_name[5:] if folder_name.startswith("nmap-") else None
+
                     for host_node in tree.getroot().findall('host'):
                         ip = ""
                         hostname = ""
@@ -305,13 +311,37 @@ def parse_nmap(proj_path, nmap_dir):
                         for hostnames in host_node.findall('hostnames'):
                             for hname in hostnames.findall('hostname'):
                                 hostname = hname.get('name')
-                        target = hostname if hostname else ip
-                        if not target:
+                        xml_target = hostname if hostname else ip
+                        if not xml_target:
                             continue
 
-                        host_id = get_or_create_host(cursor, target, [ip] if ip else [])
-                        if host_id:
-                            cursor.execute('UPDATE hosts SET is_alive = 1 WHERE id = ?', (host_id,))
+                        # Use original scanned target as PRIMARY when available
+                        # (nmap XML often reports rDNS instead of the scanned hostname)
+                        if original_target and not is_ipv4(original_target) and original_target != xml_target:
+                            primary_target = original_target
+                        else:
+                            primary_target = xml_target
+
+                        # PRIMARY: Always create/update by exact hostname (bypass IP correlation)
+                        cursor.execute("INSERT OR IGNORE INTO hosts (host) VALUES (?)", (primary_target,))
+                        cursor.execute("UPDATE hosts SET is_alive = 1 WHERE host = ?", (primary_target,))
+                        cursor.execute("SELECT id, ips FROM hosts WHERE host = ?", (primary_target,))
+                        row = cursor.fetchone()
+                        if row:
+                            host_id = row["id"]
+                            current_ips = json.loads(row["ips"]) if row["ips"] else []
+                            if ip and ip not in current_ips:
+                                current_ips.append(ip)
+                                cursor.execute("UPDATE hosts SET ips = ? WHERE id = ?",
+                                            (json.dumps(current_ips), host_id))
+                        else:
+                            host_id = None
+
+                        # Also ensure the XML-reported hostname exists and is alive (rDNS)
+                        if xml_target != primary_target:
+                            sec_id = get_or_create_host(cursor, xml_target, [ip] if ip else [])
+                            if sec_id:
+                                cursor.execute('UPDATE hosts SET is_alive = 1 WHERE id = ?', (sec_id,))
 
                         whois_data = ""
                         for script in host_node.findall(".//script"):

@@ -127,6 +127,51 @@ def _cluster_by_hash(proj_path: str) -> int:
     return tagged
 
 
-def run_sync(proj_path: str, limit: int = None):
+def verify_endpoints(proj_path: str, limit: int = None):
     """Synchronous entry point called from cli.py."""
-    verify_endpoints(proj_path, limit)
+    import warnings
+    warnings.filterwarnings("ignore", message="Unverified HTTPS request")
+
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, url, host_id FROM endpoints
+            WHERE response_hash IS NULL
+              AND verified_at IS NULL
+              AND url LIKE 'http%'
+            ORDER BY id
+        """ + (" LIMIT ?" if limit else ""), (limit,) if limit else ())
+        to_verify = cursor.fetchall()
+
+    if not to_verify:
+        console.print(" [dim]↳ Verifier: Nenhum endpoint novo para verificar.[/dim]")
+        return
+
+    console.print(f" [dim]↳ Verifier: Verificando {len(to_verify)} endpoints...[/dim]")
+
+    def check_one(row):
+        try:
+            r = requests.get(row["url"], timeout=TIMEOUT, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/120",
+            }, allow_redirects=True)
+            return {
+                "id": row["id"],
+                "status_code": r.status_code,
+                "content_length": len(r.content),
+                "response_hash": _structural_hash(r.text),
+                "error": None,
+            }
+        except Exception as e:
+            return {"id": row["id"], "error": str(e)}
+
+    results = []
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(check_one, row): row for row in to_verify}
+        for i, future in enumerate(as_completed(futures), 1):
+            results.append(future.result())
+            if i % 500 == 0:
+                console.print(f"  [dim]{i}/{len(to_verify)}[/dim]")
+
+    _store_results(proj_path, results)
+    tagged = _cluster_by_hash(proj_path)
+    console.print(f" [dim]↳ Verifier: {len(results)} verificados, {tagged} FPs taggeados.[/dim]")
