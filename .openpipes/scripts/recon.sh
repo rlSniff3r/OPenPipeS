@@ -89,7 +89,7 @@ for domain in $(grep -v '^#' "$DOMAIN_FILE" | grep -v '^$'); do
   host -t txt $domain >> DNS-txt-all_domains; echo "" >> DNS-txt-all_domains
   host -t txt _dmarc.$domain >> DMARC-all_domains; echo "" >> DMARC-all_domains
   dnsrecon -d $domain -ak --threads 16 | tee $domain/$domain-dnsrecon
-  dnsrecon -d $domain -D $wordlist --threads 16 -t brt | tee $domain/$domain-subbrute
+  dnsrecon -d $domain -D $wordlist --threads 48 -t brt | tee $domain/$domain-subbrute
   cat $domain/$domain-subbrute | grep "A " | cut -d " " -f4 > $domain/$domain-subbrute.txt
   curl "https://api.securitytrails.com/v1/domain/$domain/subdomains" -H "apikey: $securitytrailskey" | jq | tail -n +8 | head -n -2 | cut -d "\"" -f2 | sed "s/$/.$domain/g" > $domain/$domain-securitytrails
   amass enum --passive -d $domain -o $domain/$domain-amass
