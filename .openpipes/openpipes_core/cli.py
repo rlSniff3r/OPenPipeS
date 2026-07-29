@@ -654,6 +654,9 @@ def main():
     backup_sub.add_parser("list", help="Listar backups")
     backup_sub.add_parser("restore", help="Restaurar backup")
 
+    # Web Dashboards
+    parser.add_argument("--host", default="127.0.0.1", help="Dashboard bind address")
+    parser.add_argument("--port", type=int, default=8080, help="Dashboard port")
 
     if len(sys.argv) == 1:
         interactive_menu()
@@ -757,6 +760,10 @@ def main():
                         selected = _fzf_select(backups, "Select backup:")
                         if selected:
                             bk.restore(selected[0], proj_path, nmap_dir)
+
+        elif args.command == "dashboard":
+            from dashboard import run_dashboard
+            run_dashboard(proj_path, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

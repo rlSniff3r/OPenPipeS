@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">⚠️ Vulnerabilidades</h2>
+
+<div class="row g-2 mb-3">
+  <div class="col-auto">
+    <select class="form-select" id="sevFilter" onchange="filterTable()">
+      <option value="">Todas as severidades</option>
+      {% for s in severities %}
+      <option value="{{ s }}">{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select class="form-select" id="enrichFilter" onchange="filterTable()">
+      <option value="">Todos os enriquecedores</option>
+      {% for e in enrichers %}
+      <option value="{{ e }}">{{ e }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col">
+    <input type="text" class="form-control" id="vulnSearch" placeholder="🔍 Buscar..." oninput="filterTable()">
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-striped table-hover" id="vulnTable">
+    <thead>
+      <tr>
+        <th>Título</th>
+        <th>Host</th>
+        <th>Severidade</th>
+        <th>CVSS</th>
+        <th>Vetor</th>
+        <th>CWE</th>
+        <th>CVE</th>
+        <th>Fonte</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for v in vulns %}
+      <tr>
+        <td><strong>{{ v.title[:70] }}</strong></td>
+        <td><small>{{ v.host[:30] }}</small></td>
+        <td>
+          {% set sev_class = {'Crítica':'critical','Alta':'high','Média':'medium','Baixa':'low','Info':'info'} %}
+          <span class="badge severity-{{ sev_class.get(v.severity, 'info') }}">{{ v.severity or 'N/A' }}</span>
+        </td>
+        <td><span class="badge badge-cvss bg-{% if v.cvss_score and v.cvss_score|float >= 9 %}danger{% elif v.cvss_score and v.cvss_score|float >= 7 %}warning{% else %}secondary{% endif %}">{{ v.cvss_score or 'N/A' }}</span></td>
+        <td><small class="text-muted">{{ v.cvss_vector[:30] if v.cvss_vector else '—' }}</small></td>
+        <td><small>{{ v.cwe_id or '—' }}</small></td>
+        <td><small>{{ v.cve_id or '—' }}</small></td>
+        <td><span class="badge bg-{{ 'primary' if v.enriched_by == 'cache' else 'success' if v.enriched_by == 'openai' else 'secondary' }}">{{ v.enriched_by or 'manual' }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable() {
+  const sev = document.getElementById('sevFilter').value.toLowerCase();
+  const enrich = document.getElementById('enrichFilter').value.toLowerCase();
+  const q = document.getElementById('vulnSearch').value.toLowerCase();
+  document.querySelectorAll('#vulnTable tbody tr').forEach(row => {
+    const sevMatch = !sev || row.cells[2].textContent.toLowerCase().includes(sev);
+    const enrichMatch = !enrich || row.cells[7].textContent.toLowerCase().includes(enrich);
+    const searchMatch = !q || row.textContent.toLowerCase().includes(q);
+    row.style.display = sevMatch && enrichMatch && searchMatch ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

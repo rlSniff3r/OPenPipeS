@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">🖥️ Inventário de Hosts</h2>
+
+<div class="mb-3">
+  <input type="text" class="form-control" id="hostSearch" placeholder="🔍 Filtrar por hostname..." oninput="filterTable()">
+</div>
+
+<div class="table-responsive">
+  <table class="table table-striped table-hover" id="hostTable">
+    <thead>
+      <tr>
+        <th>Host</th>
+        <th>IPs</th>
+        <th>Vivo</th>
+        <th>Escopo</th>
+        <th>Portas</th>
+        <th>Endpoints</th>
+        <th>Vulns</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for h in hosts %}
+      <tr>
+        <td><strong>{{ h.host }}</strong></td>
+        <td><small>{% set ips = h.ips | fromjson %}{{ ips[:3] | join(', ') }}{% if ips | length > 3 %}…{% endif %}</small></td>
+        <td>{{ '🟢' if h.is_alive else '⚫' }}</td>
+        <td>{{ '✅' if h.in_scope else '❌' }}</td>
+        <td><span class="badge bg-secondary">{{ h.ports }}</span></td>
+        <td><span class="badge bg-info">{{ h.endpoints }}</span></td>
+        <td>
+          {% if h.vulns > 0 %}
+            <span class="badge bg-danger">{{ h.vulns }}</span>
+          {% else %}
+            <span class="text-muted">0</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable() {
+  const q = document.getElementById('hostSearch').value.toLowerCase();
+  document.querySelectorAll('#hostTable tbody tr').forEach(row => {
+    row.style.display = row.cells[0].textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

@@ -214,7 +214,7 @@ def setup_isolated_venvs():
     if not os.path.exists(VENV_CORE):
         run_cmd(f"python3 -m venv {VENV_CORE}")
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
-    run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq textual cvss -q")
+    run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq textual cvss flask -q")
     run_cmd(f"{VENV_CORE}/bin/pip uninstall dnsrecon httpx -y -q 2>/dev/null || true")
 
     # Physically remove any dnsrecon files from core venv
