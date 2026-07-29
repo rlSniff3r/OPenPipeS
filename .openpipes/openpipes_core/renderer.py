@@ -484,6 +484,9 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     all_screenshots = report["screenshots"]
     report["screenshots"] = all_screenshots[:3]
 
+    # ── Add endpoint count to frontmatter ──
+    report["endpoint_count"] = len(report["endpoints"])
+
     # 1. Target note (inline: max 3 screenshots)
     target_md = env.get_template("target.j2").render(
         target=report, groups=groups, group_names=group_names,

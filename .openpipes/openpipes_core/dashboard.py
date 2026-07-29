@@ -14,6 +14,30 @@ HOME = str(Path.home())
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(HERE, "dashboard_templates")
 
+def _sync_scope_from_domains(proj_path):
+    """Set in_scope=1 only for hosts matching domains in domains.txt."""
+    domains_file = os.path.join(proj_path, "domains.txt")
+    if not os.path.exists(domains_file):
+        return 0
+    
+    with open(domains_file) as f:
+        domains = [line.strip().lower() for line in f if line.strip() and not line.startswith("#")]
+    
+    if not domains:
+        return 0
+    
+    updated = 0
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, host FROM hosts")
+            for row in cursor.fetchall():
+                host = row["host"].lower()
+                in_scope = any(host == d or host.endswith("." + d) for d in domains)
+                cursor.execute("UPDATE hosts SET in_scope = ? WHERE id = ?", (1 if in_scope else 0, row["id"]))
+                updated += 1
+    return updated
+
 
 def _get_proj_path():
     config_file = os.path.join(HOME, ".openpipes", "config.sh")
@@ -42,8 +66,10 @@ def _top_vulns(cursor, limit=5):
 
 
 def create_app(proj_path=None):
+    pp = proj_path or _get_proj_path()
+    _sync_scope_from_domains(pp)  # ← add this
     app = Flask(__name__, template_folder=TEMPLATE_DIR)
-    app.config["proj_path"] = proj_path or _get_proj_path()
+    app.config["proj_path"] = pp
 
     # ─── Overview ────────────────────────────────────────────
     @app.route("/")
@@ -62,7 +88,7 @@ def create_app(proj_path=None):
             c.execute("SELECT COALESCE(severity,'N/A') as s, COUNT(*) as c FROM vulnerabilities GROUP BY s ORDER BY c DESC")
             stats["vulns_by_severity"] = {r["s"]: r["c"] for r in c.fetchall()}
 
-            c.execute("SELECT module_name, started_at, status FROM execution_logs ORDER BY started_at DESC LIMIT 8")
+            c.execute("SELECT module_name, start_time as started_at, status FROM execution_logs ORDER BY start_time DESC LIMIT 8")
             stats["recent_scans"] = [dict(r) for r in c.fetchall()]
 
             stats["top_vulns"] = _top_vulns(c, 5)
@@ -94,6 +120,14 @@ def create_app(proj_path=None):
                 FROM hosts h ORDER BY h.host
             """)
             rows = [dict(r) for r in c.fetchall()]
+
+            # Parse IPs from JSON string to Python list
+            for row in rows:
+                try:
+                    row["ips_list"] = json.loads(row["ips"]) if row["ips"] else []
+                except Exception:
+                    row["ips_list"] = []
+
         return render_template("hosts.html", hosts=rows)
 
     @app.route("/api/hosts")

@@ -654,9 +654,10 @@ def main():
     backup_sub.add_parser("list", help="Listar backups")
     backup_sub.add_parser("restore", help="Restaurar backup")
 
-    # Web Dashboards
-    parser.add_argument("--host", default="127.0.0.1", help="Dashboard bind address")
-    parser.add_argument("--port", type=int, default=8080, help="Dashboard port")
+    # Web Dashboard subcommand
+    dashboard_parser = subparsers.add_parser("dashboard", help="Start web dashboard")
+    dashboard_parser.add_argument("--host", default="127.0.0.1", help="Bind address (use 0.0.0.0 for LAN)")
+    dashboard_parser.add_argument("--port", type=int, default=8080, help="Port")
 
     if len(sys.argv) == 1:
         interactive_menu()
@@ -763,7 +764,17 @@ def main():
 
         elif args.command == "dashboard":
             from dashboard import run_dashboard
-            run_dashboard(proj_path, host=args.host, port=args.port)
+            from pathlib import Path
+            import subprocess
+            # Resolve proj_path inline
+            config_file = Path.home() / ".openpipes" / "config.sh"
+            if config_file.exists():
+                cmd = f"source {config_file} && echo -n \"$proj_path\""
+                r = subprocess.run(cmd, shell=True, capture_output=True, text=True, executable="/bin/bash")
+                pp = r.stdout.strip() or None
+            else:
+                pp = None
+            run_dashboard(pp, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

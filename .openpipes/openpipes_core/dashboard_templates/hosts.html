@@ -10,20 +10,20 @@
   <table class="table table-striped table-hover" id="hostTable">
     <thead>
       <tr>
-        <th>Host</th>
-        <th>IPs</th>
-        <th>Vivo</th>
-        <th>Escopo</th>
-        <th>Portas</th>
-        <th>Endpoints</th>
-        <th>Vulns</th>
+        <th data-type="text" class="sortable" onclick="sortTable(0)">Host ▲</th>
+        <th data-type="text">IPs</th>
+        <th data-type="number" class="sortable" onclick="sortTable(2)">Vivo ▲</th>
+        <th data-type="number" class="sortable" onclick="sortTable(3)">Escopo ▲</th>
+        <th data-type="number" class="sortable" onclick="sortTable(4)">Portas ▲</th>
+        <th data-type="number" class="sortable" onclick="sortTable(5)">Endpoints ▲</th>
+        <th data-type="number" class="sortable" onclick="sortTable(6)">Vulns ▲</th>
       </tr>
     </thead>
     <tbody>
     {% for h in hosts %}
       <tr>
         <td><strong>{{ h.host }}</strong></td>
-        <td><small>{% set ips = h.ips | fromjson %}{{ ips[:3] | join(', ') }}{% if ips | length > 3 %}…{% endif %}</small></td>
+        <td><small>{{ h.ips_list[:3] | join(', ') }}{% if h.ips_list | length > 3 %}…{% endif %}</small></td>
         <td>{{ '🟢' if h.is_alive else '⚫' }}</td>
         <td>{{ '✅' if h.in_scope else '❌' }}</td>
         <td><span class="badge bg-secondary">{{ h.ports }}</span></td>
@@ -43,6 +43,12 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+  .sortable { cursor: pointer; user-select: none; }
+  .sortable:hover { background: rgba(255,255,255,0.1); }
+  th.sortable.asc::after { content: ' ▲'; }
+  th.sortable.desc::after { content: ' ▼'; }
+</style>
 <script>
 function filterTable() {
   const q = document.getElementById('hostSearch').value.toLowerCase();
@@ -50,5 +56,37 @@ function filterTable() {
     row.style.display = row.cells[0].textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 }
+
+function sortTable(col) {
+  const table = document.getElementById('hostTable');
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const th = table.querySelectorAll('th')[col];
+  const isAsc = th.classList.contains('asc');
+
+  table.querySelectorAll('.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+
+  rows.sort((a, b) => {
+    let va = a.cells[col]?.textContent.trim() || '';
+    let vb = b.cells[col]?.textContent.trim() || '';
+    
+    if (th.dataset.type === 'number') {
+      va = parseFloat(va) || 0;
+      vb = parseFloat(vb) || 0;
+    } else if (col === 2) { // Vivo — emoji to numeric
+      va = va === '🟢' ? 1 : 0;
+      vb = vb === '🟢' ? 1 : 0;
+    } else if (col === 3) { // Escopo — emoji to numeric
+      va = va === '✅' ? 1 : 0;
+      vb = vb === '✅' ? 1 : 0;
+    }
+    
+    return isAsc ? va - vb : vb - va;
+  });
+
+  rows.forEach(row => tbody.appendChild(row));
+  th.classList.add(isAsc ? 'desc' : 'asc');
+}
 </script>
 {% endblock %}
+
