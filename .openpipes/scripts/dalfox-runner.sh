@@ -17,10 +17,9 @@ for d in "$NMAP_DIR"/nmap-*/; do
         while IFS= read -r url || [ -n "$url" ]; do
             [ -z "$url" ] && continue
             echo "    ↳ $url"
-            dalfox url "$url" \
-                --worker 150 \
+            dalfox scan "$url" \
+                --workers 150 \
                 --remote-payloads portswigger,payloadbox \
-                --deep-domxss \
                 --format json \
                 >> "$OUT_FILE"
         done < "$TARGET_FILE"
@@ -28,3 +27,4 @@ for d in "$NMAP_DIR"/nmap-*/; do
 done
 
 echo -e "\e[32m[✔]\e[0m Dalfox finalizado."
+    

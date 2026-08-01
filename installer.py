@@ -186,7 +186,7 @@ def install_dalfox():
     run_cmd(f"tar -xzf {tarball} -C /tmp/")
     run_cmd(f"mv /tmp/dalfox-*/dalfox {OPENPIPES_BIN}/dalfox")
     run_cmd(f"chmod +x {OPENPIPES_BIN}/dalfox")
-    run_cmd(f"rm -f /tmp/dalfox*")
+    run_cmd(f"rm -rf /tmp/dalfox*")
 
 
 def setup_isolated_venvs():
