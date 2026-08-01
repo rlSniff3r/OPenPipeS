@@ -152,8 +152,6 @@ def install_rust_and_ferox():
         run_cmd("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q")
     if not shutil.which("feroxbuster"):
         run_cmd(f"{HOME}/.cargo/bin/cargo install feroxbuster")
-    if not shutil.which("dalfox"):
-        run_cmd(f"{HOME}/.cargo/bin/cargo install dalfox")
 
 
 def install_amass():
@@ -325,6 +323,7 @@ def main():
         ("GF...", lambda: install_go_tool("github.com/tomnomnom/gf@latest")),
         ("RDAP...", lambda: install_go_tool("github.com/openrdap/rdap/cmd/rdap@latest")),
         ("Gowitness...", lambda: install_go_tool("github.com/sensepost/gowitness@latest")),
+        ("Dalfox...", lambda: install_go_tool("github.com/hahwul/dalfox/v2@latest")),
         ("Rust + Feroxbuster...", install_rust_and_ferox),
         ("Amass...", install_amass),
         ("VENVs...", setup_isolated_venvs),
