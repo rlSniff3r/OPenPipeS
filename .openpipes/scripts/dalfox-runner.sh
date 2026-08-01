@@ -18,9 +18,7 @@ for d in "$NMAP_DIR"/nmap-*/; do
             [ -z "$url" ] && continue
             echo "    ↳ $url"
             dalfox url "$url" \
-                --worker 50 \
-                --delay 90 \
-                --timeout 10 \
+                --worker 150 \
                 --remote-payloads portswigger,payloadbox \
                 --deep-domxss \
                 --format json \

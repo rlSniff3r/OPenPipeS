@@ -176,6 +176,28 @@ def install_dnsrecon():
     shutil.rmtree(clone_dir, ignore_errors=True)
 
 
+def install_dalfox(install_dir):
+    """Download latest dalfox binary release."""
+    import urllib.request
+    import tarfile
+
+    url = "https://github.com/hahwul/dalfox/releases/download/v3.1.2/dalfox-v3.1.2-linux-x86_64.tar.gz"
+    tarball = "/tmp/dalfox.tar.gz"
+    bin_dir = os.path.join(install_dir, "bin")
+
+    try:
+        urllib.request.urlretrieve(url, tarball)
+        with tarfile.open(tarball, "r:gz") as tar:
+            tar.extract("dalfox", path="/tmp/")
+        shutil.move("/tmp/dalfox", os.path.join(bin_dir, "dalfox"))
+        os.chmod(os.path.join(bin_dir, "dalfox"), 0o755)
+        os.remove(tarball)
+        return True
+    except Exception as e:
+        print(f"  [red]✖ Dalfox download failed: {e}[/red]")
+        return False
+
+
 def setup_isolated_venvs():
     import shutil  # ← MOVED TO TOP, before any usage
 
@@ -323,7 +345,7 @@ def main():
         ("GF...", lambda: install_go_tool("github.com/tomnomnom/gf@latest")),
         ("RDAP...", lambda: install_go_tool("github.com/openrdap/rdap/cmd/rdap@latest")),
         ("Gowitness...", lambda: install_go_tool("github.com/sensepost/gowitness@latest")),
-        ("Dalfox...", lambda: install_go_tool("github.com/hahwul/dalfox/v2@latest")),
+        ("Dalfox...", lambda: install_dalfox(OPENPIPES_BIN)),
         ("Rust + Feroxbuster...", install_rust_and_ferox),
         ("Amass...", install_amass),
         ("VENVs...", setup_isolated_venvs),
