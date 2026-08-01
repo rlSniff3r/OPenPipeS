@@ -184,9 +184,9 @@ def install_dalfox():
     os.makedirs(OPENPIPES_BIN, exist_ok=True)
     run_cmd(f"wget -q {url} -O {tarball}")
     run_cmd(f"tar -xzf {tarball} -C /tmp/")
-    run_cmd(f"mv /tmp/dalfox {OPENPIPES_BIN}/dalfox")
+    run_cmd(f"mv /tmp/dalfox-*/dalfox {OPENPIPES_BIN}/dalfox")
     run_cmd(f"chmod +x {OPENPIPES_BIN}/dalfox")
-    run_cmd(f"rm -f {tarball}")
+    run_cmd(f"rm -f /tmp/dalfox*")
 
 
 def setup_isolated_venvs():
