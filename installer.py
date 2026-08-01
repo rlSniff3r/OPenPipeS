@@ -152,6 +152,8 @@ def install_rust_and_ferox():
         run_cmd("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q")
     if not shutil.which("feroxbuster"):
         run_cmd(f"{HOME}/.cargo/bin/cargo install feroxbuster")
+    if not shutil.which("dalfox"):
+        run_cmd(f"{HOME}/.cargo/bin/cargo install dalfox")
 
 
 def install_amass():
@@ -282,6 +284,7 @@ if [ -f "{HOME}/.openpipes/config.sh" ]; then source "{HOME}/.openpipes/config.s
         "gf-summary.sh": "gf-summary", "whois-enricher.sh": "whois-enricher",
         "screenshot-runner.sh": "screenshot-runner",
         "init-openpipes.sh": "init-openpipes",
+        "dalfox-runner.sh": "dalfox-runner",
     }
     for src, link in symlinks.items():
         src_path = f"{OPENPIPES_SCRIPTS}/{src}"
