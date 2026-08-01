@@ -807,7 +807,7 @@ def parse_dalfox(proj_path, nmap_dir):
 
             for root, dirs, files in os.walk(nmap_dir):
                 for file in files:
-                    if file != "dalfox_output.json":
+                    if not (file.startswith("dalfox_output") and file.endswith(".json")):
                         continue
 
                     target_name = os.path.basename(root)[5:]  # strip "nmap-"
@@ -873,7 +873,6 @@ def parse_dalfox(proj_path, nmap_dir):
                         pass
 
     console.print(f" [dim]↳ Parser Dalfox: Inseriu {count} novas vulnerabilidades (XSS).[/dim]")
-
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1103,6 +1102,8 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
                 files = []
                 if tool_name in ("ferox",):
                     files = glob.glob(os.path.join(target_dir, "ferox_*.jsonl"))
+                elif tool_name == "dalfox":
+                    files = glob.glob(os.path.join(target_dir, "dalfox_output_*.json"))
                 elif tool_name in ("katana", "crawled"):
                     f = os.path.join(target_dir, "crawled_all.jsonl")
                     if os.path.exists(f):
