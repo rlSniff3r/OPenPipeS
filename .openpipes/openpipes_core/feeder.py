@@ -331,6 +331,7 @@ def feed_all(proj_path: str, nmap_dir: str):
     feed_gf(proj_path, nmap_dir)
     feed_screenshot(proj_path, nmap_dir)
     feed_nuclei(proj_path, nmap_dir)
+    feed_dalfox(proj_path, nmap_dir)
 
     # NEW: build contextual wordlists for feroxbuster
     import context_wordlist_builder

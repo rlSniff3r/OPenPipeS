@@ -1187,6 +1187,9 @@ def dispatch(module_name, proj_path, nmap_dir):
     elif module_name == "nuclei-runner":
         parse_nuclei(proj_path, nmap_dir)
         _mark_scanned_by_url(proj_path, nmap_dir, "nuclei")
+    elif module_name == "dalfox-runner":
+        parse_dalfox(proj_path, nmap_dir)
+        _mark_scanned_by_url(proj_path, nmap_dir, "dalfox")
     else:
         console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")
 
