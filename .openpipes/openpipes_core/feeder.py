@@ -282,6 +282,46 @@ def feed_nwrapper_retry(proj_path: str, nmap_dir: str):
     console.print(f" [dim]↳ Feed nwrapper retry: {len(by_host)} hosts, {total_ports} portas → targets_retry.txt[/dim]")
 
 
+def feed_dalfox(proj_path: str, nmap_dir: str):
+    """Feed only param-bearing URLs (non-static) to dalfox."""
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT h.id, h.host, e.url
+            FROM endpoints e
+            JOIN hosts h ON e.host_id = h.id
+            WHERE h.is_alive = 1 AND h.in_scope = 1
+              AND e.url LIKE '%?%'
+              AND e.url NOT LIKE '%.js%'
+              AND e.url NOT LIKE '%.css%'
+              AND e.url NOT LIKE '%.png%'
+              AND e.url NOT LIKE '%.jpg%'   AND e.url NOT LIKE '%.jpeg%'
+              AND e.url NOT LIKE '%.gif%'   AND e.url NOT LIKE '%.svg%'
+              AND e.url NOT LIKE '%.ico%'
+              AND e.url NOT LIKE '%.woff%'  AND e.url NOT LIKE '%.woff2%'
+              AND e.url NOT LIKE '%.ttf%'   AND e.url NOT LIKE '%.eot%'
+              AND e.url NOT LIKE '%.pdf%'
+            ORDER BY h.host, e.url
+        """)
+        rows = cursor.fetchall()
+
+    # Group by host
+    host_urls: dict[str, list[str]] = {}
+    for r in rows:
+        host_urls.setdefault(r["host"], []).append(r["url"])
+
+    count = 0
+    for host, urls in host_urls.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        with open(os.path.join(target_dir, "dalfox_targets.txt"), "w") as f:
+            for u in urls:
+                f.write(f"{u}\n")
+        count += len(urls)
+
+    console.print(f" [dim]↳ Feed Dalfox: {count} URLs com parâmetros para {len(host_urls)} hosts.[/dim]")
+
+
 def feed_all(proj_path: str, nmap_dir: str):
     feed_nwrapper(proj_path, nmap_dir, cycle=True)
     feed_httpx(proj_path, nmap_dir)

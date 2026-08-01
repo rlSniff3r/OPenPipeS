@@ -104,6 +104,13 @@ def run_bash_module(module_name, extra_args=None):
         os.makedirs(run_cwd, exist_ok=True)
         cmd_args = "-f targets.txt"
 
+    elif module_name == "dalfox":
+        subprocess.run(
+            ["bash", os.path.join(TOOLS_DIR, "dalfox-runner.sh")],
+            cwd=proj_path,
+        )
+        parsers.parse_dalfox(proj_path, nmap_dir)
+
     # Append extra CLI arguments (e.g.: -f targets_retry.txt)
     if extra_args:
         cmd_args += " " + " ".join(extra_args)
@@ -387,7 +394,7 @@ Framework de Reconhecimento v2.0
             "1": "recon", "2": "nwrapper", "3": "cria-alvos",
             "4": "httpx-runner", "5": "katana-runner", "6": "feroxbuster-runner",
             "7": "katana-buster", "8": "jsfinder-runner", "9": "screenshot-runner",
-            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner",
+            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "22": "dalfox-runner"
         }
 
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]MÓDULOS DE PENTEST[/bold cyan]")
@@ -504,6 +511,7 @@ def run_reparse_all():
         ("screenshots", lambda: parsers.parse_screenshot(proj_path, nmap_dir)),
         ("nuclei",     lambda: parsers.parse_nuclei(proj_path, nmap_dir_path)),
         ("whois",      lambda: parsers.parse_whois_enrichment(proj_path, nmap_dir_path)),
+        ("dalfox",       lambda: parsers.parse_dalfox(proj_path, nmap_dir_path)),  # ← add this
     ]
 
     for name, fn in modules:
@@ -775,6 +783,13 @@ def main():
             else:
                 pp = None
             run_dashboard(pp, host=args.host, port=args.port)
+
+        elif args.command == "dalfox":
+            subprocess.run(
+                ["bash", os.path.join(TOOLS_DIR, "dalfox-runner.sh")],
+                cwd=proj_path,
+            )
+            parsers.parse_dalfox(proj_path, nmap_dir)
 
 
 if __name__ == "__main__":

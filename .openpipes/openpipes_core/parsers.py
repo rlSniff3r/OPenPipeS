@@ -798,6 +798,84 @@ def parse_nuclei(proj_path, nmap_dir):
     console.print(f" [dim]↳ Parser Nuclei: Inseriu {count} vulnerabilidades.[/dim]")
 
 
+def parse_dalfox(proj_path, nmap_dir):
+    """Parse dalfox JSONL output into vulnerabilities table."""
+    count = 0
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+
+            for root, dirs, files in os.walk(nmap_dir):
+                for file in files:
+                    if file != "dalfox_output.json":
+                        continue
+
+                    target_name = os.path.basename(root)[5:]  # strip "nmap-"
+                    host_id = get_or_create_host(cursor, target_name, skip_ip_correlation=True)
+                    if not host_id:
+                        continue
+
+                    filepath = os.path.join(root, file)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                try:
+                                    data = json.loads(line)
+                                except json.JSONDecodeError:
+                                    continue
+
+                                # Skip non-vulnerability lines (info, safe, etc.)
+                                if data.get("type") not in ("vulnerability",):
+                                    continue
+
+                                param = data.get("data", {}).get("param", "unknown")
+                                poc = data.get("data", {}).get("poc", "")
+                                payload = data.get("data", {}).get("payload", "")
+                                vuln_type = data.get("data", {}).get("type", "XSS")
+                                severity = data.get("data", {}).get("severity", "Alta")
+                                cwe = data.get("data", {}).get("cwe", "")
+                                ref = data.get("data", {}).get("ref", "")
+
+                                title = f"{vuln_type} in parameter: {param}"
+                                desc_parts = []
+                                if payload:
+                                    desc_parts.append(f"**Payload:** `{payload}`")
+                                if cwe:
+                                    desc_parts.append(f"**CWE:** {cwe}")
+                                if ref:
+                                    desc_parts.append(f"**References:** {ref}")
+                                description = "\n\n".join(desc_parts) if desc_parts else f"XSS detected via parameter `{param}`."
+
+                                # Map dalfox severity to our severity scale
+                                sev_map = {
+                                    "Critical": "Crítica",
+                                    "High": "Alta",
+                                    "Medium": "Média",
+                                    "Low": "Baixa",
+                                    "Info": "Info",
+                                }
+                                mapped_severity = sev_map.get(severity, "Média")
+
+                                cursor.execute("""
+                                    INSERT INTO vulnerabilities
+                                        (host_id, title, severity, description, evidence,
+                                         source_tool, status, enriched_by)
+                                    VALUES (?, ?, ?, ?, ?, 'dalfox', 'open', NULL)
+                                    ON CONFLICT(host_id, title) DO NOTHING
+                                """, (host_id, title, mapped_severity, description, poc))
+
+                                if cursor.rowcount > 0:
+                                    count += 1
+                    except FileNotFoundError:
+                        pass
+
+    console.print(f" [dim]↳ Parser Dalfox: Inseriu {count} novas vulnerabilidades (XSS).[/dim]")
+
+
+
 # ═════════════════════════════════════════════════════════════════════
 # PARSE_WHOIS_ENRICHMENT
 # ═════════════════════════════════════════════════════════════════════
