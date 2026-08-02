@@ -55,6 +55,26 @@ def _get_openai_key() -> Optional[str]:
         pass
     return None
 
+def _get_nvd_api_key():
+    """Read NVD API key from secrets.conf (supports export KEY=\"value\" format)."""
+    secrets = os.path.expanduser("~/.openpipes/secrets.conf")
+    if os.path.exists(secrets):
+        with open(secrets) as f:
+            for line in f:
+                line = line.strip()
+                # Match both "NVD_API_KEY=..." and "export NVD_API_KEY=..."
+                if line.startswith("NVD_API_KEY=") or line.startswith("export NVD_API_KEY="):
+                    key = line.split("=", 1)[1].strip()
+                    # Strip surrounding quotes if present
+                    key = key.strip('"').strip("'")
+                    return key
+    return None
+
+def _extract_cve_id(text: str) -> str | None:
+    """Extract a CVE ID (CVE-YYYY-NNNN) from a string, or None."""
+    m = re.search(r"CVE-\d{4}-\d{4,7}", text or "")
+    return m.group(0) if m else None
+
 def _extract_cwe(references: list) -> str:
     """Extrai o ID da CWE baseando-se na URL."""
     if not references:
@@ -117,6 +137,7 @@ class VulnEnricherApp(App):
         self.pending_vulns = []
         self.selected_vuln_id = None
         self.selected_vuln_data = None
+        self.selected_cve_id = None
         
     def compose(self) -> ComposeResult:
         yield Header()
@@ -136,6 +157,7 @@ class VulnEnricherApp(App):
                     with Horizontal(classes="btn-row"):
                         yield Button("Aplicar Cache Selecionado", id="btn-apply-cache", variant="success")
                         yield Button("Gerar com OpenAI", id="btn-openai", variant="primary")
+                        yield Button("Gerar com NVD", id="btn-nvd", variant="primary")
                         yield Label("", id="enrich-status")
             
             # ======= ABA 2: INSERÇÃO MANUAL =======
@@ -161,11 +183,50 @@ class VulnEnricherApp(App):
         """Inicializa as tabelas e dados quando o TUI abre."""
         # Esconde o painel de ações de enriquecimento no início
         self.query_one("#panel-enrich").display = False
-        
+        self.query_one("#btn-nvd").display = False
         self.load_pending_vulns()
         self.load_active_hosts()
 
     # ================= LOGICA DA ABA 1: ENRIQUECIMENTO =================
+
+    def _normalize_nvd_data(self, cve_id: str, cve: dict) -> dict:
+    """Map NVD API JSON to the project's cache JSON format."""
+    # Description (English)
+    description = ""
+    for d in cve.get("descriptions", []):
+        if d.get("lang") == "en":
+            description = d.get("value", "")
+            break
+
+    # CVSS v3.1 vector (fall back to v3.0)
+    vector = ""
+    metrics = cve.get("metrics", {})
+    for key in ("cvssMetricV31", "cvssMetricV30"):
+        if metrics.get(key):
+            vector = metrics[key][0].get("cvssData", {}).get("vectorString", "")
+            break
+
+    # CWEs
+    cwes = []
+    for w in cve.get("weaknesses", []):
+        for d in w.get("description", []):
+            val = d.get("value", "")
+            if val.startswith("CWE-"):
+                cwes.append(val)
+
+    # References
+    refs = [r.get("url", "") for r in cve.get("references", []) if r.get("url")]
+
+    return {
+        "title": cve_id,
+        "cvssv3": vector,
+        "description": description,
+        "observation": ", ".join(cwes),
+        "remediation": "",
+        "references": refs,
+        "cve_id": cve_id,
+    }
+
 
     def load_pending_vulns(self):
         """Carrega vulnerabilidades do nuclei que precisam de enriquecimento[cite: 3]."""
@@ -224,6 +285,19 @@ class VulnEnricherApp(App):
             candidates.append((score, cache_key))
             
         candidates.sort(reverse=True, key=lambda x: x[0])
+
+        # Detect CVE → show/hide NVD button
+        self.selected_cve_id = (
+            _extract_cve_id(self.selected_vuln_data["name"])
+            or _extract_cve_id(self.selected_vuln_data.get("desc", ""))
+        )
+        nvd_btn = self.query_one("#btn-nvd", Button)
+        if self.selected_cve_id:
+            nvd_btn.display = True
+            nvd_btn.label = f"Gerar com NVD ({self.selected_cve_id})"
+        else:
+            nvd_btn.display = False
+
         
         # Atualiza o dropdown com os candidatos ordenados por relevância
         select = self.query_one("#select-cache-match", Select)
@@ -282,6 +356,59 @@ class VulnEnricherApp(App):
         if not api_key:
             self.call_from_thread(self.query_one("#enrich-status", Label).update, "[red]Erro: OPENAI_API_KEY não encontrada em secrets.conf.[/red]")
             return
+    
+        @work(exclusive=True, thread=True)
+    def fetch_nvd_enrichment(self, cve_id: str):
+        """Fetch CVE data from NVD API in background, cache it, auto-apply."""
+        api_key = _get_nvd_api_key()
+        url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
+        if api_key:
+            url += f"&apiKey={api_key}"
+
+        try:
+            r = requests.get(url, timeout=15)
+            if r.status_code == 403:
+                self.call_from_thread(
+                    self.query_one("#enrich-status", Label).update,
+                    "[red]NVD rate limit (403). Adicione NVD_API_KEY em secrets.conf para mais cota.[/red]",
+                )
+                return
+            if r.status_code == 404:
+                self.call_from_thread(
+                    self.query_one("#enrich-status", Label).update,
+                    f"[yellow]CVE {cve_id} não encontrado na NVD.[/yellow]",
+                )
+                return
+            r.raise_for_status()
+
+            vulns = r.json().get("vulnerabilities", [])
+            if not vulns:
+                self.call_from_thread(
+                    self.query_one("#enrich-status", Label).update,
+                    f"[yellow]NVD retornou vazio para {cve_id}.[/yellow]",
+                )
+                return
+
+            cve = vulns[0]["cve"]
+            normalized = self._normalize_nvd_data(cve_id, cve)
+
+            # Store in cache folder
+            cache_dir = Path.home() / ".openpipes_cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_path = cache_dir / f"{cve_id.lower()}.json"
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(normalized, f, indent=2, ensure_ascii=False)
+
+            # Update in-memory cache + auto-apply
+            self.cache_data[cve_id] = normalized
+            self.call_from_thread(self.apply_enrichment, normalized, 'nvd')
+
+        except Exception as e:
+            self.call_from_thread(
+                self.query_one("#enrich-status", Label).update,
+                f"[red]Erro na API NVD: {e}[/red]",
+            )
+
             
         prompt = f"""Gere um JSON com dados de vulnerabilidade para: "{vuln_name}"
 Descrição: {description}
@@ -332,6 +459,11 @@ Responda apenas com o JSON, sem formatação extra."""
                 self.query_one("#enrich-status", Label).update("[yellow]⏳ Solicitando IA da OpenAI. Aguarde...[/yellow]")
                 # Dispara a Thread
                 self.fetch_openai_enrichment(self.selected_vuln_data["name"], self.selected_vuln_data["desc"])
+
+        elif event.button.id == "btn-nvd":          # ← ADD
+            if self.selected_cve_id:
+                self.query_one("#enrich-status", Label).update(f"[yellow]⏳ Consultando NVD ({self.selected_cve_id}). Aguarde...[/yellow]")
+                self.fetch_nvd_enrichment(self.selected_cve_id)
 
         # Botão da Aba 2 (Inserção Manual)
         elif event.button.id == "btn-insert-manual":
