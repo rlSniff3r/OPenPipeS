@@ -193,6 +193,46 @@ def feed_ferox(proj_path: str, nmap_dir: str):
     _feed_from_unscanned(proj_path, nmap_dir, "ferox", "ferox_urls.txt")
 
 
+def feed_arjun(proj_path: str, nmap_dir: str):
+    """Feed unscanned endpoints to Arjun (skip already-scanned, skip URLs with visible params)."""
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT e.id, h.host, e.url
+            FROM endpoints e
+            JOIN hosts h ON e.host_id = h.id
+            WHERE h.is_alive = 1 AND h.in_scope = 1
+              AND e.status_code IN (200, 301, 302, 403, 500)
+              AND (e.scanned_by IS NULL OR e.scanned_by NOT LIKE '%arjun%')
+              AND e.url NOT LIKE '%?%'
+              AND e.url NOT LIKE '%.png%'
+              AND e.url NOT LIKE '%.jpg%'   AND e.url NOT LIKE '%.jpeg%'
+              AND e.url NOT LIKE '%.gif%'   AND e.url NOT LIKE '%.svg%'
+              AND e.url NOT LIKE '%.ico%'   AND e.url NOT LIKE '%.webp%'
+              AND e.url NOT LIKE '%.bmp%'
+              AND e.url NOT LIKE '%.css%'
+              AND e.url NOT LIKE '%.woff%'  AND e.url NOT LIKE '%.woff2%'
+              AND e.url NOT LIKE '%.ttf%'   AND e.url NOT LIKE '%.eot%'
+            ORDER BY h.host, e.url
+        """)
+        rows = cursor.fetchall()
+
+    host_urls: dict[str, list[str]] = {}
+    for r in rows:
+        host_urls.setdefault(r["host"], []).append(r["url"])
+
+    count = 0
+    for host, urls in host_urls.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        with open(os.path.join(target_dir, "arjun_targets.txt"), "w") as f:
+            for u in urls:
+                f.write(f"{u}\n")
+        count += len(urls)
+
+    console.print(f" [dim]↳ Feed Arjun: {count} endpoints para {len(host_urls)} hosts.[/dim]")
+
+
 def feed_jsfinder(proj_path: str, nmap_dir: str):
     rows = _get_unscanned(proj_path, "jsfinder")
     js_rows = [r for r in rows if r["url"].lower().endswith(".js") or ".js?" in r["url"].lower()]
@@ -330,6 +370,7 @@ def feed_all(proj_path: str, nmap_dir: str):
     feed_screenshot(proj_path, nmap_dir)
     feed_nuclei(proj_path, nmap_dir)
     feed_dalfox(proj_path, nmap_dir)
+    feed_arjun(proj_path, nmap_dir)
 
     # NEW: build contextual wordlists for feroxbuster
     import context_wordlist_builder

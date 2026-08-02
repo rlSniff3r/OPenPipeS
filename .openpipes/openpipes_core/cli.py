@@ -394,7 +394,8 @@ Framework de Reconhecimento v2.0
             "1": "recon", "2": "nwrapper", "3": "cria-alvos",
             "4": "httpx-runner", "5": "katana-runner", "6": "feroxbuster-runner",
             "7": "katana-buster", "8": "jsfinder-runner", "9": "screenshot-runner",
-            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "22": "dalfox-runner"
+            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "22": "dalfox-runner",
+            "23": "arjun-runner"
         }
 
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]MÓDULOS DE PENTEST[/bold cyan]")
@@ -512,6 +513,7 @@ def run_reparse_all():
         ("nuclei",     lambda: parsers.parse_nuclei(proj_path, nmap_dir_path)),
         ("whois",      lambda: parsers.parse_whois_enrichment(proj_path, nmap_dir_path)),
         ("dalfox",       lambda: parsers.parse_dalfox(proj_path, nmap_dir_path)),  # ← add this
+        ("arjun", lambda: parsers.parse_arjun(proj_path, nmap_dir_path)),
     ]
 
     for name, fn in modules:

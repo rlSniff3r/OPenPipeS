@@ -817,6 +817,65 @@ def _extract_json_objects(content: str) -> list[dict]:
     return objs
 
 
+def parse_arjun(proj_path, nmap_dir):
+    """Parse Arjun JSON output into injectable_params table."""
+    count = 0
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+
+            for root, dirs, files in os.walk(nmap_dir):
+                for file in files:
+                    if not (file.startswith("arjun_output") and file.endswith(".json")):
+                        continue
+
+                    filepath = os.path.join(root, file)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                    except Exception:
+                        continue
+
+                    for url, methods in data.items():
+                        # Find endpoint_id by URL
+                        cursor.execute("SELECT id, host_id FROM endpoints WHERE url = ?", (url,))
+                        ep = cursor.fetchone()
+                        if not ep:
+                            continue
+                        endpoint_id, host_id = ep["id"], ep["host_id"]
+
+                        if not isinstance(methods, dict):
+                            continue
+
+                        for method, params in methods.items():
+                            # Map Arjun method names to our param_type
+                            type_map = {
+                                "GET": "query",
+                                "POST": "body",
+                                "JSON": "json",
+                                "XML": "xml",
+                                "HEADER": "header",
+                            }
+                            param_type = type_map.get(method.upper(), "query")
+                            http_method = "GET" if method.upper() == "GET" else "POST"
+
+                            for pname in params:
+                                try:
+                                    cursor.execute("""
+                                        INSERT OR IGNORE INTO injectable_params
+                                            (endpoint_id, host_id, param_name,
+                                             param_type, http_method, source_tool)
+                                        VALUES (?, ?, ?, ?, ?, 'arjun')
+                                    """, (endpoint_id, host_id, pname,
+                                          param_type, http_method))
+                                    if cursor.rowcount > 0:
+                                        count += 1
+                                except Exception:
+                                    pass
+
+    console.print(f" [dim]↳ Parser Arjun: Inseriu {count} parâmetros injetáveis.[/dim]")
+
+
 def parse_dalfox(proj_path, nmap_dir):
     """Parse dalfox v3 JSON output into vulnerabilities table."""
     count = 0
@@ -1205,33 +1264,48 @@ def dispatch(module_name, proj_path, nmap_dir):
 
     if module_name == "recon":
         parse_recon(proj_path, recon_dir)
+
     elif module_name == "nwrapper":
         parse_nmap(proj_path, nmap_dir)
+
     elif module_name == "httpx-runner":
         parse_httpx(proj_path, nmap_dir)
         _mark_scanned_by_url(proj_path, nmap_dir, "httpx")
+
     elif module_name == "feroxbuster-runner":
         parse_url_discovery_jsonl(proj_path, nmap_dir, "ferox")
         _mark_scanned_by_url(proj_path, nmap_dir, "ferox")
+
     elif module_name in ("katana-runner", "katana-buster"):
         parse_url_discovery_jsonl(proj_path, nmap_dir, "crawled")
         _mark_scanned_by_url(proj_path, nmap_dir, "crawled")
+
     elif module_name == "screenshot-runner":
         parse_screenshot(proj_path, nmap_dir)
         _mark_scanned_by_url(proj_path, nmap_dir, "screenshot")
+
     elif module_name == "gf-summary":
         parse_gf(proj_path, nmap_dir)
+
     elif module_name == "jsfinder-runner":
         parse_jsfinder(proj_path, nmap_dir)
         _mark_scanned_by_url(proj_path, nmap_dir, "jsfinder")
+
     elif module_name == "whois-enricher":
         parse_whois_from_initial(proj_path, nmap_dir)
+
     elif module_name == "nuclei-runner":
         parse_nuclei(proj_path, nmap_dir)
         _mark_scanned_by_url(proj_path, nmap_dir, "nuclei")
+
     elif module_name == "dalfox-runner":
         parse_dalfox(proj_path, nmap_dir)
         _mark_scanned_by_url(proj_path, nmap_dir, "dalfox")
+
+    elif module_name == "arjun-runner":
+        parse_arjun(proj_path, nmap_dir)
+        _mark_scanned_by_url(proj_path, nmap_dir, "arjun")
+
     else:
         console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")
 

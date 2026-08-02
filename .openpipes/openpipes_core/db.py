@@ -139,6 +139,22 @@ def init_db(proj_path):
             "scanned_by": "scanned_by TEXT DEFAULT ''",
         })
 
+        # ── Injectable Params (Arjun) ────────────────────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS injectable_params (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                endpoint_id   INTEGER NOT NULL REFERENCES endpoints(id) ON DELETE CASCADE,
+                host_id       INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+                param_name    TEXT NOT NULL,
+                param_type    TEXT NOT NULL,
+                http_method   TEXT NOT NULL,
+                source_tool   TEXT DEFAULT 'arjun',
+                scanned_by    TEXT DEFAULT '',
+                discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(endpoint_id, param_name, param_type, http_method)
+            )
+        """)
+
         # ── Screenshots ─────────────────────────────────────────────────
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS screenshots (
