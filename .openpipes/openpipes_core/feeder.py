@@ -218,8 +218,16 @@ def feed_arjun(proj_path: str, nmap_dir: str):
         rows = cursor.fetchall()
 
     host_urls: dict[str, list[str]] = {}
+    seen: set[str] = set()
     for r in rows:
-        host_urls.setdefault(r["host"], []).append(r["url"])
+        host = r["host"]
+        # Normalize: strip trailing slash (and duplicate scheme variants)
+        url = r["url"].rstrip("/")
+        key = url.lower()  # host/path case-insensitive dedup
+        if key in seen:
+            continue
+        seen.add(key)
+        host_urls.setdefault(host, []).append(url)
 
     count = 0
     for host, urls in host_urls.items():
