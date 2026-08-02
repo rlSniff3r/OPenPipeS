@@ -240,10 +240,9 @@ class VulnListApp(App):
                 if v:
                     self.push_screen(VulnDetailScreen(v))
             elif a == "edit":
-                from vuln_enricher import run_edit
-                run_edit(self.proj_path, result["vuln_id"])
-                self.load_data()
-                self.notify("✏️ Vulnerabilidade atualizada", timeout=3)
+                # Exit app with result so the wrapper can run the editor
+                # (Textual can't nest apps inside a running event loop)
+                self.exit({"action": "edit", "vuln_id": result["vuln_id"]})
 
         self.push_screen(VulnActionScreen(vuln), handle)
 
@@ -262,7 +261,16 @@ class VulnListApp(App):
 
 # ── CLI Wrapper ──
 def run_vuln_list(proj_path: str = None, severity: str = None):
-    VulnListApp(proj_path=proj_path, severity=severity).run()
+    """Entry point called from cli.py. Handles the edit flow by
+    exiting the list app, running the editor, then relaunching."""
+    result = VulnListApp(proj_path=proj_path, severity=severity).run()
+
+    if isinstance(result, dict) and result.get("action") == "edit":
+        # App was closed to launch the editor — run it now (top-level, no nesting)
+        from vuln_enricher import run_edit
+        run_edit(proj_path or _get_proj_path(), result["vuln_id"])
+        # Relaunch the list so the user can continue managing
+        run_vuln_list(proj_path, severity)
 
 
 if __name__ == "__main__":
