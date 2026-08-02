@@ -85,6 +85,17 @@ def _extract_cwe(references: list) -> str:
             return f"CWE-{match.group(1)}"
     return ""
 
+def _extract_cwe_from_text(text: str) -> str:
+    """Extract CWE IDs (CWE-XXX) from free text, comma-joined."""
+    if not text:
+        return ""
+    seen = []
+    for c in re.findall(r"CWE-\d+", text):
+        if c not in seen:
+            seen.append(c)
+    return ", ".join(seen)
+
+
 def _calculate_cvss(cvss_vector: str) -> tuple:
     """Usa a biblioteca cvss para gerar score e severidade."""
     if not cvss_vector:
@@ -313,6 +324,9 @@ class VulnEnricherApp(App):
         cvss_vector = cached_data.get("cvssv3", "")
         score, severity = _calculate_cvss(cvss_vector)
         cwe_id = _extract_cwe(cached_data.get("references", []))
+        cwe_from_obs = _extract_cwe_from_text(cached_data.get("observation", ""))
+        if cwe_from_obs:
+            cwe_id = cwe_from_obs if not cwe_id else f"{cwe_id}, {cwe_from_obs}"
         
         try:
             with db.get_connection(self.proj_path) as conn:

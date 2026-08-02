@@ -195,6 +195,12 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
         vulnerabilities = []
         for r in cursor.fetchall():
             v = dict(r)
+                        # Build full CWE reference URL
+            cwe_match = re.match(r"CWE-(\d+)", v.get("cwe_id") or "")
+            v["cwe_url"] = (
+                f"https://cwe.mitre.org/data/definitions/{cwe_match.group(1)}.html"
+                if cwe_match else ""
+            )
             v["reference_urls"] = json.loads(v["reference_urls"]) if v.get("reference_urls") else []
             v["severity_emoji"] = {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡", "Baixa": "🟢", "Info": "🔵"}.get(v["severity"], "⚪")
             v["cvss_score"] = float(v["cvss_score"]) if v.get("cvss_score") else None
