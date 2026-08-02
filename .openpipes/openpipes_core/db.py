@@ -190,12 +190,14 @@ def init_db(proj_path):
                     reference_urls  TEXT DEFAULT '[]',
                     source_tool     TEXT,
                     enriched_by     TEXT,
+                    status          TEXT NOT NULL DEFAULT 'open',
                     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(vuln_name, matched_at, host_id)
                 )
             """)
             _add_missing_columns(conn, "vulnerabilities", {
                 "cwe_id": "cwe_id TEXT DEFAULT ''",
+                "status": "status TEXT NOT NULL DEFAULT 'open'",
             })
 
         else:
@@ -210,6 +212,7 @@ def init_db(proj_path):
                 "impact":         "impact TEXT",
                 "reference_urls": "reference_urls TEXT DEFAULT '[]'",
                 "enriched_by":    "enriched_by TEXT",
+                "status":         "status TEXT NOT NULL DEFAULT 'open'",
                 "created_at":     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             }
             _add_missing_columns(conn, "vulnerabilities", new_cols)
