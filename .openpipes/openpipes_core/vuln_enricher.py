@@ -357,26 +357,34 @@ class VulnEnricherApp(App):
             self.call_from_thread(self.query_one("#enrich-status", Label).update, "[red]Erro: OPENAI_API_KEY não encontrada em secrets.conf.[/red]")
             return
     
-        @work(exclusive=True, thread=True)
+    @work(exclusive=True, thread=True)
     def fetch_nvd_enrichment(self, cve_id: str):
         """Fetch CVE data from NVD API in background, cache it, auto-apply."""
         api_key = _get_nvd_api_key()
-        url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
-        if api_key:
-            url += f"&apiKey={api_key}"
+
+        def _do_request(key: str | None):
+            url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
+            if key:
+                url += f"&apiKey={key}"
+            return requests.get(url, timeout=15)
 
         try:
-            r = requests.get(url, timeout=15)
+            r = _do_request(api_key)
+
+            # If keyed request failed, retry WITHOUT the key (bad/inactive key)
+            if r.status_code in (403, 404) and api_key:
+                r = _do_request(None)
+
             if r.status_code == 403:
                 self.call_from_thread(
                     self.query_one("#enrich-status", Label).update,
-                    "[red]NVD rate limit (403). Adicione NVD_API_KEY em secrets.conf para mais cota.[/red]",
+                    "[red]NVD rate limit (403). Aguarde ~30s ou use uma NVD_API_KEY válida.[/red]",
                 )
                 return
             if r.status_code == 404:
                 self.call_from_thread(
                     self.query_one("#enrich-status", Label).update,
-                    f"[yellow]CVE {cve_id} não encontrado na NVD.[/yellow]",
+                    f"[yellow]CVE {cve_id} não encontrado na NVD (404).[/yellow]",
                 )
                 return
             r.raise_for_status()
@@ -409,42 +417,6 @@ class VulnEnricherApp(App):
                 f"[red]Erro na API NVD: {e}[/red]",
             )
 
-            
-        prompt = f"""Gere um JSON com dados de vulnerabilidade para: "{vuln_name}"
-Descrição: {description}
-Formato:
-{{
-  "title": "Nome da Vulnerabilidade",
-  "cvssv3": "CVSS:3.1/...",
-  "description": "Descrição detalhada em português",
-  "observation": "Impacto técnico",
-  "remediation": "Recomendação de correção",
-  "references": ["url1", "url2"]
-}}
-Responda apenas com o JSON, sem formatação extra."""
-
-        try:
-            r = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": "gpt-3.5-turbo",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3,
-                },
-                timeout=30,
-            )
-            if r.status_code == 200:
-                content = r.json()["choices"][0]["message"]["content"]
-                json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                if json_match:
-                    parsed_json = json.loads(json_match.group())
-                    # Chama a função de atualização na thread principal do UI
-                    self.call_from_thread(self.apply_enrichment, parsed_json, 'openai')
-                    return
-            self.call_from_thread(self.query_one("#enrich-status", Label).update, "[yellow]Falha ao obter JSON válido da OpenAI.[/yellow]")
-        except Exception as e:
-            self.call_from_thread(self.query_one("#enrich-status", Label).update, f"[red]Erro na API OpenAI: {e}[/red]")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Controla os botões das duas abas."""
