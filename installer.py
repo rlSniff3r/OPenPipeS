@@ -297,6 +297,7 @@ if [ -f "{HOME}/.openpipes/config.sh" ]; then source "{HOME}/.openpipes/config.s
         "screenshot-runner.sh": "screenshot-runner",
         "init-openpipes.sh": "init-openpipes",
         "dalfox-runner.sh": "dalfox-runner",
+        "arjun-runner.sh": "arjun-runner",
     }
     for src, link in symlinks.items():
         src_path = f"{OPENPIPES_SCRIPTS}/{src}"

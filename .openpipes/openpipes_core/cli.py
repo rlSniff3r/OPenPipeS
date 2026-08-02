@@ -801,6 +801,10 @@ def main():
             )
             parsers.parse_dalfox(proj_path, nmap_dir)
 
+        elif module_name == "arjun-runner":
+            parse_arjun(proj_path, nmap_dir)
+            _mark_scanned_by_url(proj_path, nmap_dir, "arjun")
+
 
 if __name__ == "__main__":
     main()
