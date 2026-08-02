@@ -645,7 +645,10 @@ def main():
     # Vuln
     vuln_parser = subparsers.add_parser("vuln", help="Gerenciar vulnerabilidades")
     vuln_parser.add_argument("--manual", action="store_true", help="Inserir vulnerabilidade manualmente via cache")
+    vuln_parser.add_argument("--list", action="store_true", help="Listar e gerenciar vulnerabilidades (TUI)")
     vuln_parser.add_argument("--enrich", action="store_true", help="Enriquecer findings do nuclei com cache/IA")
+    vuln_parser.add_argument("--severity", help="Filtrar por severidade (opcional, usado com --list)")
+    vuln_parser.add_argument("--limit", type=int, help="Limite de linhas (opcional)")
     vuln_parser.add_argument("--re-enrich", action="store_true", help="Re-enriquecer todas (ignora cache)")
     vuln_parser.add_argument("--create", action="store_true", help="Criar nova vulnerabilidade via TUI")
 
@@ -738,7 +741,12 @@ def main():
                 elif args.manual:
                     vuln_enricher.run_manual(proj_path)
                 elif args.enrich or args.re_enrich:
+                    from verifier import verify_endpoints
+                    verify_endpoints(proj_path, limit=args.limit)
                     vuln_enricher.run_enricher(proj_path, re_enrich=args.re_enrich)
+                elif args.list:
+                    from vuln_list import run_vuln_list
+                    run_vuln_list(proj_path, severity=args.severity)
                 else:
                     # Show help
                     parser.parse_args(["vuln", "--help"])

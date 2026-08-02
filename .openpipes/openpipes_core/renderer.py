@@ -187,7 +187,7 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
                           cve_id, vuln_name, description, matched_at,
                           curl_command, remediation, impact,
                           reference_urls, source_tool, enriched_by, created_at
-                          FROM vulnerabilities WHERE host_id = ?
+                          FROM vulnerabilities WHERE host_id = ? AND status != 'false_positive'
                           ORDER BY CASE severity WHEN 'Crítica' THEN 0
                           WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2
                           WHEN 'Baixa' THEN 3 ELSE 4 END""",
@@ -258,7 +258,7 @@ def get_vulnerability_detail(proj_path: str, vuln_id: int) -> Optional[dict]:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT v.*, h.host as target_host, h.ips "
-            "FROM vulnerabilities v JOIN hosts h ON h.id = v.host_id WHERE v.id = ?",
+            "FROM vulnerabilities v JOIN hosts h ON h.id = v.host_id WHERE v.id = ? AND v.status != 'false_positive'",
             (vuln_id,),
         )
         row = cursor.fetchone()
@@ -445,6 +445,33 @@ def _get_all_vulnerabilities(proj_path: str, limit: int = 100) -> list[dict]:
     return vulns
 
 
+def _cleanup_fp_vuln_files(proj_path, obsdir, proj_name):
+    """Remove .md files for false positive vulnerabilities from Obsidian."""
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT v.title, h.host, v.created_at
+            FROM vulnerabilities v
+            JOIN hosts h ON h.id = v.host_id
+            WHERE v.status = 'false_positive'
+        """)
+        removed = 0
+        for row in cursor.fetchall():
+            safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_',
+                                (row["title"] or "")[:40].replace(' ', '_'))
+            date_part = (row["created_at"] or "")[:8] or "00000000"
+            filename = f"{date_part}_{safe_title}.md"
+            # Use obsdir + proj_name directly (not per-host vault_dir)
+            vuln_dir = os.path.join(obsdir, proj_name, "Pentest", "Alvos",
+                                    row["host"], "Vulnerabilidades")
+            fp_path = os.path.join(vuln_dir, filename)
+            if os.path.exists(fp_path):
+                os.remove(fp_path)
+                removed += 1
+    if removed:
+        console.print(f" [dim]↳ Removidos {removed} arquivos FP do vault Obsidian.[/dim]")
+
+
 def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -> bool:
     report = get_target_report(proj_path, host_name)
     if not report:
@@ -457,6 +484,9 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     vulns_dir = os.path.join(vault_dir, "Vulnerabilidades")
     os.makedirs(endpoints_dir, exist_ok=True)
     os.makedirs(vulns_dir, exist_ok=True)
+
+    # Cleanup FP vulnerability files from vault
+    _cleanup_fp_vuln_files(proj_path, obsdir, proj_name)
 
     # Group endpoints by route, apply FP filter and threshold
     MIN_ROUTE_SIZE = 3
