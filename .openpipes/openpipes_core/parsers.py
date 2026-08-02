@@ -1109,8 +1109,6 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
                 files = []
                 if tool_name in ("ferox",):
                     files = glob.glob(os.path.join(target_dir, "ferox_*.jsonl"))
-                elif tool_name == "dalfox":
-                    files = glob.glob(os.path.join(target_dir, "dalfox_output_*.json"))
                 elif tool_name in ("katana", "crawled"):
                     f = os.path.join(target_dir, "crawled_all.jsonl")
                     if os.path.exists(f):
@@ -1131,6 +1129,42 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
                     f = os.path.join(nmap_dir, "httpx_output.json")
                     if os.path.exists(f):
                         files = [f]
+                
+                elif tool_name == "dalfox":
+                    files = glob.glob(os.path.join(target_dir, "dalfox_output_*.json"))
+                    for fpath in files:
+                        try:
+                            with open(fpath, encoding="utf-8") as fh:
+                                content = fh.read().strip()
+                            # dalfox v3 outputs pretty-printed JSON objects (findings + meta)
+                            decoder = json.JSONDecoder()
+                            idx = 0
+                            while idx < len(content):
+                                while idx < len(content) and content[idx] in ' \t\n\r':
+                                    idx += 1
+                                if idx >= len(content):
+                                    break
+                                try:
+                                    obj, end = decoder.raw_decode(content, idx)
+                                    idx = end
+                                except json.JSONDecodeError:
+                                    idx += 1
+                                    continue
+                                # Extract target URLs from meta
+                                meta = obj.get("meta", {})
+                                for url in meta.get("targets", []):
+                                    url = _normalize_url(url)
+                                    cursor.execute("""
+                                        UPDATE endpoints SET scanned_by = CASE
+                                            WHEN scanned_by IS NULL OR scanned_by = '' THEN 'dalfox'
+                                            WHEN scanned_by NOT LIKE '%dalfox%' THEN scanned_by || ',dalfox'
+                                            ELSE scanned_by
+                                        END
+                                        WHERE url LIKE ?
+                                    """, (f"{url}%",))
+                        except Exception:
+                            continue
+                    continue  # Skip the rest of the loop for dalfox since we already processed files
 
                 for fpath in files:
                     try:
