@@ -415,7 +415,7 @@ def _get_all_vulnerabilities(proj_path: str, limit: int = 100) -> list[dict]:
                    v.created_at, v.id, h.host
             FROM vulnerabilities v
             JOIN hosts h ON h.id = v.host_id
-            WHERE h.is_alive = 1 AND h.in_scope = 1
+            WHERE h.is_alive = 1 AND h.in_scope = 1 AND v.status != 'false_positive'
             ORDER BY
                 CASE v.severity
                     WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1
