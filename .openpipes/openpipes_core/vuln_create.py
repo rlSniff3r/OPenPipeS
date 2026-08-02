@@ -1,5 +1,6 @@
 import json
 import re
+import os
 from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll, Grid, Container
