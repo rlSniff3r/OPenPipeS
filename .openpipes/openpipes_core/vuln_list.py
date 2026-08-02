@@ -102,9 +102,8 @@ class VulnDetailScreen(ModalScreen):
                 f"[bold]Status:[/bold] {STATUS_EMOJI.get(v['status'], '')} {v['status']}\n"
                 f"[bold]Ferramenta:[/bold] {v.get('source_tool', 'N/A')}\n"
                 f"[bold]CVSS:[/bold] {v.get('cvss_score', 'N/A')}\n"
-                f"[bold]CWE:[/bold] {v.get('cwe', 'N/A')}\n\n"
-                f"[bold]Descrição:[/bold]\n{v.get('description', 'N/A')}\n\n"
-                f"[bold]Evidência:[/bold]\n{v.get('evidence', 'N/A')}\n",
+                f"[bold]CWE:[/bold] {v.get('cwe_id', 'N/A')}\n\n"
+                f"[bold]Descrição:[/bold]\n{v.get('description', 'N/A')}\n",
                 id="detail-content",
             ),
             Button("❌ Fechar", id="btn-close", variant="default"),
@@ -167,8 +166,8 @@ class VulnListApp(App):
                 cursor = conn.cursor()
                 query = """
                     SELECT v.id, v.title, v.severity, v.status, v.source_tool,
-                           v.cvss_score, v.description, v.evidence, v.cwe,
-                           COALESCE(h.host, 'N/A') as host
+                        v.cvss_score, v.description, v.cwe_id,
+                        COALESCE(h.host, 'N/A') as host
                     FROM vulnerabilities v
                     LEFT JOIN hosts h ON h.id = v.host_id
                     WHERE 1=1
