@@ -190,42 +190,42 @@ class VulnEnricherApp(App):
     # ================= LOGICA DA ABA 1: ENRIQUECIMENTO =================
 
     def _normalize_nvd_data(self, cve_id: str, cve: dict) -> dict:
-    """Map NVD API JSON to the project's cache JSON format."""
-    # Description (English)
-    description = ""
-    for d in cve.get("descriptions", []):
-        if d.get("lang") == "en":
-            description = d.get("value", "")
-            break
+        """Map NVD API JSON to the project's cache JSON format."""
+        # Description (English)
+        description = ""
+        for d in cve.get("descriptions", []):
+            if d.get("lang") == "en":
+                description = d.get("value", "")
+                break
 
-    # CVSS v3.1 vector (fall back to v3.0)
-    vector = ""
-    metrics = cve.get("metrics", {})
-    for key in ("cvssMetricV31", "cvssMetricV30"):
-        if metrics.get(key):
-            vector = metrics[key][0].get("cvssData", {}).get("vectorString", "")
-            break
+        # CVSS v3.1 vector (fall back to v3.0)
+        vector = ""
+        metrics = cve.get("metrics", {})
+        for key in ("cvssMetricV31", "cvssMetricV30"):
+            if metrics.get(key):
+                vector = metrics[key][0].get("cvssData", {}).get("vectorString", "")
+                break
 
-    # CWEs
-    cwes = []
-    for w in cve.get("weaknesses", []):
-        for d in w.get("description", []):
-            val = d.get("value", "")
-            if val.startswith("CWE-"):
-                cwes.append(val)
+        # CWEs
+        cwes = []
+        for w in cve.get("weaknesses", []):
+            for d in w.get("description", []):
+                val = d.get("value", "")
+                if val.startswith("CWE-"):
+                    cwes.append(val)
 
-    # References
-    refs = [r.get("url", "") for r in cve.get("references", []) if r.get("url")]
+        # References
+        refs = [r.get("url", "") for r in cve.get("references", []) if r.get("url")]
 
-    return {
-        "title": cve_id,
-        "cvssv3": vector,
-        "description": description,
-        "observation": ", ".join(cwes),
-        "remediation": "",
-        "references": refs,
-        "cve_id": cve_id,
-    }
+        return {
+            "title": cve_id,
+            "cvssv3": vector,
+            "description": description,
+            "observation": ", ".join(cwes),
+            "remediation": "",
+            "references": refs,
+            "cve_id": cve_id,
+        }
 
 
     def load_pending_vulns(self):
