@@ -429,6 +429,63 @@ def run_manual(proj_path: str):
     app.run()
 
 
+def run_edit(proj_path: str, vuln_id: int):
+    """Edit an existing vulnerability: pre-filled form → UPDATE DB."""
+    from pathlib import Path
+    from vuln_create import JSONFormApp
+
+    app = JSONFormApp(edit_vuln_id=vuln_id)
+    result = app.run()
+
+    if not result or not os.path.exists(result):
+        console.print("[yellow]⚠ Edição cancelada ou arquivo não encontrado.[/yellow]")
+        return
+
+    with open(result, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    vid = data.get("vuln_id")
+    if not vid:
+        console.print("[red]✖ JSON sem vuln_id. Nada para editar.[/red]")
+        return
+
+    cvss_vector = data.get("cvssv3", "")
+    score, severity = _calculate_cvss(cvss_vector)
+    cwe_id = _extract_cwe(data.get("references", []))
+
+    try:
+        with db.get_connection(proj_path) as conn:
+            with db.transaction(conn):
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE vulnerabilities SET
+                        title = ?, cvss_vector = ?, cvss_score = ?, severity = ?,
+                        description = ?, impact = ?, remediation = ?,
+                        reference_urls = ?, cwe_id = ?, enriched_by = 'user'
+                    WHERE id = ?
+                """, (
+                    data.get("title", ""),
+                    cvss_vector,
+                    score,
+                    severity or "Média",
+                    data.get("description", ""),
+                    data.get("observation", ""),
+                    data.get("remediation", ""),
+                    json.dumps(data.get("references", [])),
+                    cwe_id,
+                    vid,
+                ))
+        console.print(f" [dim]↳ Vulnerabilidade {vid} atualizada com sucesso.[/dim]")
+    except Exception as e:
+        console.print(f"[red]✖ Erro ao atualizar: {e}[/red]")
+
+    # Cleanup the temp edit JSON
+    try:
+        os.remove(result)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
     app = VulnEnricherApp()
     app.run()

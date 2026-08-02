@@ -240,7 +240,10 @@ class VulnListApp(App):
                 if v:
                     self.push_screen(VulnDetailScreen(v))
             elif a == "edit":
-                self.notify("✏️ Edição — será integrada com --create futuramente", timeout=3)
+                from vuln_enricher import run_edit
+                run_edit(self.proj_path, result["vuln_id"])
+                self.load_data()
+                self.notify("✏️ Vulnerabilidade atualizada", timeout=3)
 
         self.push_screen(VulnActionScreen(vuln), handle)
 
