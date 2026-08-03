@@ -204,7 +204,6 @@ def feed_httpx(proj_path: str, nmap_dir: str):
     console.print(f" [dim]↳ Feed httpx: {count} novos hosts[/dim]")
 
 
-
 def _feed_from_unscanned(proj_path: str, nmap_dir: str, tool_name: str, out_file: str = "alive_urls.txt"):
     """Generic feeder: writes filtered, normalized URLs to per-target files."""
     rows = _get_unscanned(proj_path, tool_name)

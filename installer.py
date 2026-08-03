@@ -228,6 +228,7 @@ def setup_isolated_venvs():
         run_cmd(f"python3 -m venv {VENV_CORE}")
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_CORE}/bin/pip install arjun -q")
+    run_cmd(f"{VENV_CORE}/bin/pip install sqlmap -q")
     run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq textual cvss flask -q")
     run_cmd(f"{VENV_CORE}/bin/pip uninstall dnsrecon httpx -y -q 2>/dev/null || true")
 
@@ -298,6 +299,7 @@ if [ -f "{HOME}/.openpipes/config.sh" ]; then source "{HOME}/.openpipes/config.s
         "init-openpipes.sh": "init-openpipes",
         "dalfox-runner.sh": "dalfox-runner",
         "arjun-runner.sh": "arjun-runner",
+        "sqlmap-runner.sh": "sqlmap-runner",
     }
     for src, link in symlinks.items():
         src_path = f"{OPENPIPES_SCRIPTS}/{src}"
