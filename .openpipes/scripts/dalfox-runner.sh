@@ -25,6 +25,20 @@ for d in "$NMAP_DIR"/nmap-*/; do
             --format json \
             -o "$OUT_FILE"
     fi
+
+    POST_FILE="${d}dalfox_post_targets.txt"
+    if [ -s "$POST_FILE" ]; then
+        echo "  → (POST) $target_name..."
+        while IFS='|' read -r url data; do
+            [ -z "$url" ] && continue
+            dalfox url "$url" \
+                --data "$data" \
+                --workers 30 \
+                --remote-payloads portswigger,payloadbox \
+                --format json \
+                >> "$OUT_FILE"
+        done < "$POST_FILE"
+    fi
 done
 
 echo -e "\e[32m[✔]\e[0m Dalfox finalizado."

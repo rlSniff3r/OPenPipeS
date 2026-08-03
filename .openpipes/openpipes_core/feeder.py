@@ -40,6 +40,50 @@ def _normalize_url(url: str) -> str:
     return url.rstrip("/")
 
 
+def _get_injected_targets(proj_path: str, tool_name: str) -> dict:
+    """
+    Reconstruct injection targets from injectable_params.
+    Returns {host: {"get": [urls], "post": [(url, data)], "headers": [(url, header)]}}
+    Skips params already consumed by tool_name.
+    """
+    result: dict[str, dict] = {}
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT h.host, e.url, ip.param_name, ip.http_method, ip.param_type
+            FROM injectable_params ip
+            JOIN endpoints e ON e.id = ip.endpoint_id
+            JOIN hosts h ON h.id = e.host_id
+            WHERE h.is_alive = 1 AND h.in_scope = 1
+              AND (ip.scanned_by IS NULL OR ip.scanned_by NOT LIKE ?)
+            ORDER BY h.host, e.url, ip.param_name
+        """, (f"%{tool_name}%",))
+        rows = cursor.fetchall()
+
+    # Group params per endpoint
+    endpoints: dict[tuple, dict] = {}
+    for r in rows:
+        key = (r["host"], r["url"], r["http_method"])
+        ep = endpoints.setdefault(key, {"get": [], "post": [], "headers": []})
+        if r["param_type"] == "header":
+            ep["headers"].append(r["param_name"])
+        elif "POST" in r["http_method"]:
+            ep["post"].append(r["param_name"])
+        else:
+            ep["get"].append(r["param_name"])
+
+    for (host, url, method), params in endpoints.items():
+        entry = result.setdefault(host, {"get": [], "post": [], "headers": []})
+        if params["get"]:
+            entry["get"].append(f"{url}?{'&'.join(f'{p}=FUZZ' for p in params['get'])}")
+        if params["post"]:
+            entry["post"].append((url, "&".join(f"{p}=FUZZ" for p in params["post"])))
+        if params["headers"]:
+            for h in params["headers"]:
+                entry["headers"].append((url, h))
+    return result
+
+
 def _filter_urls_by_host(urls: list, host: str) -> list:
     """Only include URLs whose hostname matches the target host. Deduplicates."""
     seen = set()
@@ -364,8 +408,46 @@ def feed_dalfox(proj_path: str, nmap_dir: str):
             for u in urls:
                 f.write(f"{u}\n")
         count += len(urls)
+    
+    # ── Injected params from Arjun (GET → URL file, POST → separate file) ──
+    injected = _get_injected_targets(proj_path, "dalfox")
+    for host, targets in injected.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        if targets["get"]:
+            with open(os.path.join(target_dir, "dalfox_targets.txt"), "a") as f:
+                for u in targets["get"]:
+                    f.write(f"{u}\n")
+        if targets["post"]:
+            # "w" = rebuild fresh, not append (prevents re-feeding stale targets)
+            with open(os.path.join(target_dir, "dalfox_post_targets.txt"), "w") as f:
+                for url, data in targets["post"]:
+                    f.write(f"{url}|{data}\n")
 
-    console.print(f" [dim]↳ Feed Dalfox: {count} URLs para {len(host_urls)} hosts.[/dim]")
+    injected_count = sum(
+        len(t["get"]) + len(t["post"]) for t in injected.values()
+    )
+    console.print(
+        f" [dim]↳ Feed Dalfox: {count} URLs base + {injected_count} injetáveis "
+        f"para {len(host_urls)} hosts.[/dim]"
+    )
+
+
+def feed_sqlmap(proj_path: str, nmap_dir: str):
+    """Feed injectable params to sqlmap (GET URLs + POST pairs)."""
+    injected = _get_injected_targets(proj_path, "sqlmap")
+    for host, targets in injected.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        if targets["get"]:
+            with open(os.path.join(target_dir, "sqlmap_get.txt"), "w") as f:
+                for u in targets["get"]:
+                    f.write(f"{u}\n")
+        if targets["post"]:
+            with open(os.path.join(target_dir, "sqlmap_post.txt"), "w") as f:
+                for url, data in targets["post"]:
+                    f.write(f"{url}|{data}\n")
+    console.print(f" [dim]↳ Feed SQLMap: injetáveis para {len(injected)} hosts.[/dim]")
 
 
 def feed_all(proj_path: str, nmap_dir: str):
@@ -379,6 +461,7 @@ def feed_all(proj_path: str, nmap_dir: str):
     feed_nuclei(proj_path, nmap_dir)
     feed_dalfox(proj_path, nmap_dir)
     feed_arjun(proj_path, nmap_dir)
+    feed_sqlmap(proj_path, nmap_dir)
 
     # NEW: build contextual wordlists for feroxbuster
     import context_wordlist_builder

@@ -817,6 +817,30 @@ def _extract_json_objects(content: str) -> list[dict]:
     return objs
 
 
+# Standard HTTP headers Arjun reports as "found" but are noise
+IGNORED_HEADERS = {
+    "host", "user-agent", "accept", "accept-encoding", "accept-language",
+    "accept-charset", "connection", "upgrade-insecure-requests",
+    "content-type", "content-length", "cookie", "referer", "origin",
+    "cache-control", "pragma", "dnt", "expect", "te", "range",
+    "if-modified-since", "if-none-match", "x-requested-with",
+    "x-forwarded-for", "x-forwarded-host", "x-real-ip", "sec-fetch-dest",
+    "sec-fetch-mode", "sec-fetch-site", "sec-fetch-user", "sec-ch-ua",
+    "sec-ch-ua-mobile", "sec-ch-ua-platform",
+}
+
+def _is_junk_param(name: str) -> bool:
+    """Filter Arjun probe artifacts."""
+    name = name.strip()
+    if not name or name in (",", ".", ";", "="):
+        return True
+    if len(name) == 1:          # single-char artifacts
+        return True
+    if name.lower() in IGNORED_HEADERS:
+        return True
+    return False
+
+
 def parse_arjun(proj_path, nmap_dir):
     """Parse Arjun JSON output into injectable_params table."""
     count = 0
@@ -836,42 +860,38 @@ def parse_arjun(proj_path, nmap_dir):
                     except Exception:
                         continue
 
-                    for url, methods in data.items():
-                        # Find endpoint_id by URL
+                    for url, info in data.items():
                         cursor.execute("SELECT id, host_id FROM endpoints WHERE url = ?", (url,))
                         ep = cursor.fetchone()
                         if not ep:
                             continue
                         endpoint_id, host_id = ep["id"], ep["host_id"]
 
-                        if not isinstance(methods, dict):
+                        if not isinstance(info, dict):
                             continue
 
-                        for method, params in methods.items():
-                            # Map Arjun method names to our param_type
-                            type_map = {
-                                "GET": "query",
-                                "POST": "body",
-                                "JSON": "json",
-                                "XML": "xml",
-                                "HEADER": "header",
-                            }
-                            param_type = type_map.get(method.upper(), "query")
-                            http_method = "GET" if method.upper() == "GET" else "POST"
+                        # Arjun's method field is a comma string, e.g. "GET,POST,HEADER"
+                        http_method = str(info.get("method", "GET")) or "GET"
 
-                            for pname in params:
-                                try:
-                                    cursor.execute("""
-                                        INSERT OR IGNORE INTO injectable_params
-                                            (endpoint_id, host_id, param_name,
-                                             param_type, http_method, source_tool)
-                                        VALUES (?, ?, ?, ?, ?, 'arjun')
-                                    """, (endpoint_id, host_id, pname,
-                                          param_type, http_method))
-                                    if cursor.rowcount > 0:
-                                        count += 1
-                                except Exception:
-                                    pass
+                        # Real findings live ONLY in "params"
+                        params = info.get("params", [])
+                        if not isinstance(params, list):
+                            continue
+
+                        for pname in params:
+                            if not pname or not isinstance(pname, str):
+                                continue
+                            pname = pname.strip()
+                            if _is_junk_param(pname):
+                                continue
+                            cursor.execute("""
+                                INSERT OR IGNORE INTO injectable_params
+                                    (endpoint_id, host_id, param_name,
+                                     param_type, http_method, source_tool)
+                                VALUES (?, ?, ?, 'query', ?, 'arjun')
+                            """, (endpoint_id, host_id, pname, http_method))
+                            if cursor.rowcount > 0:
+                                count += 1
 
     console.print(f" [dim]↳ Parser Arjun: Inseriu {count} parâmetros injetáveis.[/dim]")
 
@@ -939,6 +959,25 @@ def parse_dalfox(proj_path, nmap_dir):
                         pass
 
     console.print(f" [dim]↳ Parser Dalfox: Inseriu {count} novas vulnerabilidades (XSS).[/dim]")
+
+
+def _mark_params_scanned(proj_path: str, tool_name: str):
+    """Mark injectable_params as consumed by tool_name (via endpoint scanned_by)."""
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            conn.execute("""
+                UPDATE injectable_params
+                SET scanned_by = CASE
+                    WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
+                    WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
+                    ELSE scanned_by
+                END
+                WHERE endpoint_id IN (
+                    SELECT id FROM endpoints WHERE scanned_by LIKE ?
+                )
+                AND (scanned_by IS NULL OR scanned_by NOT LIKE ?)
+            """, (tool_name, f"%{tool_name}%", tool_name,
+                  f"%{tool_name}%", f"%{tool_name}%"))
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1084,6 +1123,41 @@ def parse_whois_from_initial(proj_path, nmap_dir):
                     count += 1
 
     console.print(f" [dim]↳ Parser WHOIS (initial): Processou {count} hosts.[/dim]")
+
+
+def parse_sqlmap(proj_path, nmap_dir):
+    """Parse sqlmap JSON output into vulnerabilities."""
+    count = 0
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            for root, dirs, files in os.walk(nmap_dir):
+                for file in files:
+                    if file != "data.json":   # sqlmap --json writes data.json
+                        continue
+                    target_name = os.path.basename(root)[5:]
+                    host_id = get_or_create_host(cursor, target_name, skip_ip_correlation=True)
+                    if not host_id:
+                        continue
+                    try:
+                        with open(os.path.join(root, file)) as f:
+                            data = json.load(f)
+                        for entry in data.get("data", []):
+                            url = entry.get("value", [""])[0].get("url", "")
+                            payload = entry.get("value", [""])[0].get("payload", "")
+                            title = "SQL Injection"
+                            cursor.execute("""
+                                INSERT INTO vulnerabilities
+                                    (host_id, title, severity, description, evidence,
+                                     source_tool, status, enriched_by)
+                                VALUES (?, ?, 'Crítica', ?, ?, 'sqlmap', 'open', NULL)
+                                ON CONFLICT(host_id, title) DO NOTHING
+                            """, (host_id, title, f"**Payload:** `{payload}`\n**URL:** {url}", payload))
+                            if cursor.rowcount > 0:
+                                count += 1
+                    except Exception:
+                        continue
+    console.print(f" [dim]↳ Parser SQLMap: Inseriu {count} SQL Injections.[/dim]")
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1253,7 +1327,6 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
                     except Exception:
                         continue
 
-
 # ═════════════════════════════════════════════════════════════════════
 # DISPATCH
 # ═════════════════════════════════════════════════════════════════════
@@ -1301,10 +1374,15 @@ def dispatch(module_name, proj_path, nmap_dir):
     elif module_name == "dalfox-runner":
         parse_dalfox(proj_path, nmap_dir)
         _mark_scanned_by_url(proj_path, nmap_dir, "dalfox")
+        _mark_params_scanned(proj_path, "dalfox")   # ← NEW
 
     elif module_name == "arjun-runner":
         parse_arjun(proj_path, nmap_dir)
         _mark_scanned_by_url(proj_path, nmap_dir, "arjun")
+    
+    elif module_name == "sqlmap-runner":
+        parse_sqlmap(proj_path, nmap_dir)
+        _mark_params_scanned(proj_path, "sqlmap")
 
     else:
         console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")
