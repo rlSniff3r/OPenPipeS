@@ -326,8 +326,109 @@ def feed_screenshot(proj_path: str, nmap_dir: str):
     _feed_from_unscanned(proj_path, nmap_dir, "screenshot", "screenshot_urls.txt")
 
 
+# ── Nuclei tag mapping ────────────────────────────────────────────
+NUCLEI_BASE_TAGS = ["misconfig", "exposure", "default-login", "takeover", "panel", "auth-bypass"]
+
+# Normalized tech_stack name -> nuclei tag(s)
+TECH_MAP = {
+    "nginx": ["nginx"], "apache http server": ["apache"], "apache": ["apache"],
+    "iis": ["iis"], "microsoft httpapi": ["iis"],
+    "microsoft asp.net": ["aspnet", "iis", "windows"],
+    "php": ["php"], "ruby": ["ruby"], "ruby on rails": ["rails", "ruby"],
+    "wordpress": ["wordpress"], "w3 total cache": ["wordpress", "php"],
+    "wpml": ["wordpress", "php"], "yoast seo": ["wordpress", "php"],
+    "monsterinsights": ["wordpress", "php"],
+    "drupal": ["drupal"], "joomla": ["joomla"],
+    "mysql": ["mysql"], "postgresql": ["postgres"], "mariadb": ["mysql"],
+    "openssl": ["openssl"], "ubuntu": ["ubuntu"], "windows server": ["windows"],
+    "docker": ["docker"], "kubernetes": ["kubernetes"],
+    "grafana": ["grafana"], "jenkins": ["jenkins"], "gitlab": ["gitlab"],
+    "sharepoint": ["sharepoint"], "exchange": ["exchange"], "citrix": ["citrix"],
+    "vmware": ["vmware"], "tomcat": ["tomcat"], "java": ["java"],
+    "elasticsearch": ["elasticsearch"], "redis": ["redis"], "mongodb": ["mongodb"],
+    "laravel": ["laravel"], "symfony": ["symfony"], "django": ["django"],
+    "flask": ["flask"], "node.js": ["nodejs"], "express": ["express"],
+    "openui5": ["sap"], "sap": ["sap"], "amazon s3": ["aws"], "azure": ["azure"],
+}
+
+# Entries with no nuclei signal (CDN/WAF/protocol/frontend libs)
+TECH_NOISE = {
+    "cloudflare", "cloudflare browser insights", "hsts", "http/2", "http/3",
+    "azure front door", "akamai", "akamaighost", "basic",
+    "google analytics", "google tag manager", "adobe fonts", "typekit",
+    "jquery", "jquery cdn", "jquery ui", "jsdelivr", "slick", "lodash",
+    "moment.js", "font awesome", "recaptcha", "linkedin ads",
+}
+
+SERVICE_MAP = {
+    "ssh": ["ssh"], "ftp": ["ftp"], "smtp": ["smtp"], "mysql": ["mysql"],
+    "postgresql": ["postgres"], "mssql": ["mssql"], "mongodb": ["mongodb"],
+    "redis": ["redis"], "elasticsearch": ["elasticsearch"], "docker": ["docker"],
+    "kubernetes": ["kubernetes"], "smb": ["smb"], "rdp": ["rdp"],
+    "telnet": ["telnet"], "snmp": ["snmp"], "ldap": ["ldap"],
+    "http": ["http"], "https": ["http"],
+}
+
+def _tech_to_tags(tech_stack) -> list:
+    tags = []
+    for raw in tech_stack or []:
+        name = str(raw).split(":")[0].strip().lower()   # strip :version
+        if name in TECH_NOISE:
+            continue
+        for t in TECH_MAP.get(name, []):
+            if t not in tags:
+                tags.append(t)
+    return tags
+
+def _services_to_tags(ports_rows) -> list:
+    tags = []
+    for p in ports_rows:
+        svc = (p["service"] or "").lower()
+        ver = (p["version"] or "").lower()
+        mapped = SERVICE_MAP.get(svc, [])
+        if not mapped:   # web server hidden in version string
+            for key, t in (("nginx", "nginx"), ("apache", "apache"),
+                           ("iis", "iis"), ("httpapi", "iis")):
+                if key in ver:
+                    mapped = [t]
+                    break
+        for t in mapped:
+            if t not in tags:
+                tags.append(t)
+    return tags
+
+def _build_nuclei_tags(proj_path: str, host_id: int) -> str:
+    """Comma-separated nuclei tags: BASE + tech_stack + open ports."""
+    tags = list(NUCLEI_BASE_TAGS)
+    with db.get_connection(proj_path) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT tech_stack FROM endpoints WHERE host_id = ?", (host_id,))
+        for r in cur.fetchall():
+            for t in _tech_to_tags(json.loads(r["tech_stack"] or "[]")):
+                if t not in tags:
+                    tags.append(t)
+        cur.execute("SELECT service, version FROM ports WHERE host_id = ? AND state = 'open'",
+                    (host_id,))
+        for t in _services_to_tags(cur.fetchall()):
+            if t not in tags:
+                tags.append(t)
+    return ",".join(tags)
+
+
 def feed_nuclei(proj_path: str, nmap_dir: str):
+    """Feed unscanned endpoints to nuclei + write per-host tech/port tag file."""
     _feed_from_unscanned(proj_path, nmap_dir, "nuclei", "nuclei_urls.txt")
+
+    # ── Write nuclei_tags.txt for every in-scope alive host ──
+    with db.get_connection(proj_path) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id, host FROM hosts WHERE is_alive = 1 AND in_scope = 1")
+        for r in cur.fetchall():
+            host_id, host = r["id"], r["host"]
+            target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+            os.makedirs(target_dir, exist_ok=True)
+            with open(os.path.join(target_dir, "nuclei_tags.txt"), "w") as f:
+                f.write(_build_nuclei_tags(proj_path, host_id) + "\n")
 
 
 def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
