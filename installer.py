@@ -433,8 +433,6 @@ if __name__ == "__main__":
     if args.reinstall:
         snap_file = backup.backup_framework()
         wipe_installation()
-
-        # Run the normal install by re-executing this file WITHOUT --reinstall
         ret = subprocess.run(
             [sys.executable, os.path.abspath(__file__)],
             cwd=os.path.dirname(os.path.abspath(__file__)),
@@ -449,3 +447,7 @@ if __name__ == "__main__":
             os.remove(snap_file)
             console.print(f" [dim]🗑 Backup limpo: {os.path.basename(snap_file)}[/dim]")
         sys.exit(0)
+
+    # ← ADD THIS (4-space indent, same level as the if blocks above)
+    # Normal install — no flags, which is exactly what bootstrap.sh invokes
+    main()
