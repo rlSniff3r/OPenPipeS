@@ -429,16 +429,24 @@ if __name__ == "__main__":
         backup.restore_framework(snap)
         sys.exit(0)
 
-    # Normal install (existing flow)
-    snap_file = None
+    # ── Reinstall: backup → wipe → normal install → restore ──
     if args.reinstall:
         snap_file = backup.backup_framework()
         wipe_installation()
 
-    run_install()   # ← your existing full install entry
+        # Run the normal install by re-executing this file WITHOUT --reinstall
+        ret = subprocess.run(
+            [sys.executable, os.path.abspath(__file__)],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+        )
+        if ret.returncode != 0:
+            console.print("[red]✖ Instalação falhou. Restaurando backup...[/red]")
+            backup.restore_framework(snap_file)
+            sys.exit(1)
 
-    if args.reinstall and snap_file:
         backup.restore_framework(snap_file)
         if args.clean_backup:
             os.remove(snap_file)
+            console.print(f" [dim]🗑 Backup limpo: {os.path.basename(snap_file)}[/dim]")
+        sys.exit(0)
             console.print(f" [dim]🗑 Backup limpo: {os.path.basename(snap_file)}[/dim]")
