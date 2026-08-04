@@ -108,16 +108,16 @@ test: ## Testa a instalação
 	@echo ""
 
 backup: ## Cria backup da configuração (framework + cache)
-	python3 .openpipes/openpipes_core/installer.py --backup
+	python3 installer.py --backup
 
 restore: ## Restaura backup (use: make restore [BACKUP=arquivo.tar.gz])
-	python3 .openpipes/openpipes_core/installer.py --restore $(BACKUP)
+	python3 installer.py --restore $(BACKUP)
 
 reinstall: ## Reinstala preservando configurações (backup → wipe → install → restore)
-	python3 .openpipes/openpipes_core/installer.py --reinstall
+	python3 installer.py --reinstall
 
 reinstall-clean: ## Reinstala e remove o backup desta execução
-	python3 .openpipes/openpipes_core/installer.py --reinstall --clean-backup
+	python3 installer.py --reinstall --clean-backup
 
 dev: ## Modo desenvolvedor (link simbólico para scripts locais)
 	@echo "$(CYAN)[*] Configurando modo desenvolvedor...$(NC)"
