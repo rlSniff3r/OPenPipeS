@@ -213,7 +213,7 @@ def restore_framework(backup_file: str):
 
     console.print(f"[yellow]⚠ Restaurando: {os.path.basename(backup_file)}[/yellow]")
     with tarfile.open(backup_file, "r:gz") as tar:
-        tar.extractall(staging)
+        tar.extractall(staging, filter="data")
 
     for f in ["config.sh", "secrets.conf"]:
         src = os.path.join(staging, f)

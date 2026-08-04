@@ -108,9 +108,6 @@ test: ## Testa a instalação
 	fi
 	@echo ""
 
-OPENPIPES_BACKUP := $(HOME)/backups-openpipes
-BACKUP_PY := .openpipes/openpipes_core/backup.py
-
 backup: ## Cria backup da configuração (framework + cache)
 	@python3 $(BACKUP_PY) backup
 
@@ -124,6 +121,7 @@ reinstall: ## Reinstala preservando configurações (backup → wipe → install
 	echo "$(CYAN)[*] Removendo instalação antiga...$(NC)"; \
 	rm -rf $(OPENPIPES_HOME) $(HOME)/.openpipes_cache $(HOME)/.venv-jsfinder; \
 	echo "$(CYAN)[*] Instalando...$(NC)"; \
+	chmod +x bootstrap.sh && \
 	./bootstrap.sh || { echo "$(RED)[-] Falha na instalação! Restaurando...$(NC)"; python3 $(BACKUP_PY) restore "$$BACKUP"; exit 1; }; \
 	echo "$(CYAN)[*] Restaurando configurações...$(NC)"; \
 	python3 $(BACKUP_PY) restore "$$BACKUP"; \
@@ -136,6 +134,7 @@ reinstall-clean: ## Reinstala e remove o backup desta execução
 	echo "$(CYAN)[*] Removendo instalação antiga...$(NC)"; \
 	rm -rf $(OPENPIPES_HOME) $(HOME)/.openpipes_cache $(HOME)/.venv-jsfinder; \
 	echo "$(CYAN)[*] Instalando...$(NC)"; \
+	chmod +x bootstrap.sh && \
 	./bootstrap.sh || { echo "$(RED)[-] Falha na instalação! Restaurando...$(NC)"; python3 $(BACKUP_PY) restore "$$BACKUP"; exit 1; }; \
 	echo "$(CYAN)[*] Restaurando configurações...$(NC)"; \
 	python3 $(BACKUP_PY) restore "$$BACKUP"; \
