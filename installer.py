@@ -5,11 +5,29 @@ import sys
 import shutil
 import threading
 import argparse
-import backup
-from pathlib import Path
+import os
+import sys
+import argparse
+import shutil
 
+from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+
+# ── Ensure core modules (backup, db, ...) are importable ──
+# When running from a fresh git clone (repo root):
+_REPO_CORE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          ".openpipes", "openpipes_core")
+if os.path.isdir(_REPO_CORE):
+    sys.path.insert(0, _REPO_CORE)
+# When running from the installed location:
+else:
+    _INSTALLED_CORE = os.path.join(str(Path.home()), ".openpipes", "openpipes_core")
+    if os.path.isdir(_INSTALLED_CORE):
+        sys.path.insert(0, _INSTALLED_CORE)
+
+import backup
+
 
 console = Console()
 
