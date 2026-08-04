@@ -209,6 +209,7 @@ def restore_framework(backup_file: str):
     staging = os.path.join(BACKUP_DIR, "_restore_staging")
     shutil.rmtree(staging, ignore_errors=True)
     os.makedirs(staging, exist_ok=True)
+    os.makedirs(os.path.join(home, ".openpipes"), exist_ok=True)
 
     console.print(f"[yellow]⚠ Restaurando: {os.path.basename(backup_file)}[/yellow]")
     with tarfile.open(backup_file, "r:gz") as tar:
@@ -279,3 +280,26 @@ def restore(backup_file: str, proj_path: str, nmap_dir: str):
                 tar.extract(member, path=proj_path)
 
     console.print(f" [green]✔ Restaurado: {os.path.basename(backup_file)}[/green]")
+
+
+if __name__ == "__main__":
+    import sys
+
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "backup"
+
+    if cmd == "backup_silent":
+        console.quiet = True          # suppress rich output
+        path = backup_framework()
+        if path:
+            print(path)               # ONLY the raw path for Makefile capture
+    elif cmd == "backup":
+        backup_framework()
+    elif cmd == "restore":
+        snap = sys.argv[2] if len(sys.argv) > 2 else None
+        target = snap or latest_framework_backup()
+        if target:
+            restore_framework(target)
+        else:
+            console.print("[yellow]⚠ Nenhum backup reinstall_*.tar.gz encontrado.[/yellow]")
+    elif cmd == "list":
+        list_backups()
