@@ -4,6 +4,8 @@ import subprocess
 import sys
 import shutil
 import threading
+import argparse
+import backup
 from pathlib import Path
 
 from rich.console import Console
@@ -373,5 +375,52 @@ def main():
     console.print("[cyan]Execute 'source ~/.bashrc' e digite 'openpipes-core'[/cyan]")
 
 
+def wipe_installation():
+    """Only framework dirs. Never touches ~/Projetos."""
+    console.print("[yellow]⚠ Apagando instalação antiga...[/yellow]")
+    shutil.rmtree(OPENPIPES_DIR, ignore_errors=True)
+    shutil.rmtree(VENV_JSFINDER, ignore_errors=True)
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="OPenPipeS Installer")
+    parser.add_argument("--reinstall", action="store_true",
+                        help="Backup framework, wipe, reinstall, restore")
+    parser.add_argument("--clean-backup", action="store_true",
+                        help="Delete the backup created by this reinstall")
+    parser.add_argument("--restore", nargs="?", const="latest",
+                        metavar="BACKUP", help="Restore latest (or specific) framework backup")
+    parser.add_argument("--backup", action="store_true",
+                        help="Just create a framework backup")
+    args = parser.parse_args()
+
+    if args.clean_backup and not args.reinstall:
+        parser.error("--clean-backup requires --reinstall")
+    if args.reinstall and args.restore:
+        parser.error("--reinstall and --restore cannot be used together")
+
+    # --backup: standalone framework backup
+    if args.backup:
+        backup.backup_framework()
+        sys.exit(0)
+
+    # --restore: failure recovery
+    if args.restore:
+        snap = (backup.latest_framework_backup()
+                if args.restore == "latest"
+                else os.path.join(backup.BACKUP_DIR, args.restore))
+        backup.restore_framework(snap)
+        sys.exit(0)
+
+    # Normal install (existing flow)
+    snap_file = None
+    if args.reinstall:
+        snap_file = backup.backup_framework()
+        wipe_installation()
+
+    run_install()   # ← your existing full install entry
+
+    if args.reinstall and snap_file:
+        backup.restore_framework(snap_file)
+        if args.clean_backup:
+            os.remove(snap_file)
+            console.print(f" [dim]🗑 Backup limpo: {os.path.basename(snap_file)}[/dim]")

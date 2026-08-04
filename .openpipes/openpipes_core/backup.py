@@ -2,6 +2,7 @@ import os
 import tarfile
 import glob
 import time
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -153,12 +154,95 @@ def list_backups():
     for b in backups:
         fpath = os.path.join(BACKUP_DIR, b)
         fsize = _size_str(fpath)
-        ftype = "fresh" if "fresh_" in b else "rescan" if "rescan_" in b else "manual"
+        ftype = "fresh" if "fresh_" in b else "rescan" if "rescan_" in b else "reinstall" if "reinstall_" in b else "manual"
         fdate = " ".join(b.split("_")[1:3]) if "_" in b else "-"
         table.add_row(b, fsize, ftype, fdate)
 
     console.print(table)
     return backups
+
+
+def backup_framework() -> str | None:
+    """Backup framework config before reinstall.
+    Follows BACKUP_DIR convention: ~/backups-openpipes/reinstall_*.tar.gz.
+    NEVER touches ~/Projetos."""
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    ts = _timestamp()
+    backup_path = os.path.join(BACKUP_DIR, f"reinstall_{ts}.tar.gz")
+
+    home = str(Path.home())
+    added = False
+
+    with tarfile.open(backup_path, "w:gz") as tar:
+        for f in ["config.sh", "secrets.conf"]:
+            fpath = os.path.join(home, ".openpipes", f)
+            if os.path.exists(fpath):
+                tar.add(fpath, arcname=f)
+                added = True
+        wl = os.path.join(home, ".openpipes", "wordlists")
+        if os.path.exists(wl):
+            tar.add(wl, arcname="wordlists")
+            added = True
+        cache = os.path.join(home, ".openpipes_cache")
+        if os.path.exists(cache):
+            tar.add(cache, arcname=".openpipes_cache")
+            added = True
+
+    if not added:
+        console.print("[yellow]⚠ Nada a backupar (framework já limpo?).[/yellow]")
+        os.remove(backup_path)
+        return None
+
+    console.print(f" [dim]💾 Backup framework: {backup_path} ({_size_str(backup_path)})[/dim]")
+    return backup_path
+
+
+def restore_framework(backup_file: str):
+    """Restore framework config after reinstall. Never touches ~/Projetos."""
+    if not os.path.isabs(backup_file):
+        backup_file = os.path.join(BACKUP_DIR, backup_file)
+    if not os.path.exists(backup_file):
+        console.print(f"[red]✖ Backup não encontrado: {backup_file}[/red]")
+        return
+
+    home = str(Path.home())
+    staging = os.path.join(BACKUP_DIR, "_restore_staging")
+    shutil.rmtree(staging, ignore_errors=True)
+    os.makedirs(staging, exist_ok=True)
+
+    console.print(f"[yellow]⚠ Restaurando: {os.path.basename(backup_file)}[/yellow]")
+    with tarfile.open(backup_file, "r:gz") as tar:
+        tar.extractall(staging)
+
+    for f in ["config.sh", "secrets.conf"]:
+        src = os.path.join(staging, f)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(home, ".openpipes", f))
+            console.print(f"  [green]✔ restaurado: {f}[/green]")
+
+    wl_src = os.path.join(staging, "wordlists")
+    if os.path.isdir(wl_src):
+        shutil.copytree(wl_src, os.path.join(home, ".openpipes", "wordlists"),
+                        dirs_exist_ok=True)
+        console.print("  [green]✔ restaurado: wordlists/[/green]")
+
+    cache_src = os.path.join(staging, ".openpipes_cache")
+    if os.path.isdir(cache_src):
+        shutil.copytree(cache_src, os.path.join(home, ".openpipes_cache"),
+                        dirs_exist_ok=True)
+        console.print("  [green]✔ restaurado: .openpipes_cache/[/green]")
+
+    shutil.rmtree(staging, ignore_errors=True)
+    console.print(f" [green]✔ Framework restaurado: {os.path.basename(backup_file)}[/green]")
+
+
+def latest_framework_backup() -> str | None:
+    """Most recent reinstall_*.tar.gz (chronological by name)."""
+    if not os.path.exists(BACKUP_DIR):
+        return None
+    backups = sorted(f for f in os.listdir(BACKUP_DIR)
+                     if f.startswith("reinstall_") and f.endswith(".tar.gz"))
+    return os.path.join(BACKUP_DIR, backups[-1]) if backups else None
 
 
 def restore(backup_file: str, proj_path: str, nmap_dir: str):

@@ -1,4 +1,4 @@
-.PHONY: help install uninstall clean update test config status
+.PHONY: help install uninstall clean update test config status backup restore reinstall reinstall-clean dev docs run
 
 # Cores
 CYAN := \033[0;36m
@@ -107,21 +107,17 @@ test: ## Testa a instalação
 	fi
 	@echo ""
 
-backup: ## Cria backup da configuração
-	@echo "$(CYAN)[*] Criando backup...$(NC)"
-	@mkdir -p ./backups
-	@tar -czf ./backups/openpipes-backup-$(shell date +%Y%m%d-%H%M).tar.gz \
-		$(OPENPIPES_HOME) $(HOME)/.openpipes_cache 2>/dev/null || true
-	@echo "$(GREEN)[+] Backup criado em: ./backups/$(NC)"
+backup: ## Cria backup da configuração (framework + cache)
+	python3 .openpipes/openpipes_core/installer.py --backup
 
-restore: ## Restaura backup (use: make restore BACKUP=arquivo.tar.gz)
-	@if [ -z "$(BACKUP)" ]; then \
-		echo "$(RED)[-] Use: make restore BACKUP=arquivo.tar.gz$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(CYAN)[*] Restaurando backup: $(BACKUP)$(NC)"
-	@tar -xzf $(BACKUP) -C $(HOME)
-	@echo "$(GREEN)[+] Backup restaurado!$(NC)"
+restore: ## Restaura backup (use: make restore [BACKUP=arquivo.tar.gz])
+	python3 .openpipes/openpipes_core/installer.py --restore $(BACKUP)
+
+reinstall: ## Reinstala preservando configurações (backup → wipe → install → restore)
+	python3 .openpipes/openpipes_core/installer.py --reinstall
+
+reinstall-clean: ## Reinstala e remove o backup desta execução
+	python3 .openpipes/openpipes_core/installer.py --reinstall --clean-backup
 
 dev: ## Modo desenvolvedor (link simbólico para scripts locais)
 	@echo "$(CYAN)[*] Configurando modo desenvolvedor...$(NC)"
