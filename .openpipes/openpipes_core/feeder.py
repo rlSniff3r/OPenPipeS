@@ -281,6 +281,19 @@ def feed_arjun(proj_path: str, nmap_dir: str):
                 f.write(f"{u}\n")
         count += len(urls)
 
+    # ── Remove stale target files: out-of-scope, dead OR fully-scanned hosts ──
+    if os.path.isdir(nmap_dir):
+        for folder in os.listdir(nmap_dir):
+            if not folder.startswith("nmap-"):
+                continue
+            host = folder[len("nmap-"):]
+            if host in host_urls:
+                continue
+            stale = os.path.join(nmap_dir, folder, "arjun_targets.txt")
+            if os.path.exists(stale):
+                os.remove(stale)
+                console.print(f" [dim]↳ Removido alvo obsoleto: {host}[/dim]")
+
     console.print(f" [dim]↳ Feed Arjun: {count} endpoints para {len(host_urls)} hosts.[/dim]")
 
 
