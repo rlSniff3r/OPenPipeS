@@ -449,4 +449,3 @@ if __name__ == "__main__":
             os.remove(snap_file)
             console.print(f" [dim]🗑 Backup limpo: {os.path.basename(snap_file)}[/dim]")
         sys.exit(0)
-            console.print(f" [dim]🗑 Backup limpo: {os.path.basename(snap_file)}[/dim]")
