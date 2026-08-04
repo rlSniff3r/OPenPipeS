@@ -329,6 +329,9 @@ def feed_screenshot(proj_path: str, nmap_dir: str):
 # ── Nuclei tag mapping ────────────────────────────────────────────
 NUCLEI_BASE_TAGS = ["misconfig", "exposure", "default-login", "takeover", "panel", "auth-bypass"]
 
+# Protocol-level tags that aren't tech-specific (never used for CVE pass 2)
+NON_TECH_TAGS = {"http", "network", "ssl", "dns", "tcp", "webserver"}
+
 # Normalized tech_stack name -> nuclei tag(s)
 TECH_MAP = {
     "nginx": ["nginx"], "apache http server": ["apache"], "apache": ["apache"],
@@ -416,19 +419,46 @@ def _build_nuclei_tags(proj_path: str, host_id: int) -> str:
 
 
 def feed_nuclei(proj_path: str, nmap_dir: str):
-    """Feed unscanned endpoints to nuclei + write per-host tech/port tag file."""
-    _feed_from_unscanned(proj_path, nmap_dir, "nuclei", "nuclei_urls.txt")
-
-    # ── Write nuclei_tags.txt for every in-scope alive host ──
+    """Port-aware targets: one root URL per open web port + tag files."""
     with db.get_connection(proj_path) as conn:
         cur = conn.cursor()
-        cur.execute("SELECT id, host FROM hosts WHERE is_alive = 1 AND in_scope = 1")
-        for r in cur.fetchall():
-            host_id, host = r["id"], r["host"]
-            target_dir = os.path.join(nmap_dir, f"nmap-{host}")
-            os.makedirs(target_dir, exist_ok=True)
-            with open(os.path.join(target_dir, "nuclei_tags.txt"), "w") as f:
-                f.write(_build_nuclei_tags(proj_path, host_id) + "\n")
+        cur.execute("""
+            SELECT h.id, h.host, p.port, p.service
+            FROM hosts h JOIN ports p ON p.host_id = h.id
+            WHERE h.is_alive = 1 AND h.in_scope = 1 AND p.state = 'open'
+            AND (COALESCE(p.service, '') IN ('http','https','cloudflare','upnp','unknown','')
+                OR p.port IN (80, 443, 8080, 8443, 8000, 8888))
+            ORDER BY h.host, p.port
+        """)
+        rows = cur.fetchall()
+
+    per_host: dict[int, dict] = {}
+    for r in rows:
+        scheme = "https" if r["port"] in (443, 8443) else "http"
+        entry = per_host.setdefault(r["id"], {"host": r["host"], "urls": []})
+        entry["urls"].append(f"{scheme}://{r['host']}:{r['port']}/")
+
+    for host_id, entry in per_host.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{entry['host']}")
+        os.makedirs(target_dir, exist_ok=True)
+
+        # 1. Targets: one root URL per open port
+        with open(os.path.join(target_dir, "nuclei_urls.txt"), "w") as f:
+            f.write("\n".join(entry["urls"]) + "\n")
+
+        # 2. Pass-1 tags: BASE + techs (incl. 'http' — fine here)
+        all_tags = _build_nuclei_tags(proj_path, host_id)
+        with open(os.path.join(target_dir, "nuclei_tags.txt"), "w") as f:
+            f.write(all_tags + "\n")
+
+        # 3. Pass-2 techs: ONLY tech/service tags (no base, no 'http')
+        tech_only = [t for t in all_tags.split(",")
+                     if t not in NUCLEI_BASE_TAGS and t not in NON_TECH_TAGS]
+        with open(os.path.join(target_dir, "nuclei_techs.txt"), "w") as f:
+            f.write(",".join(tech_only) + "\n")
+
+    console.print(f" [dim]↳ Feed Nuclei: {len(per_host)} hosts, "
+                  f"{sum(len(e['urls']) for e in per_host.values())} alvos porta-específicos.[/dim]")
 
 
 def feed_nwrapper(proj_path: str, nmap_dir: str, cycle: bool = False):
