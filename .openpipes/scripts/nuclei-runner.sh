@@ -23,6 +23,7 @@ for dir in "$NMAP_DIR"/nmap-*; do
         -pt http \
         -severity low,medium,high,critical \
         -et "fuzz" \
+        -max-host-error 5 \
         -timeout 5 -retries 1 \
         -je "$dir/nuclei_pass1.json"; then
         echo "  [✔] pass 1 OK ($(wc -c < "$dir/nuclei_pass1.json" 2>/dev/null || echo 0) bytes)"
@@ -51,6 +52,7 @@ for dir in "$NMAP_DIR"/nmap-*; do
                 -tc "contains(tags,\"cve\") && ($TECH_COND)" \
                 -pt http \
                 -severity low,medium,high,critical \
+                -max-host-error 5 \
                 -timeout 5 -retries 1 \
                 -je "$dir/nuclei_pass2.json"; then
                 echo "  [✔] pass 2 OK ($(wc -c < "$dir/nuclei_pass2.json" 2>/dev/null || echo 0) bytes)"
