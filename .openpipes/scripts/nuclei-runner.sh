@@ -32,20 +32,26 @@ for dir in "$NMAP_DIR"/nmap-*; do
 
     # ── PASS 2: CVEs apenas para techs detectadas (AND via -tc) ──
     if [[ -s "$dir/nuclei_techs.txt" ]]; then
-        IFS=',' read -ra TECH_ARRAY <<< "$(cat "$dir/nuclei_techs.txt")"
-        COND_PARTS=()
+        TECHS=$(cat "$dir/nuclei_techs.txt")
+        IFS=',' read -ra TECH_ARRAY <<< "$TECHS"
+
+        # Build: contains(tags,"a") || contains(tags,"b") || ...
+        TECH_COND=""
         for tech in "${TECH_ARRAY[@]}"; do
-            [[ -n "$tech" ]] && COND_PARTS+=("contains(tags,\"$tech\")")
+            [[ -z "$tech" ]] && continue
+            if [[ -n "$TECH_COND" ]]; then
+                TECH_COND+=" || "
+            fi
+            TECH_COND+="contains(tags,\"$tech\")"
         done
-        if [[ ${#COND_PARTS[@]} -gt 0 ]]; then
-            TECH_COND=$(IFS=" || "; echo "${COND_PARTS[*]}")
-            FINAL_COND="contains(tags,\"cve\") && ($TECH_COND)"
-            echo "  [*] pass 2 (CVE): $FINAL_COND"
+
+        if [[ -n "$TECH_COND" ]]; then
+            echo "  [*] pass 2 (CVE): contains(tags,\"cve\") && ($TECH_COND)"
             if nuclei -l "$input_file" \
-                -tc "$FINAL_COND" \
+                -tc "contains(tags,\"cve\") && ($TECH_COND)" \
                 -pt http \
-                -severity medium,high,critical \
-                -timeout 8 -retries 1 \
+                -severity low,medium,high,critical \
+                -timeout 5 -retries 1 \
                 -je "$dir/nuclei_pass2.json"; then
                 echo "  [✔] pass 2 OK ($(wc -c < "$dir/nuclei_pass2.json" 2>/dev/null || echo 0) bytes)"
             else
