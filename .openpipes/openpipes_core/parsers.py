@@ -708,7 +708,7 @@ def parse_jsfinder(proj_path, nmap_dir):
 # ═════════════════════════════════════════════════════════════════════
 
 def parse_nuclei(proj_path, nmap_dir):
-    """Parse nuclei output from per-target JSON files (array or JSONL format)."""
+    """Parse nuclei output from per-target JSON files (pass1, pass2, or legacy)."""
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
@@ -717,83 +717,83 @@ def parse_nuclei(proj_path, nmap_dir):
             for nmap_folder in sorted(os.listdir(nmap_dir)):
                 if not nmap_folder.startswith("nmap-"):
                     continue
-                json_file = os.path.join(nmap_dir, nmap_folder, "nuclei_output.json")
-                if not os.path.exists(json_file):
-                    continue
 
-                # Read all content and detect format
-                with open(json_file, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read().strip()
-                if not content:
-                    continue
-
-                # Parse — handles both JSON array and JSONL formats
-                try:
-                    if content.startswith("["):
-                        items = json.loads(content)
-                    else:
-                        items = []
-                        for line in content.split("\n"):
-                            line = line.strip()
-                            if line:
-                                items.append(json.loads(line))
-                except (json.JSONDecodeError, ValueError):
-                    continue
-
-                for data in items:
-                    host_str = data.get("host") or data.get("ip", "")
-                    if not host_str:
+                for fname in ("nuclei_pass1.json", "nuclei_pass2.json", "nuclei_output.json"):
+                    json_file = os.path.join(nmap_dir, nmap_folder, fname)
+                    if not os.path.exists(json_file):
                         continue
 
-                    ips = [data["ip"]] if data.get("ip") else []
-                    host_id = get_or_create_host(cursor, host_str, ips)
-                    if not host_id:
+                    with open(json_file, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read().strip()
+                    if not content:
                         continue
-
-                    info = data.get("info", {}) or {}
-                    vuln_name = data.get("template-id") or info.get("name", "unknown")
-                    raw_severity = (data.get("severity") or info.get("severity", "info")).lower()
-                    severity_label = {
-                        "critical": "Crítica", "high": "Alta",
-                        "medium": "Média", "low": "Baixa", "info": "Info",
-                    }.get(raw_severity, raw_severity.capitalize())
-
-                    cvss_score = data.get("cvss-score") or info.get("cvss-score")
-                    cvss_vector = data.get("cvss-metrics") or info.get("cvss-metrics")
-                    cve_raw = data.get("cve-id") or info.get("cve-id", [])
-                    cve_id = ",".join(cve_raw) if isinstance(cve_raw, list) else str(cve_raw) if cve_raw else ""
-                    description = data.get("description") or info.get("description", "")
-                    remediation = data.get("remediation") or info.get("remediation", "")
-                    matched_at = data.get("matched-at", "")
-                    curl_command = data.get("curl-command", "")
-                    title = data.get("name") or info.get("name", vuln_name)
-                    raw_refs = data.get("reference") or info.get("references") or []
-                    raw_refs = [raw_refs] if isinstance(raw_refs, str) and raw_refs.strip() else raw_refs
 
                     try:
-                        cursor.execute("""
-                            INSERT INTO vulnerabilities
-                                (host_id, title, severity, cvss_score, cvss_vector,
-                                 cve_id, vuln_name, description, matched_at,
-                                 curl_command, remediation, reference_urls, source_tool)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            ON CONFLICT(vuln_name, matched_at, host_id) DO UPDATE SET
-                                severity=excluded.severity, cvss_score=excluded.cvss_score,
-                                cvss_vector=excluded.cvss_vector, cve_id=excluded.cve_id,
-                                description=excluded.description, remediation=excluded.remediation,
-                                reference_urls=excluded.reference_urls, source_tool=excluded.source_tool
-                        """, (
-                            host_id, title, severity_label,
-                            float(cvss_score) if cvss_score else None,
-                            cvss_vector or None, cve_id or None,
-                            vuln_name, description, matched_at,
-                            curl_command, remediation,
-                            json.dumps(raw_refs), "nuclei",
-                        ))
-                        if cursor.rowcount > 0:
-                            count += 1
-                    except Exception:
+                        if content.startswith("["):
+                            items = json.loads(content)
+                        else:
+                            items = []
+                            for line in content.split("\n"):
+                                line = line.strip()
+                                if line:
+                                    items.append(json.loads(line))
+                    except (json.JSONDecodeError, ValueError):
                         continue
+
+                    for data in items:
+                        host_str = data.get("host") or data.get("ip", "")
+                        if not host_str:
+                            continue
+
+                        ips = [data["ip"]] if data.get("ip") else []
+                        host_id = get_or_create_host(cursor, host_str, ips)
+                        if not host_id:
+                            continue
+
+                        info = data.get("info", {}) or {}
+                        vuln_name = data.get("template-id") or info.get("name", "unknown")
+                        raw_severity = (data.get("severity") or info.get("severity", "info")).lower()
+                        severity_label = {
+                            "critical": "Crítica", "high": "Alta",
+                            "medium": "Média", "low": "Baixa", "info": "Info",
+                        }.get(raw_severity, raw_severity.capitalize())
+
+                        cvss_score = data.get("cvss-score") or info.get("cvss-score")
+                        cvss_vector = data.get("cvss-metrics") or info.get("cvss-metrics")
+                        cve_raw = data.get("cve-id") or info.get("cve-id", [])
+                        cve_id = ",".join(cve_raw) if isinstance(cve_raw, list) else str(cve_raw) if cve_raw else ""
+                        description = data.get("description") or info.get("description", "")
+                        remediation = data.get("remediation") or info.get("remediation", "")
+                        matched_at = data.get("matched-at", "")
+                        curl_command = data.get("curl-command", "")
+                        title = data.get("name") or info.get("name", vuln_name)
+                        raw_refs = data.get("reference") or info.get("references") or []
+                        raw_refs = [raw_refs] if isinstance(raw_refs, str) and raw_refs.strip() else raw_refs
+
+                        try:
+                            cursor.execute("""
+                                INSERT INTO vulnerabilities
+                                    (host_id, title, severity, cvss_score, cvss_vector,
+                                     cve_id, vuln_name, description, matched_at,
+                                     curl_command, remediation, reference_urls, source_tool)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ON CONFLICT(vuln_name, matched_at, host_id) DO UPDATE SET
+                                    severity=excluded.severity, cvss_score=excluded.cvss_score,
+                                    cvss_vector=excluded.cvss_vector, cve_id=excluded.cve_id,
+                                    description=excluded.description, remediation=excluded.remediation,
+                                    reference_urls=excluded.reference_urls, source_tool=excluded.source_tool
+                            """, (
+                                host_id, title, severity_label,
+                                float(cvss_score) if cvss_score else None,
+                                cvss_vector or None, cve_id or None,
+                                vuln_name, description, matched_at,
+                                curl_command, remediation,
+                                json.dumps(raw_refs), "nuclei",
+                            ))
+                            if cursor.rowcount > 0:
+                                count += 1
+                        except Exception:
+                            continue
 
     console.print(f" [dim]↳ Parser Nuclei: Inseriu {count} vulnerabilidades.[/dim]")
 
@@ -1242,27 +1242,33 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
                 files = []
                 if tool_name in ("ferox",):
                     files = glob.glob(os.path.join(target_dir, "ferox_*.jsonl"))
+
                 elif tool_name in ("katana", "crawled"):
                     f = os.path.join(target_dir, "crawled_all.jsonl")
                     if os.path.exists(f):
                         files = [f]
+
                 elif tool_name == "jsfinder":
                     f = os.path.join(target_dir, "jsfinder-results.json")
                     if os.path.exists(f):
                         files = [f]
-                elif tool_name == "nuclei":
-                    f = os.path.join(target_dir, "nuclei_output.json")
-                    if os.path.exists(f):
-                        files = [f]
+
                 elif tool_name == "screenshot":
                     f = os.path.join(target_dir, "Screenshots", "go.jsonl")
                     if os.path.exists(f):
                         files = [f]
+
                 elif tool_name == "httpx":
                     f = os.path.join(nmap_dir, "httpx_output.json")
                     if os.path.exists(f):
                         files = [f]
                 
+                elif tool_name == "nuclei":
+                    for fname in ("nuclei_pass1.json", "nuclei_pass2.json", "nuclei_output.json"):
+                        f = os.path.join(target_dir, fname)
+                        if os.path.exists(f):
+                            files.append(f)
+
                 elif tool_name == "dalfox":
                     files = glob.glob(os.path.join(target_dir, "dalfox_output_*.json"))
                     for fpath in files:
@@ -1301,31 +1307,61 @@ def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
 
                 for fpath in files:
                     try:
-                        with open(fpath) as fh:
-                            for line in fh:
-                                line = line.strip()
-                                if not line:
+                        with open(fpath, encoding="utf-8") as fh:
+                            content = fh.read()
+                        if not content.strip():
+                            continue
+
+                        if tool_name == "nuclei":
+                            try:
+                                findings = json.loads(content)
+                                if isinstance(findings, dict):
+                                    findings = [findings]
+                            except json.JSONDecodeError:
+                                findings = [json.loads(l) for l in content.splitlines() if l.strip()]
+                            for data in findings:
+                                if not isinstance(data, dict):
                                     continue
-                                try:
-                                    data = json.loads(line)
-                                    url = (data.get("url") or
-                                           data.get("request", {}).get("endpoint", "") or
-                                           data.get("source_js_url", ""))
-                                    if not url:
-                                        continue
-                                    url = _normalize_url(url)
-                                    cursor.execute("""
-                                        UPDATE endpoints SET scanned_by = CASE
-                                            WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
-                                            WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
-                                            ELSE scanned_by
-                                        END
-                                        WHERE url LIKE ?
-                                    """, (tool_name, f"%{tool_name}%", tool_name, f"{url}%"))
-                                except Exception:
+                                url = data.get("url") or data.get("matched-at") or ""
+                                if not url:
                                     continue
+                                url = _normalize_url(url)
+                                cursor.execute("""
+                                    UPDATE endpoints SET scanned_by = CASE
+                                        WHEN scanned_by IS NULL OR scanned_by = '' THEN 'nuclei'
+                                        WHEN scanned_by NOT LIKE '%nuclei%' THEN scanned_by || ',nuclei'
+                                        ELSE scanned_by
+                                    END
+                                    WHERE url LIKE ?
+                                """, (f"{url}%",))
+                            continue
+
+                        # ── existing generic per-line logic for the other tools ──
+                        for line in content.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                data = json.loads(line)
+                                url = (data.get("url") or
+                                       data.get("request", {}).get("endpoint", "") or
+                                       data.get("source_js_url", ""))
+                                if not url:
+                                    continue
+                                url = _normalize_url(url)
+                                cursor.execute("""
+                                    UPDATE endpoints SET scanned_by = CASE
+                                        WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
+                                        WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
+                                        ELSE scanned_by
+                                    END
+                                    WHERE url LIKE ?
+                                """, (tool_name, f"%{tool_name}%", tool_name, f"{url}%"))
+                            except Exception:
+                                continue
                     except Exception:
                         continue
+
 
 # ═════════════════════════════════════════════════════════════════════
 # DISPATCH

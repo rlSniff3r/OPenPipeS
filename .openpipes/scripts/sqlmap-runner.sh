@@ -23,7 +23,7 @@ for d in "$NMAP_DIR"/nmap-*/; do
             [ -z "$url" ] && continue
             sqlmap -u "$url" --data "$data" --batch --threads 5 \
                 --level 2 --risk 2 --flush-session \
-                --json --output-dir="$d"
+                --report-json $OUT_FILE
         done < "$POST_FILE"
     fi
 done
