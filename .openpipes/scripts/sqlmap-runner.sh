@@ -13,11 +13,8 @@ for d in "$NMAP_DIR"/nmap-*/; do
         target_name=$(basename "$d" | sed 's/nmap-//')
         echo "  → (GET) $target_name..."
         sqlmap -m "$GET_FILE" --batch --threads 5 --level 2 --risk 2 \
-            --smart --flush-session \
+            --flush-session \
             --random-agent \
-            --ignore-redirects \
-            --skip-waf \
-            --skip-heuristic \
             --report-json $OUT_FILE
     fi
 
@@ -27,11 +24,7 @@ for d in "$NMAP_DIR"/nmap-*/; do
             [ -z "$url" ] && continue
             sqlmap -u "$url" --data "$data" --batch --threads 5 \
                 --level 2 --risk 2 --flush-session \
-                --smart --flush-session \
                 --random-agent \
-                --ignore-redirects \
-                --skip-waf \
-                --skip-heuristic \
                 --report-json $OUT_FILE
         done < "$POST_FILE"
     fi
