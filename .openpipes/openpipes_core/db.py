@@ -96,7 +96,9 @@ def init_db(proj_path):
         """)
         _add_missing_columns(conn, "hosts", {
             "project_id": "project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE",
-            "in_scope": "in_scope BOOLEAN DEFAULT 1"
+            "in_scope": "in_scope BOOLEAN DEFAULT 1",
+            "narrative": "narrative TEXT",
+            "manual_techs": "manual_techs TEXT DEFAULT '[]'",
         })
 
         # ── Ports ───────────────────────────────────────────────────────
@@ -178,6 +180,19 @@ def init_db(proj_path):
                 source_js_url    TEXT,
                 discovered_route TEXT,
                 UNIQUE(source_js_url, discovered_route)
+            )
+        """)
+
+        # ── Tasks ──────────────────────────────────────────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+                task_key TEXT NOT NULL,
+                label TEXT NOT NULL,
+                is_done BOOLEAN DEFAULT 0,
+                kind TEXT NOT NULL DEFAULT 'auto',
+                UNIQUE(host_id, task_key)
             )
         """)
 
@@ -302,3 +317,31 @@ def get_recent_executions(proj_path, limit=15):
             (limit,),
         )
         return cursor.fetchall()
+
+
+def sync_auto_tasks(conn, host_id, auto_specs):
+    """Upsert auto tasks preserving done state; delete stale auto tasks."""
+    cur = conn.cursor()
+    seen = set()
+    for spec in auto_specs:
+        seen.add(spec["key"])
+        cur.execute(
+            "INSERT INTO tasks (host_id, task_key, label, is_done, kind) "
+            "VALUES (?, ?, ?, 0, 'auto') "
+            "ON CONFLICT(host_id, task_key) DO UPDATE SET label = excluded.label",
+            (host_id, spec["key"], spec["label"]),
+        )
+    if seen:
+        ph = ",".join("?" for _ in seen)
+        cur.execute(
+            f"DELETE FROM tasks WHERE host_id = ? AND kind = 'auto' AND task_key NOT IN ({ph})",
+            (host_id, *seen),
+        )
+    else:
+        cur.execute("DELETE FROM tasks WHERE host_id = ? AND kind = 'auto'", (host_id,))
+
+
+def get_host_tasks(conn, host_id):
+    cur = conn.cursor()
+    cur.execute("SELECT task_key, label, is_done FROM tasks WHERE host_id = ?", (host_id,))
+    return cur.fetchall()

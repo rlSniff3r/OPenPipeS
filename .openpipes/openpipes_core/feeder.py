@@ -410,6 +410,12 @@ def _build_nuclei_tags(proj_path: str, host_id: int) -> str:
             for t in _tech_to_tags(json.loads(r["tech_stack"] or "[]")):
                 if t not in tags:
                     tags.append(t)
+        cur.execute("SELECT manual_techs FROM hosts WHERE id = ?", (host_id,))
+        row = cur.fetchone()
+        if row:
+            for t in _tech_to_tags(json.loads(row["manual_techs"] or "[]")):
+                if t not in tags:
+                    tags.append(t)
         cur.execute("SELECT service, version FROM ports WHERE host_id = ? AND state = 'open'",
                     (host_id,))
         for t in _services_to_tags(cur.fetchall()):

@@ -183,7 +183,7 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
             ep["vulnerability_patterns"] = json.loads(ep["vulnerability_patterns"]) if ep.get("vulnerability_patterns") else []
             endpoints.append(ep)
 
-        cursor.execute("""SELECT title, severity, cvss_score, cvss_vector, cwe_id,
+        cursor.execute("""SELECT id, status, title, severity, cvss_score, cvss_vector, cwe_id,
                           cve_id, vuln_name, description, matched_at,
                           curl_command, remediation, impact,
                           reference_urls, source_tool, enriched_by, created_at
@@ -223,18 +223,40 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
         )
         js_discoveries = [dict(r) for r in cursor.fetchall()]
 
-        tech_stack = sorted(set(tech for ep in endpoints for tech in ep.get("tech_stack", [])))
+        # tech stack: auto (endpoints) + manual (user-edited in vault)
+        tech_stack = []
+        for ep in endpoints:
+            try:
+                tech_stack.extend(json.loads(ep["tech_stack"] or "[]"))
+            except Exception:
+                pass
 
-        all_tasks = [
-            {"type": "port", "label": f"Enumerar porta {p['port']}/{p['protocol']} ({p['service']})", "done": False}
-            for p in open_ports if p["service"] not in ("ssl", "tcpwrapped", "unknown")
+        try:
+            manual_techs = json.loads(host["manual_techs"] or "[]")
+        except Exception:
+            manual_techs = []
+
+        tech_stack = sorted(set(tech_stack) | set(manual_techs))
+
+        # tasks: reconcile auto tasks (preserve done state), then read all from DB
+        auto_specs = [
+            {"key": f"port_{p['port']}_{p['protocol']}",
+             "label": f"Enumerar porta {p['port']}/{p['protocol']} ({p['service'] or 'desconhecido'})"}
+            for p in open_ports
+            if (p["service"] or "unknown").lower() not in ("ssl", "tcpwrapped", "unknown")
         ]
+
         if endpoints:
-            all_tasks.append({"type": "web", "label": "Analisar endpoints web", "done": False})
+            auto_specs.append({"key": "web_endpoints", "label": "Analisar endpoints web"})
         if vulnerabilities:
-            all_tasks.append({"type": "review", "label": "Revisar vulnerabilidades encontradas", "done": False})
+            auto_specs.append({"key": "review_vulns", "label": "Revisar vulnerabilidades encontradas"})
         if js_discoveries:
-            all_tasks.append({"type": "js", "label": "Analisar rotas descobertas em JS", "done": False})
+            auto_specs.append({"key": "js_routes", "label": "Analisar rotas descobertas em JS"})
+
+        db.sync_auto_tasks(conn, host["id"], auto_specs)
+        all_tasks = [{"key": r["task_key"], "label": r["label"], "done": bool(r["is_done"])}
+                     for r in db.get_host_tasks(conn, host["id"])]
+        all_tasks.sort(key=lambda t: (t["done"], t["key"]))   # pending on top
 
         return {
             "name": host["host"], "ip": host["ips"][0] if host["ips"] else "",
@@ -694,4 +716,6 @@ def sync_project(target_name: str = None):
         console.print("[bold red]✖ Erro: Projeto não configurado. Rode init-openpipes primeiro.[/bold red]")
         return
     db.init_db(proj_path)
-    render_all(proj_path, obsdir, proj_name, target_name)
+    import sync
+    sync.parse_vault_to_db(proj_path, obsdir, proj_name, target_name)   # MD → DB (ingest)
+    render_all(proj_path, obsdir, proj_name, target_name)                # DB → MD (render)

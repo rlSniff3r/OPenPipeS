@@ -12,6 +12,8 @@ source_tool: {{ vuln.source_tool or "N/A" }}
 enriched_by: {{ vuln.enriched_by or "N/A" }}
 created_at: {{ vuln.created_at or "N/A" }}
 tags: [vulnerabilidade, {{ vuln.severity.lower() }}]
+vuln_id: {{ vuln.id }}
+status: {{ vuln.status or "open" }}
 ---
 
 # {{ vuln.severity_emoji }} {{ vuln.title }}

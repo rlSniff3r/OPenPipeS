@@ -71,7 +71,7 @@ _Última atualização_: {{ target.last_updated }}
 
 ## 📘 Narrativa Técnica
 
-{{ target.tech_summary }}
+{{ target.narrative or ("_Gerado automaticamente:_ " ~ target.tech_summary) }}
 
 ---
 
@@ -80,7 +80,7 @@ _Última atualização_: {{ target.last_updated }}
 🧹 - [[nmap.md|Nmap Scan]]
 ⚙️ - [[js-discoveries.md|JS Discoveries ({{ target.js_endpoint_count }})]]
 🌐 - [[httpx-results.md|HTTPX Results ({{ target.httpx_count }})]]
-📸 - [[#📸 Screenshots|Screenshots ({{ target.screenshot_count }})]]
+📸 - [[screenshots.md|{{ target.screenshot_count }} screenshots]]
 
 ---
 
@@ -121,11 +121,13 @@ _Última atualização_: {{ target.last_updated }}
 
 ## 🚩 Progresso
 
-{%- for task in target.pending_tasks %}
-- [ ] {{ task }}
+{%- if target.tasks %}
+{%- for task in target.tasks %}
+- [{{ 'x' if task.done else ' ' }}] {{ task.label }} <!-- id:{{ task.key }} -->
+{%- endfor %}
 {%- else %}
 - [x] Todas as tarefas concluídas
-{%- endfor %}
+{%- endif %}
 
 ---
 
