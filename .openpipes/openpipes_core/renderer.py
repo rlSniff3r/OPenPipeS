@@ -223,10 +223,11 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
         )
         js_discoveries = [dict(r) for r in cursor.fetchall()]
 
-        # ✅ fix:
+        # tech stack: auto (endpoints) + manual (user-edited in vault)
+        tech_stack = []                          # ← add this line
         for ep in endpoints:
             ts = ep["tech_stack"]
-            if isinstance(ts, str):            # defensive: some rows may be raw JSON
+            if isinstance(ts, str):              # defensive: some rows may be raw JSON
                 try:
                     ts = json.loads(ts or "[]")
                 except Exception:
