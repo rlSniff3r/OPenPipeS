@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">📊 Visão Geral do Projeto</h2>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card card-stat border-primary">
+      <div class="card-body text-center">
+        <h5 class="card-title text-primary">🖥️ Hosts</h5>
+        <p class="display-6">{{ stats.alive_hosts }}<small class="text-muted fs-6"> /{{ stats.total_hosts }}</small></p>
+        <small class="text-muted">{{ stats.in_scope }} no escopo</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-stat border-success">
+      <div class="card-body text-center">
+        <h5 class="card-title text-success">🔌 Portas</h5>
+        <p class="display-6">{{ stats.total_ports }}</p>
+        <small class="text-muted">abertas detectadas</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-stat border-info">
+      <div class="card-body text-center">
+        <h5 class="card-title text-info">🌐 Endpoints</h5>
+        <p class="display-6">{{ stats.total_endpoints }}</p>
+        <small class="text-muted">descobertos</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-stat border-danger">
+      <div class="card-body text-center">
+        <h5 class="card-title text-danger">⚠️ Vulnerabilidades</h5>
+        <p class="display-6">{{ stats.total_vulns }}</p>
+        <small class="text-muted">registradas</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header"><strong>📈 Distribuição por Severidade</strong></div>
+      <div class="card-body">
+        <canvas id="severityChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header"><strong>🏆 Top 5 Críticas / Altas</strong></div>
+      <div class="card-body p-0">
+        <table class="table table-striped mb-0">
+          <thead><tr><th>#</th><th>Título</th><th>Host</th><th>CVSS</th><th>Severidade</th></tr></thead>
+          <tbody>
+          {% for v in stats.top_vulns %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ v.title[:60] }}</td>
+              <td><small>{{ v.host[:30] }}</small></td>
+              <td><span class="badge badge-cvss bg-{% if v.cvss_score and v.cvss_score|float >= 9 %}danger{% elif v.cvss_score and v.cvss_score|float >= 7 %}warning{% else %}secondary{% endif %}">{{ v.cvss_score or 'N/A' }}</span></td>
+              <td>{{ v.severity }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-muted">Nenhuma vulnerabilidade crítica encontrada.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header"><strong>🕐 Atividade Recente</strong></div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Módulo</th><th>Iniciado</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for s in stats.recent_scans %}
+        <tr>
+          <td>{{ s.module_name }}</td>
+          <td><small>{{ s.started_at }}</small></td>
+          <td>
+            {% if s.status == 'completed' %}<span class="badge bg-success">✅</span>
+            {% elif s.status == 'running' %}<span class="badge bg-primary">🔄</span>
+            {% else %}<span class="badge bg-danger">❌</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" class="text-muted">Nenhuma execução registrada.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+new Chart(document.getElementById('severityChart'), {
+  type: 'doughnut',
+  data: {
+    labels: {{ stats.vulns_by_severity.keys() | list | tojson }},
+    datasets: [{
+      data: {{ stats.vulns_by_severity.values() | list | tojson }},
+      backgroundColor: ['#dc3545','#fd7e14','#ffc107','#0d6efd','#6c757d']
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom' }
+    }
+  }
+});
+</script>
+{% endblock %}
