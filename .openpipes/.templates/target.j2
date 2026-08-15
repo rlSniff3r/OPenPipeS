@@ -9,11 +9,6 @@ pipeline_status: {{ target.pipeline_status }}
 vuln_count: {{ target.vuln_count }}
 endpoint_count: {{ target.endpoint_count }}
 last_updated: {{ target.last_updated }}
-cssclasses:
-  - purpleRed
-  - whiteRed-rounded
-  - yellowCab
-  - flatBlue
 {%- if target.screenshots %}
 cover: "[[Screenshots/{{ target.screenshots[0].file_path }}]]"
 {%- endif %}

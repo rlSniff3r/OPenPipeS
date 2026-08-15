@@ -223,13 +223,15 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
         )
         js_discoveries = [dict(r) for r in cursor.fetchall()]
 
-        # tech stack: auto (endpoints) + manual (user-edited in vault)
-        tech_stack = []
+        # ✅ fix:
         for ep in endpoints:
-            try:
-                tech_stack.extend(json.loads(ep["tech_stack"] or "[]"))
-            except Exception:
-                pass
+            ts = ep["tech_stack"]
+            if isinstance(ts, str):            # defensive: some rows may be raw JSON
+                try:
+                    ts = json.loads(ts or "[]")
+                except Exception:
+                    ts = []
+            tech_stack.extend(ts or [])
 
         try:
             manual_techs = json.loads(host["manual_techs"] or "[]")
@@ -259,6 +261,7 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
         all_tasks.sort(key=lambda t: (t["done"], t["key"]))   # pending on top
 
         return {
+            "narrative": host.get("narrative", "") or "",
             "name": host["host"], "ip": host["ips"][0] if host["ips"] else "",
             "all_ips": host["ips"], "cnames": host["cnames"],
             "whois": host.get("whois_data", ""), "is_alive": bool(host["is_alive"]),
@@ -276,6 +279,7 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
             "vulns_low": len([v for v in vulnerabilities if v["severity"] == "Baixa"]),
             "screenshots": screenshots, "js_discoveries": js_discoveries,
             "pending_tasks": [t["label"] for t in all_tasks if not t["done"]],
+            "tasks": all_tasks,
             "completed_tasks": [t["label"] for t in all_tasks if t["done"]],
             "pipeline_status": "completed" if vulnerabilities else "in_progress",
         }
