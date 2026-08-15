@@ -38,13 +38,35 @@ gerado_em: {{ generated_at }}
 {%- set total = summary.severity_breakdown.Crítica + summary.severity_breakdown.Alta + summary.severity_breakdown.Média + summary.severity_breakdown.Baixa + summary.severity_breakdown.Info %}
 {%- if total > 0 %}
 
+```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'pie1': '#ff944d',
+    'pie2': '#4caf50',
+    'pie3': '#ffeb3b',
+    'pie4': '#ff4d4d',
+    'pie5': '#2196f3',
+    'pieStrokeWidth': '1px',
+    'pieStrokeColor': '#ffffff',
+    'pieOpacity': '0.95'
+  }
+}}%%
+pie title
+    "Crítica" : {{ summary.severity_breakdown.Crítica }}
+    "Alta" : {{ summary.severity_breakdown.Alta }}
+    "Média" : {{ summary.severity_breakdown.Média }}
+    "Baixa" : {{ summary.severity_breakdown.Baixa }}
+    "Info" : {{ summary.severity_breakdown.Info }}
+```
+
 | Severidade | Quantidade | % |
 |------------|-----------|----|
-| 🔴 Crítica | {{ summary.severity_breakdown.Crítica }} | {{ "%.1f"|format(summary.severity_breakdown.Crítica / total * 100) if total > 0 else 0 }}% |
-| 🟠 Alta | {{ summary.severity_breakdown.Alta }} | {{ "%.1f"|format(summary.severity_breakdown.Alta / total * 100) if total > 0 else 0 }}% |
-| 🟡 Média | {{ summary.severity_breakdown.Média }} | {{ "%.1f"|format(summary.severity_breakdown.Média / total * 100) if total > 0 else 0 }}% |
-| 🟢 Baixa | {{ summary.severity_breakdown.Baixa }} | {{ "%.1f"|format(summary.severity_breakdown.Baixa / total * 100) if total > 0 else 0 }}% |
-| 🔵 Info | {{ summary.severity_breakdown.Info }} | {{ "%.1f"|format(summary.severity_breakdown.Info / total * 100) if total > 0 else 0 }}% |
+| 🔴 Crítica | {{ summary.severity_breakdown.Crítica }} | {{ "%.1f"|format(summary.severity_breakdown.Crítica / total * 100) }}% |
+| 🟠 Alta | {{ summary.severity_breakdown.Alta }} | {{ "%.1f"|format(summary.severity_breakdown.Alta / total * 100) }}% |
+| 🟡 Média | {{ summary.severity_breakdown.Média }} | {{ "%.1f"|format(summary.severity_breakdown.Média / total * 100) }}% |
+| 🟢 Baixa | {{ summary.severity_breakdown.Baixa }} | {{ "%.1f"|format(summary.severity_breakdown.Baixa / total * 100) }}% |
+| 🔵 Info | {{ summary.severity_breakdown.Info }} | {{ "%.1f"|format(summary.severity_breakdown.Info / total * 100) }}% |
 {%- else %}
 *Nenhuma vulnerabilidade registrada.*
 {%- endif %}

@@ -103,7 +103,11 @@ def get_project_summary(proj_path: str) -> dict:
             )
             summary["total_endpoints"] = cursor.fetchone()[0]
 
-            cursor.execute(f"SELECT COUNT(*) FROM vulnerabilities WHERE host_id IN ({ph})", alive_hosts)
+            cursor.execute(
+                f"SELECT COUNT(*) FROM vulnerabilities "
+                f"WHERE host_id IN ({ph}) AND status != 'false_positive'",
+                alive_hosts,
+            )
             summary["total_vulns"] = cursor.fetchone()[0]
 
             cursor.execute(f"SELECT COUNT(*) FROM js_discoveries WHERE host_id IN ({ph})", alive_hosts)
@@ -114,7 +118,9 @@ def get_project_summary(proj_path: str) -> dict:
 
             try:
                 cursor.execute(
-                    f"SELECT severity, COUNT(*) as cnt FROM vulnerabilities WHERE host_id IN ({ph}) GROUP BY severity",
+                    f"""SELECT severity, COUNT(*) as cnt FROM vulnerabilities
+                        WHERE host_id IN ({ph}) AND status != 'false_positive'
+                        GROUP BY severity""",
                     alive_hosts,
                 )
                 for r in cursor.fetchall():
