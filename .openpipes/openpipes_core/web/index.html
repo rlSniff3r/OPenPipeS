@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPenPipeS | Aurora Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a', /* Slate 900 */
+                        cardbg: '#1e293b', /* Slate 800 */
+                        brand: '#0ea5e9',  /* Sky 500 */
+                        danger: '#ef4444'  /* Red 500 */
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-darkbg text-slate-300 font-sans antialiased">
+
+<div id="app" class="min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <header class="bg-cardbg border-b border-slate-700 shadow-md p-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-brand flex items-center justify-center font-bold text-white">OP</div>
+            <h1 class="text-xl font-bold text-white tracking-wide">Aurora <span class="text-brand">Dashboard</span></h1>
+        </div>
+        <div class="text-sm px-3 py-1 bg-slate-700 rounded-full text-brand font-mono">
+            {{ stats.projeto || 'Carregando Projeto...' }}
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow p-6 w-full max-w-7xl mx-auto">
+        
+        <!-- Header Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold text-white mb-2">Visão Global</h2>
+            <p class="text-slate-400">Visão panorâmica do reconhecimento de banco de dados e vetores de ataque.</p>
+        </div>
+
+        <!-- Estatísticas Globais -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-cardbg border border-slate-700 rounded-lg p-5 shadow flex items-center gap-4">
+                <div class="p-3 bg-blue-500/20 rounded-lg text-blue-400">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                </div>
+                <div>
+                    <div class="text-slate-400 text-sm font-medium uppercase tracking-wider">Hosts Mapeados</div>
+                    <div class="text-3xl font-bold text-white">{{ stats.hosts }}</div>
+                </div>
+            </div>
+
+            <div class="bg-cardbg border border-slate-700 rounded-lg p-5 shadow flex items-center gap-4">
+                <div class="p-3 bg-red-500/20 rounded-lg text-red-400">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <div>
+                    <div class="text-slate-400 text-sm font-medium uppercase tracking-wider">Vulnerabilidades</div>
+                    <div class="text-3xl font-bold text-white">{{ stats.vulns }}</div>
+                </div>
+            </div>
+
+            <div class="bg-cardbg border border-slate-700 rounded-lg p-5 shadow flex items-center gap-4">
+                <div class="p-3 bg-green-500/20 rounded-lg text-green-400">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                </div>
+                <div>
+                    <div class="text-slate-400 text-sm font-medium uppercase tracking-wider">Endpoints Ativos</div>
+                    <div class="text-3xl font-bold text-white">{{ stats.endpoints }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Área de Alerta para erros da API -->
+        <div v-if="stats.error" class="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded mb-6">
+            <strong>Atenção:</strong> {{ stats.error }}
+        </div>
+        
+    </main>
+</div>
+
+<script>
+    const { createApp, ref, onMounted } = Vue
+
+    createApp({
+        setup() {
+            const stats = ref({ hosts: 0, vulns: 0, endpoints: 0, projeto: '', error: null })
+
+            // Função para buscar dados da nossa API protegida
+            const fetchStats = async () => {
+                try {
+                    const response = await fetch('/api/stats');
+                    if (response.ok) {
+                        stats.value = await response.json();
+                    } else {
+                        stats.value.error = "Falha ao comunicar com a API (" + response.status + ")";
+                    }
+                } catch (error) {
+                    stats.value.error = "Erro de conexão: " + error.message;
+                }
+            }
+
+            onMounted(() => {
+                fetchStats();
+            })
+
+            return {
+                stats
+            }
+        }
+    }).mount('#app')
+</script>
+</body>
+</html>

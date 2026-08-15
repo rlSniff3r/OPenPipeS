@@ -7,6 +7,7 @@ import argparse
 import time
 import verifier
 import cycle
+import uvicorn
 from pathlib import Path
 
 from rich.console import Console
@@ -234,6 +235,24 @@ def run_osint_people_enricher():
     input("\nPressione ENTER para voltar ao menu...")
 
 
+def iniciar_dashboard(host: str = "0.0.0.0", port: int = 5000):
+    """
+    Função a ser chamada quando o argumento 'dashboard' for passado no CLI.
+    """
+    print(f"[*] Iniciando OPenPipeS Web Dashboard em {host}:{port}...")
+    print("[*] Autenticação requerida. Verifique seu ~/.openpipes/secrets.conf")
+    
+    # Inicia o servidor uvicorn apontando para a instância 'app' no arquivo 'api.py'
+    # O caminho da string assume que api.py está na pasta 'web' e o pacote se chama 'openpipes_core'
+    uvicorn.run(
+        "openpipes_core.web.api:app",
+        host=host,
+        port=port,
+        reload=False, # Altere para True em desenvolvimento
+        log_level="info"
+    )
+
+
 def run_full_pipeline():
     proj_name, proj_path, nmap_dir = get_project_env()
     if proj_name == "DESCONHECIDO" or not proj_path:
@@ -419,6 +438,7 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
         menu_table.add_row("[13]", "[bold yellow]Pipeline Completo (Auto-Run)[/bold yellow]")
         menu_table.add_row("[14]", "[bold magenta]Ver Histórico de Execuções[/bold magenta]")
+        menu_table.add_row("[24]", "[bold green]Iniciar Web Dashboard[/bold green]")
         menu_table.add_row("[99]", "[bold cyan]Ajuda / Documentação[/bold cyan]")
         menu_table.add_row("[0]", "[bold red]Sair[/bold red]")
 
@@ -467,6 +487,10 @@ Framework de Reconhecimento v2.0
         elif escolha == "21":
             import cycle
             cycle.run_cycle()
+
+        elif escolha == "24":
+            # Chama o próprio script passando os argumentos
+            subprocess.run([sys.executable, __file__, "dashboard", "--host", "0.0.0.0", "--port", "5000"])
 
         elif escolha in opcoes:
             run_bash_module(opcoes[escolha])
@@ -670,7 +694,7 @@ def main():
     # Web Dashboard subcommand
     dashboard_parser = subparsers.add_parser("dashboard", help="Start web dashboard")
     dashboard_parser.add_argument("--host", default="127.0.0.1", help="Bind address (use 0.0.0.0 for LAN)")
-    dashboard_parser.add_argument("--port", type=int, default=8080, help="Port")
+    dashboard_parser.add_argument("--port", type=int, default=5000, help="Port")
 
     if len(sys.argv) == 1:
         interactive_menu()
@@ -780,11 +804,8 @@ def main():
                         if selected:
                             bk.restore(selected[0], proj_path, nmap_dir)
 
-        elif args.command == "dashboard":
-            from dashboard import run_dashboard
-            from pathlib import Path
-            import subprocess
-            # Resolve proj_path inline
+            elif args.command == "dashboard":            
+            # Resolve proj_path inline para passar para o backend
             config_file = Path.home() / ".openpipes" / "config.sh"
             if config_file.exists():
                 cmd = f"source {config_file} && echo -n \"$proj_path\""
@@ -792,7 +813,26 @@ def main():
                 pp = r.stdout.strip() or None
             else:
                 pp = None
-            run_dashboard(pp, host=args.host, port=args.port)
+            
+            # Exporta o caminho do banco de dados para o FastAPI consumir
+            if pp:
+                os.environ["OPENPIPES_PROJ_PATH"] = pp
+            else:
+                console.print("[yellow][!] Aviso: proj_path não resolvido. O Dashboard pode não encontrar o banco de dados do alvo atual.[/yellow]")
+
+            console.print(f"\n[bold cyan]▶ Inicializando OPenPipeS Web Dashboard[/bold cyan]")
+            console.print(f"[dim]Binding: {args.host}:{args.port}[/dim]")
+            console.print(f"[dim]Projeto Alvo: {pp}[/dim]")
+            console.print(f"[bold red]⚠ Autenticação Requerida:[/bold red] Lendo credenciais de ~/.openpipes/secrets.conf\n")
+            
+            # Executa o servidor Uvicorn apontando para a pasta web (módulo api.py e variável app)
+            uvicorn.run(
+                "web.api:app",
+                host=args.host,
+                port=args.port,
+                reload=False, # Pode alterar para True durante nossos testes se quiser
+                log_level="info"
+            )
 
         elif args.command == "dalfox":
             subprocess.run(

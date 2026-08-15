@@ -249,6 +249,7 @@ def setup_isolated_venvs():
     run_cmd(f"{VENV_CORE}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_CORE}/bin/pip install arjun -q")
     run_cmd(f"{VENV_CORE}/bin/pip install sqlmap -q")
+    run_cmd(f"{VENV_CORE}/bin/pip install fastapi uvicorn -q") 
     run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq textual cvss flask -q")
     run_cmd(f"{VENV_CORE}/bin/pip uninstall dnsrecon httpx -y -q 2>/dev/null || true")
 
