@@ -196,6 +196,19 @@ def init_db(proj_path):
             )
         """)
 
+        # ── User Evidences ─────────────────────────────────────────────
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_evidences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+                vuln_id INTEGER REFERENCES vulnerabilities(id) ON DELETE CASCADE,
+                original_name TEXT NOT NULL,
+                stored_name TEXT NOT NULL UNIQUE,
+                sha256 TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # ── Vulnerabilities (expanded) ──────────────────────────────────
         # If table doesn't exist, create it with full schema.
         # If it exists, add any missing columns.

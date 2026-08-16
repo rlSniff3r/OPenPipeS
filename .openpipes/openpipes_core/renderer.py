@@ -617,6 +617,17 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
                 shutil.copy2(src, dst)
                 ss_copied += 1
 
+    # 7.5 Copy user evidences (pasted in vault) back to per-host vault folder
+    proj_ev = os.path.join(nmap_dir, f"nmap-{host_name}", "Evidencias")
+    vault_ev = os.path.join(vault_dir, "Evidencias")
+    if os.path.isdir(proj_ev):
+        os.makedirs(vault_ev, exist_ok=True)
+        for fname in os.listdir(proj_ev):
+            src = os.path.join(proj_ev, fname)
+            dst = os.path.join(vault_ev, fname)
+            if not os.path.exists(dst):
+                shutil.copy2(src, dst)
+
     # 8. Dedicated screenshots.md with full gallery
     if all_screenshots:
         ss_lines = [

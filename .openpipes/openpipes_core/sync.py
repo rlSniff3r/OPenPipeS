@@ -10,8 +10,11 @@ import os
 import re
 import json
 import hashlib
+import shutil
 import db
 from rich.console import Console
+
+VAULT_INDEX = {}
 
 console = Console()
 
@@ -108,6 +111,38 @@ def _extract_callout(text: str, callout: str) -> str:
 
 
 # ── per-file parsers ─────────────────────────────────────────────
+def _extract_and_store_evidences(text, conn, host_id, host_name, proj_path, vuln_id=None):
+    """Extract pasted images from MD text, copy to project Evidencias/, rewrite to ![[hash_file]]."""
+    if not text:
+        return text
+    ev_dir = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Evidencias")
+
+    def replacer(match):
+        raw_link = match.group(1) or match.group(2)
+        filename = os.path.basename(raw_link.split("|")[0])          # strip |500 sizing
+        if re.match(r"^[0-9a-f]{8}_", filename):                     # already processed
+            return match.group(0)
+        orig_path = VAULT_INDEX.get(filename)
+        if not orig_path or not os.path.exists(orig_path):
+            return match.group(0)                                    # not found in vault
+        with open(orig_path, "rb") as f:
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+        stored_name = f"{file_hash[:8]}_{filename}"
+        dst = os.path.join(ev_dir, stored_name)
+        os.makedirs(ev_dir, exist_ok=True)
+        if not os.path.exists(dst):
+            shutil.copy2(orig_path, dst)
+        conn.execute(
+            "INSERT OR IGNORE INTO user_evidences "
+            "(host_id, vuln_id, original_name, stored_name, sha256) VALUES (?, ?, ?, ?, ?)",
+            (host_id, vuln_id, filename, stored_name, file_hash),
+        )
+        sizing = f"|{raw_link.split('|', 1)[1]}" if "|" in raw_link else ""
+        return f"![[{stored_name}{sizing}]]"
+
+    return re.sub(r"!\[\[(.*?)\]\]|!\[.*?\]\((.*?)\)", replacer, text)
+
+
 def _ingest_tasks(conn, host_id: int, tasks: list[tuple[bool, str, str | None]]):
     cur = conn.cursor()
     for done, label, key in tasks:
@@ -129,7 +164,8 @@ def _ingest_tasks(conn, host_id: int, tasks: list[tuple[bool, str, str | None]])
                 )
 
 
-def _parse_host_md(conn, host_id: int, host_name: str, host_dir: str):
+def _parse_host_md(conn, host_id, host_name, host_dir, proj_path):
+    """Parse a host's MD file and update the DB with user edits.""" 
     host_md = os.path.join(host_dir, f"{host_name}.md")
     if not os.path.exists(host_md):
         return
@@ -154,6 +190,7 @@ def _parse_host_md(conn, host_id: int, host_name: str, host_dir: str):
     # narrative — skip untouched auto-generated marker
     nav = _parse_narrative(_extract_section(text, NARRATIVE_HEADING))
     if nav is not None:
+        nav = _extract_and_store_evidences(nav, conn, host_id, host_name, proj_path)
         cur.execute("UPDATE hosts SET narrative = ? WHERE id = ?", (nav, host_id))
 
     # task states
@@ -162,19 +199,18 @@ def _parse_host_md(conn, host_id: int, host_name: str, host_dir: str):
         _ingest_tasks(conn, host_id, _parse_tasks(prog))
 
 
-def _ingest_vuln(conn, vuln_id: int, text: str):
+def _ingest_vuln(conn, host_id, host_name, proj_path, vuln_id, text):
     cur = conn.cursor()
-
     cur.execute("SELECT status FROM vulnerabilities WHERE id = ?", (vuln_id,))
     row = cur.fetchone()
     if row and row["status"] == "false_positive":
         return  # skip ingest for false positives
-
     updates = {}
     for callout, col in VULN_CALLOUTS.items():
         body = _extract_callout(text, callout)
         if body and body not in VULN_PLACEHOLDERS:
-            updates[col] = body
+            updates[col] = _extract_and_store_evidences(
+                body, conn, host_id, host_name, proj_path, vuln_id)
     status = _frontmatter_str(text, "status")
     if status:
         updates["status"] = status
@@ -183,7 +219,7 @@ def _ingest_vuln(conn, vuln_id: int, text: str):
         cur.execute(f"UPDATE vulnerabilities SET {sets} WHERE id = ?", (*updates.values(), vuln_id))
 
 
-def _parse_vulns_dir(conn, host_id: int, vulns_dir: str):
+def _parse_vulns_dir(conn, host_id, host_name, proj_path, vulns_dir):
     if not os.path.isdir(vulns_dir):
         return
     for fname in sorted(os.listdir(vulns_dir)):
@@ -194,11 +230,14 @@ def _parse_vulns_dir(conn, host_id: int, vulns_dir: str):
         m = re.search(r"^vuln_id:\s*(\d+)", text, re.MULTILINE)
         if not m:
             continue  # legacy file without id — skipped until re-rendered
-        _ingest_vuln(conn, int(m.group(1)), text)
+        _ingest_vuln(conn, host_id, host_name, proj_path, int(m.group(1)), text)
 
 
 # ── entry point ──────────────────────────────────────────────────
-def parse_vault_to_db(proj_path: str, obsdir: str, proj_name: str, target_name: str = None):
+def parse_vault_to_db(proj_path, obsdir, proj_name, target_name=None):
+    global VAULT_INDEX
+    VAULT_INDEX = {f: os.path.join(r, f) for r, _, files in os.walk(obsdir) for f in files}
+
     base = _vault_base(obsdir, proj_name)
     if not os.path.isdir(base):
         return
@@ -210,6 +249,7 @@ def parse_vault_to_db(proj_path: str, obsdir: str, proj_name: str, target_name: 
             if target_name and host_name != target_name:
                 continue
             host_dir = os.path.join(base, host_name)
-            _parse_host_md(conn, row["id"], host_name, host_dir)
-            _parse_vulns_dir(conn, row["id"], os.path.join(host_dir, "Vulnerabilidades"))
-    console.print(" [dim]↳ Sync ingest: vault → DB concluído.[/dim]")
+            _parse_host_md(conn, row["id"], host_name, host_dir, proj_path)
+            _parse_vulns_dir(conn, row["id"], host_name, proj_path,
+                             os.path.join(host_dir, "Vulnerabilidades"))
+        console.print(" [dim]↳ Sync ingest: vault → DB concluído.[/dim]")
