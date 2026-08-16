@@ -804,7 +804,7 @@ def main():
                         if selected:
                             bk.restore(selected[0], proj_path, nmap_dir)
 
-            elif args.command == "dashboard":            
+        elif args.command == "dashboard":            
             # Resolve proj_path inline para passar para o backend
             config_file = Path.home() / ".openpipes" / "config.sh"
             if config_file.exists():
