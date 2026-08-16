@@ -55,6 +55,19 @@ def _get_openai_key() -> Optional[str]:
         pass
     return None
 
+def _get_gemini_key() -> Optional[str]:
+    """Lê a GEMINI_API_KEY do secrets.conf."""
+    if not os.path.exists(SECRETS_FILE):
+        return None
+    try:
+        with open(SECRETS_FILE, "r") as f:
+            for line in f:
+                if "GEMINI_API_KEY" in line:
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return None
+
 def _get_nvd_api_key():
     """Read NVD API key from secrets.conf (supports export KEY=\"value\" format)."""
     secrets = os.path.expanduser("~/.openpipes/secrets.conf")
@@ -168,6 +181,7 @@ class VulnEnricherApp(App):
                     with Horizontal(classes="btn-row"):
                         yield Button("Aplicar Cache Selecionado", id="btn-apply-cache", variant="success")
                         yield Button("Gerar com OpenAI", id="btn-openai", variant="primary")
+                        yield Button("Gerar com Gemini (Free)", id="btn-gemini", variant="success")
                         yield Button("Gerar com NVD", id="btn-nvd", variant="primary")
                         yield Label("", id="enrich-status")
             
@@ -431,6 +445,67 @@ class VulnEnricherApp(App):
                 f"[red]Erro na API NVD: {e}[/red]",
             )
 
+    @work(exclusive=True, thread=True)
+    def fetch_gemini_enrichment(self, vuln_name: str, description: str):
+        """Consulta a API do Gemini (Free Tier) para enriquecer vulnerabilidades."""
+        api_key = _get_gemini_key()
+        if not api_key:
+            self.call_from_thread(
+                self.query_one("#enrich-status", Label).update,
+                "[red]Erro: GEMINI_API_KEY não encontrada em secrets.conf.[/red]"
+            )
+            return
+
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=api_key)
+
+            prompt = f"""
+            Você é um especialista em cibersegurança. Analise a seguinte vulnerabilidade e retorne um JSON estrito para cadastramento em base de conhecimento.
+
+            Nome da Vulnerabilidade: {vuln_name}
+            Descrição do Scanner: {description}
+
+            Retorne APENAS um JSON estrito contendo exatamente os seguintes campos:
+            - title: Título legível e padronizado em inglês ou português.
+            - cvssv3: Vetor CVSS v3.1 válido (exemplo: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H").
+            - description: Descrição técnica detalhada da vulnerabilidade.
+            - observation: Impacto potencial no ambiente ou CWE correspondente (ex: CWE-89).
+            - remediation: Passos e recomendações técnicas para correção.
+            - references: Lista de URLs de referência relevantes (URLs oficiais, OWASP ou NVD).
+            - cve_id: Código CVE associado se aplicável (ex: "CVE-2023-XXXX"), ou string vazia se desconhecido.
+            """
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                ),
+            )
+
+            data = json.loads(response.text)
+
+            # Normalização e salvamento em Cache Local
+            safe_title = _normalize_name(data.get("title", vuln_name))
+            cache_dir = Path.home() / ".openpipes_cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_path = cache_dir / f"{safe_title}.json"
+
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            # Atualiza cache em memória e aplica no banco
+            self.cache_data[safe_title] = data
+            self.call_from_thread(self.apply_enrichment, data, 'gemini')
+
+        except Exception as e:
+            self.call_from_thread(
+                self.query_one("#enrich-status", Label).update,
+                f"[red]Erro na API Gemini: {e}[/red]"
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Controla os botões das duas abas."""
@@ -445,6 +520,11 @@ class VulnEnricherApp(App):
                 self.query_one("#enrich-status", Label).update("[yellow]⏳ Solicitando IA da OpenAI. Aguarde...[/yellow]")
                 # Dispara a Thread
                 self.fetch_openai_enrichment(self.selected_vuln_data["name"], self.selected_vuln_data["desc"])
+
+        elif event.button.id == "btn-gemini":
+            if self.selected_vuln_data:
+                self.query_one("#enrich-status", Label).update("[yellow]⏳ Solicitando IA do Gemini (Free)...[/yellow]")
+                self.fetch_gemini_enrichment(self.selected_vuln_data["name"], self.selected_vuln_data["desc"])
 
         elif event.button.id == "btn-nvd":          # ← ADD
             if self.selected_cve_id:
