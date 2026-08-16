@@ -26,12 +26,20 @@ status: {{ vuln.status or "open" }}
 {{ vuln.description or "*Nenhuma descrição fornecida.*" }}
 {%- if vuln.matched_at %}
 
+{%- if vuln.matched_at or vuln.evidences %}
 > [!example] Evidência
-**Match:** {{ vuln.matched_at }}
+{%- if vuln.matched_at %}
+> **Match:** {{ vuln.matched_at }}
+{%- endif %}
 {%- if vuln.curl_command %}
-
+> ```bash
 {{ vuln.curl_command }}
-{%- endif %} {%- endif %}
+> ```
+{%- endif %}
+{%- for ev in vuln.evidences %}
+> ![[{{ ev }}]]
+{%- endfor %}
+{%- endif %}
 
 > [!danger] Impacto
 {{ vuln.impact or "Impacto não especificado." }}
@@ -44,4 +52,8 @@ status: {{ vuln.status or "open" }}
 > - {{ ref }} {%- endfor %} {%- else %} Nenhuma referência. {%- endif %}
 
 {%- if vuln.cve_id %}
-> [!info] CVE {{ vuln.cve_id }} | CVSS {{ vuln.cvss_score }} ({{ vuln.severity }}) Vector: {{ vuln.cvss_vector or "N/A" }} {%- endif %}
+> [!info]
+> CVE {{ vuln.cve_id }}
+> CVSS {{ vuln.cvss_score }} ({{ vuln.severity }})
+> Vector: {{ vuln.cvss_vector or "N/A" }}
+{%- endif %}

@@ -212,6 +212,9 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
             v["cvss_score"] = float(v["cvss_score"]) if v.get("cvss_score") else None
             safe_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', v['title'][:40].replace(' ', '_'))
             v["filename"] = f"{v['created_at'][:8] if v.get('created_at') else '00000000'}_{safe_title}.md"
+            cursor.execute("SELECT stored_name FROM user_evidences WHERE vuln_id = ?",   # ← cursor, not cur
+                           (v["id"],))
+            v["evidences"] = [row["stored_name"] for row in cursor.fetchall()]
             vulnerabilities.append(v)
 
         cursor.execute(

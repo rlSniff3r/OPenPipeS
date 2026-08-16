@@ -122,6 +122,8 @@ def _extract_and_store_evidences(text, conn, host_id, host_name, proj_path, vuln
         filename = os.path.basename(raw_link.split("|")[0])          # strip |500 sizing
         if re.match(r"^[0-9a-f]{8}_", filename):                     # already processed
             return match.group(0)
+        if not re.search(r"\.(png|jpe?g|gif|svg|webp|bmp|ico)$", filename, re.I):
+            return match.group(0)                                    # not an image — leave untouched
         orig_path = VAULT_INDEX.get(filename)
         if not orig_path or not os.path.exists(orig_path):
             return match.group(0)                                    # not found in vault
@@ -211,6 +213,10 @@ def _ingest_vuln(conn, host_id, host_name, proj_path, vuln_id, text):
         if body and body not in VULN_PLACEHOLDERS:
             updates[col] = _extract_and_store_evidences(
                 body, conn, host_id, host_name, proj_path, vuln_id)
+
+    # capture images pasted anywhere in the vuln file (e.g., Evidência block)
+    _extract_and_store_evidences(text, conn, host_id, host_name, proj_path, vuln_id)
+
     status = _frontmatter_str(text, "status")
     if status:
         updates["status"] = status
