@@ -332,6 +332,22 @@ def mark_endpoint_fp(host_id: int, b64_url: str, username: str = Depends(verific
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/vulns/{vuln_id}/fp")
+def mark_vuln_fp(vuln_id: int, username: str = Depends(verificar_autenticacao)):
+    """Marca uma vulnerabilidade como Falso Positivo alterando seu status no banco."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            # Atualiza o status diretamente (conforme a lógica do seu renderer.py)
+            cursor.execute("UPDATE vulnerabilities SET status = 'false_positive' WHERE id = ?", (vuln_id,))
+            return {"status": "success", "message": "Vulnerabilidade marcada como Falso Positivo."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/sync")
 def trigger_obsidian_sync(username: str = Depends(verificar_autenticacao)):
     """Chama o orquestrador para sincronizar as mudanças do banco de dados com a Vault do Obsidian."""

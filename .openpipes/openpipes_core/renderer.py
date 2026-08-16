@@ -274,7 +274,10 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
             "whois": host.get("whois_data", ""), "is_alive": bool(host["is_alive"]),
             "last_updated": host["last_updated"], "open_ports_count": len(open_ports),
             "ports": open_ports, "all_ports": ports, "endpoints": endpoints,
-            "endpoint_count": len(endpoints),
+            "endpoint_count": len([
+                ep for ep in endpoints
+                if "potential_false_positive" not in ep.get("vulnerability_patterns", [])
+            ]),
             "httpx_count": len([e for e in endpoints if e["source_tool"] in ("httpx", "recon_httpx")]),
             "nuclei_count": len(vulnerabilities), "js_endpoint_count": len(js_discoveries),
             "screenshot_count": len(screenshots), "tech_stack": tech_stack,
@@ -553,8 +556,11 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     all_screenshots = report["screenshots"]
     report["screenshots"] = all_screenshots[:3]
 
-    # ── Add endpoint count to frontmatter ──
-    report["endpoint_count"] = len(report["endpoints"])
+    # ── Add endpoint count to frontmatter (exclude false positives) ──
+    report["endpoint_count"] = len([
+        ep for ep in report["endpoints"]
+        if "potential_false_positive" not in ep.get("vulnerability_patterns", [])
+    ])
 
     # 1. Target note (inline: max 3 screenshots)
     target_md = env.get_template("target.j2").render(

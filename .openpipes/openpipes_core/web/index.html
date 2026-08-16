@@ -288,6 +288,19 @@
                                                     <li v-for="link in vuln.reference_urls" :key="link"><a :href="link" target="_blank" class="hover:underline truncate inline-block max-w-[90%] align-bottom">{{ link }}</a></li>
                                                 </ul>
                                             </div>
+                                            <!-- Action Bar da Vulnerabilidade -->
+                                            <div class="flex flex-wrap gap-3 mt-6 pt-4 border-t border-slate-700/50">
+                                                <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 transition-colors shadow-sm">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                                                    Copiar PoC
+                                                </button>
+                                                
+                                                <!-- O ml-auto empurra este botão para a direita -->
+                                                <button @click.stop="markVulnFP(vuln.id, vuln.severity)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 rounded text-xs font-semibold text-red-400 transition-colors shadow-sm ml-auto">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                    Falso Positivo
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                     <div v-if="hostDetails.vulnerabilities.length === 0" class="text-center py-6 text-slate-500">Sistema aparenta estar seguro (Zero Findings)</div>
@@ -571,6 +584,7 @@
                 // Remove imediatamente da visão do usuário para UX fluida
                 hostDetails.value.endpoints = hostDetails.value.endpoints.filter(ep => ep.url !== url);
                 stats.value.endpoints -= 1; // Atualiza contador global visualmente
+                if (activeHost.value) activeHost.value.endpoints_count -= 1;
                 addToast("Endpoint ocultado", 'success');
                 
                 try {
@@ -656,6 +670,41 @@
                 return map[severity] || 'bg-slate-700 text-slate-300';
             }
 
+            // Copia o comando Curl para a área de transferência
+            const copyPoC = (command) => {
+                navigator.clipboard.writeText(command).then(() => {
+                    addToast("PoC copiada para a área de transferência!", "success");
+                }).catch(err => {
+                    addToast("Erro ao copiar PoC", "error");
+                });
+            }
+
+            // Oculta e marca a Vuln como FP
+            const markVulnFP = async (vulnId, severity) => {
+                if(!confirm("Marcar esta vulnerabilidade como Falso Positivo?")) return;
+                
+                // Atualiza a UI imediatamente
+                hostDetails.value.vulnerabilities = hostDetails.value.vulnerabilities.filter(v => v.id !== vulnId);
+                stats.value.vulns -= 1;
+                
+                // Atualiza os contadores do Card do Host ativo
+                if (activeHost.value) {
+                    activeHost.value.vulns_total -= 1;
+                    if (activeHost.value.vulns_severity[severity] > 0) {
+                        activeHost.value.vulns_severity[severity] -= 1;
+                    }
+                }
+                
+                addToast("Vulnerabilidade ocultada", 'success');
+                
+                // Faz a chamada à API
+                try {
+                    await fetch(`/api/vulns/${vulnId}/fp`, { method: 'POST' });
+                } catch (e) { 
+                    addToast("Erro ao atualizar banco", 'error'); 
+                }
+            }
+
             onMounted(() => {
                 fetchStats(); fetchHosts();
                 intervalId = setInterval(() => { imageTick.value++; }, 3000);
@@ -675,7 +724,7 @@
                 getStatusClass, getVulnClass, imageTick,
                 expandedVuln, toggleVuln,
                 lightboxOpen, currentLightboxImage, openLightbox, closeLightbox, nextImage, prevImage,
-                isSyncing, triggerSync, markEndpointFP, toasts
+                isSyncing, triggerSync, markEndpointFP, toasts, copyPoC, markVulnFP
             }
         }
     })
