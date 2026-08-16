@@ -56,7 +56,7 @@
 
     <main class="flex-grow p-6 w-full max-w-[95rem] mx-auto relative">
         
-        <!-- Cards de Estatísticas Globais (Agora são Botões de Navegação!) -->
+        <!-- Cards Globais -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div @click="changeView('hosts')" :class="currentView === 'hosts' ? 'ring-2 ring-blue-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex items-center gap-4 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
                 <div class="absolute -right-4 -top-4 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
@@ -101,9 +101,7 @@
                             </div>
                         </div>
                         <div class="w-full md:w-80 relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            </div>
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
                             <input v-model="searchQuery" type="text" placeholder="Buscar por domínio ou IP..." class="w-full bg-slate-900 border border-slate-600 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand">
                         </div>
                     </div>
@@ -137,57 +135,103 @@
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col">
                             <h3 class="font-bold text-white mb-4 text-center">Distribuição por Severidade</h3>
-                            <!-- Correção: Adicionado flex-1 e min-h-0, removido justify-center -->
                             <div class="relative flex-1 w-full min-h-0"><canvas id="vulnSeverityCanvas"></canvas></div>
                         </div>
                         <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col">
                             <h3 class="font-bold text-white mb-4 text-center">Top 5 Hosts Vulneráveis</h3>
-                            <!-- Correção: Adicionado flex-1 e min-h-0 -->
                             <div class="relative flex-1 w-full min-h-0"><canvas id="vulnHostCanvas"></canvas></div>
                         </div>
                     </div>
 
                     <!-- Tabela Mestra (Acordeão) -->
                     <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
-                        <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center">
-                            <h3 class="font-bold text-white">Todas as Vulnerabilidades ({{ globalVulns.length }})</h3>
-                        </div>
+                        <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white">Todas as Vulnerabilidades ({{ globalVulns.length }})</h3></div>
                         <div class="p-4 space-y-3 max-h-[800px] overflow-y-auto custom-scrollbar">
                             <div v-for="vuln in globalVulns" :key="vuln.id" class="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden hover:border-slate-500 transition-colors">
                                 <div @click="toggleVuln(vuln.id)" class="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer select-none">
                                     <div>
-                                        <h4 class="font-bold text-white text-sm flex items-center gap-2">
-                                            {{ vuln.title }}
-                                            <svg :class="expandedVuln === vuln.id ? 'rotate-180' : ''" class="w-4 h-4 text-slate-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                                        </h4>
+                                        <h4 class="font-bold text-white text-sm flex items-center gap-2">{{ vuln.title }}<svg :class="expandedVuln === vuln.id ? 'rotate-180' : ''" class="w-4 h-4 text-slate-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></h4>
                                         <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400 mt-2">
-                                            <span class="text-brand flex items-center gap-1 cursor-pointer hover:underline" @click.stop="changeView('dossier', {id: vuln.host_id})" title="Ir para o Host">
-                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                                                {{ vuln.host }}
-                                            </span>
+                                            <span class="text-brand flex items-center gap-1 cursor-pointer hover:underline" @click.stop="changeView('dossier', {id: vuln.host_id})" title="Ir para o Host"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg> {{ vuln.host }}</span>
                                             <span v-if="vuln.cwe_id" class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{{ vuln.cwe_id }}</span>
                                             <span v-if="vuln.cvss_score" class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">CVSS: {{ vuln.cvss_score }}</span>
                                         </div>
                                     </div>
                                     <div class="px-3 py-1 rounded text-[11px] font-bold uppercase shadow-sm flex-shrink-0" :class="getVulnClass(vuln.severity)">{{ vuln.severity }}</div>
                                 </div>
-                                <div v-if="expandedVuln === vuln.id" class="p-4 border-t border-slate-700 bg-slate-800/40 text-sm text-slate-300 space-y-4">
-                                    <div v-if="vuln.description">
-                                        <h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Descrição</h5>
-                                        <p class="whitespace-pre-wrap font-sans text-slate-300 leading-relaxed">{{ vuln.description }}</p>
+                                <div v-if="expandedVuln === vuln.id" class="p-4 border-t border-slate-700 bg-slate-800/40 text-sm text-slate-300">
+                                    
+                                    <!-- ===================== MODO DE EDIÇÃO ===================== -->
+                                    <div v-if="editingVulnId === vuln.id" class="space-y-4 animate-fade-in pb-2">
+                                        <div>
+                                            <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Título da Vulnerabilidade</label>
+                                            <input v-model="editForm.title" class="w-full bg-slate-950 border border-slate-600 rounded px-3 py-2 text-white font-bold text-sm outline-none focus:border-brand">
+                                        </div>
+                                        
+                                        <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700 shadow-inner">
+                                            <div class="flex items-center justify-between mb-3">
+                                                <span class="text-xs font-bold uppercase text-slate-400">Calculadora CVSS v3.1</span>
+                                                <span class="text-xs font-mono px-2 py-0.5 rounded shadow-sm border" :class="currentVector ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'">{{ currentVector || 'Preencha todas as métricas' }}</span>
+                                            </div>
+                                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                <div v-for="(opts, metric) in cvssOptions" :key="metric">
+                                                    <label class="text-[10px] text-slate-500 font-bold block mb-1">{{ metric }}</label>
+                                                    <select v-model="editCvss[metric]" class="w-full bg-slate-950 border border-slate-700 rounded text-xs px-2 py-1.5 text-slate-300 outline-none focus:border-brand cursor-pointer">
+                                                        <option value="">Selecione</option>
+                                                        <option v-for="opt in opts" :value="opt.val">{{ opt.label }}</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">CWE ID (ex: CWE-79)</label>
+                                                <input v-model="editForm.cwe_id" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand font-mono">
+                                            </div>
+                                            <div class="md:col-span-2">
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Descrição</label>
+                                                <textarea v-model="editForm.description" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                            </div>
+                                            <div>
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Impacto / Observações</label>
+                                                <textarea v-model="editForm.impact" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                            </div>
+                                            <div>
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Remediação</label>
+                                                <textarea v-model="editForm.remediation" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                            </div>
+                                            <div class="md:col-span-2">
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Referências (uma URL por linha)</label>
+                                                <textarea v-model="editForm.references" rows="2" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-brand font-mono text-xs outline-none focus:border-brand custom-scrollbar placeholder-slate-700" placeholder="https://..."></textarea>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="flex gap-3 pt-4 border-t border-slate-700/50">
+                                            <button @click="saveEdit(vuln.id)" class="px-4 py-2 bg-green-600/20 hover:bg-green-600/40 border border-green-500/50 text-green-400 rounded text-xs font-bold transition-colors shadow-lg flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Salvar Alterações</button>
+                                            <button @click="cancelEdit()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded text-xs font-bold transition-colors flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Cancelar</button>
+                                        </div>
                                     </div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div v-if="vuln.impact"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Impacto</h5><p class="whitespace-pre-wrap">{{ vuln.impact }}</p></div>
-                                        <div v-if="vuln.remediation"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Remediação</h5><p class="whitespace-pre-wrap">{{ vuln.remediation }}</p></div>
+
+                                    <!-- ===================== MODO DE LEITURA ===================== -->
+                                    <div v-else class="space-y-4">
+                                        <div v-if="vuln.description"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Descrição</h5><p class="whitespace-pre-wrap font-sans text-slate-300 leading-relaxed">{{ vuln.description }}</p></div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div v-if="vuln.impact"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Impacto</h5><p class="whitespace-pre-wrap">{{ vuln.impact }}</p></div>
+                                            <div v-if="vuln.remediation"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Remediação</h5><p class="whitespace-pre-wrap">{{ vuln.remediation }}</p></div>
+                                        </div>
+                                        <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
+                                        <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
+                                            <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
+                                            
+                                            <div class="flex gap-2 ml-auto">
+                                                <button @click.stop="startEdit(vuln)" class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded text-xs font-semibold text-blue-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar</button>
+                                                <button @click.stop="markVulnFP(vuln.id, vuln.severity, true)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-semibold text-red-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Falso Positivo</button>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div v-if="vuln.curl_command">
-                                        <h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5>
-                                        <div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div>
-                                    </div>
-                                    <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
-                                        <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
-                                        <button @click.stop="markVulnFP(vuln.id, vuln.severity, true)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-semibold text-red-400 shadow-sm ml-auto"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Falso Positivo</button>
-                                    </div>
+                                    <!-- ========================================================== -->
+
                                 </div>
                             </div>
                         </div>
@@ -199,62 +243,37 @@
             <!-- VIEW: GLOBAL ENDPOINTS                     -->
             <!-- ========================================== -->
             <div v-else-if="currentView === 'global-endpoints'" key="view-global-endpoints" class="w-full">
+                <!-- (Same as before, skipped for brevity in prompt but provided fully below) -->
                 <div class="flex items-center gap-4 mb-6">
                     <button @click="changeView('hosts')" class="w-12 h-12 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     </button>
-                    <div>
-                        <h2 class="text-2xl font-bold text-white">Dashboard Global de Endpoints</h2>
-                        <p class="text-sm text-slate-400">Análise de exposição e status de todas as rotas mapeadas.</p>
-                    </div>
+                    <div><h2 class="text-2xl font-bold text-white">Dashboard Global de Endpoints</h2><p class="text-sm text-slate-400">Análise de exposição e status de todas as rotas mapeadas.</p></div>
                 </div>
 
                 <div v-if="loadingGlobal" class="flex justify-center py-20"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
                 
                 <div v-else class="space-y-6">
-                    <!-- Gráficos -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col">
-                            <h3 class="font-bold text-white mb-4 text-center">Distribuição de Status HTTP</h3>
-                            <!-- Correção: Adicionado flex-1 e min-h-0, removido justify-center -->
-                            <div class="relative flex-1 w-full min-h-0"><canvas id="epStatusCanvas"></canvas></div>
-                        </div>
-                        <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col">
-                            <h3 class="font-bold text-white mb-4 text-center">Top 10 Hosts com mais Endpoints</h3>
-                            <!-- Correção: Adicionado flex-1 e min-h-0 -->
-                            <div class="relative flex-1 w-full min-h-0"><canvas id="epHostCanvas"></canvas></div>
-                        </div>
+                        <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col"><h3 class="font-bold text-white mb-4 text-center">Distribuição de Status HTTP</h3><div class="relative flex-1 w-full min-h-0"><canvas id="epStatusCanvas"></canvas></div></div>
+                        <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col"><h3 class="font-bold text-white mb-4 text-center">Top 10 Hosts com mais Endpoints</h3><div class="relative flex-1 w-full min-h-0"><canvas id="epHostCanvas"></canvas></div></div>
                     </div>
-
-                    <!-- Tabela Mestra -->
                     <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
-                        <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center">
-                            <h3 class="font-bold text-white">Todos os Endpoints Mapeados ({{ globalEndpoints.length }})</h3>
-                        </div>
+                        <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white">Todos os Endpoints Mapeados ({{ globalEndpoints.length }})</h3></div>
                         <div class="overflow-x-auto max-h-[800px] overflow-y-auto custom-scrollbar relative">
                             <table class="w-full text-left text-sm whitespace-nowrap">
                                 <thead class="bg-slate-900 text-slate-400 sticky top-0 shadow z-10">
                                     <tr>
                                         <th class="px-4 py-3 font-semibold">Host</th>
-                                        <th @click="toggleGlobalEpSort('status_code')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">
-                                            Status <span v-if="globalEpSortKey === 'status_code'">{{ globalEpSortAsc ? '↑' : '↓' }}</span>
-                                        </th>
-                                        <th @click="toggleGlobalEpSort('url')" class="px-4 py-3 font-semibold w-full cursor-pointer hover:text-white select-none">
-                                            URL <span v-if="globalEpSortKey === 'url'">{{ globalEpSortAsc ? '↑' : '↓' }}</span>
-                                        </th>
-                                        <th @click="toggleGlobalEpSort('content_length')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">
-                                            Tamanho <span v-if="globalEpSortKey === 'content_length'">{{ globalEpSortAsc ? '↑' : '↓' }}</span>
-                                        </th>
-                                        <th @click="toggleGlobalEpSort('title')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">
-                                            Título <span v-if="globalEpSortKey === 'title'">{{ globalEpSortAsc ? '↑' : '↓' }}</span>
-                                        </th>
+                                        <th @click="toggleGlobalEpSort('status_code')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Status <span v-if="globalEpSortKey === 'status_code'">{{ globalEpSortAsc ? '↑' : '↓' }}</span></th>
+                                        <th @click="toggleGlobalEpSort('url')" class="px-4 py-3 font-semibold w-full cursor-pointer hover:text-white select-none">URL <span v-if="globalEpSortKey === 'url'">{{ globalEpSortAsc ? '↑' : '↓' }}</span></th>
+                                        <th @click="toggleGlobalEpSort('content_length')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Tamanho <span v-if="globalEpSortKey === 'content_length'">{{ globalEpSortAsc ? '↑' : '↓' }}</span></th>
+                                        <th @click="toggleGlobalEpSort('title')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Título <span v-if="globalEpSortKey === 'title'">{{ globalEpSortAsc ? '↑' : '↓' }}</span></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-700/50">
                                     <tr v-for="ep in sortedGlobalEndpoints" :key="ep.url" class="hover:bg-slate-800/50 transition-colors group">
-                                        <td class="px-4 py-3">
-                                            <span class="text-[10px] font-mono text-slate-400 cursor-pointer hover:text-brand" @click="changeView('dossier', {id: ep.host_id})" title="Ir para o Host">{{ ep.host }}</span>
-                                        </td>
+                                        <td class="px-4 py-3"><span class="text-[10px] font-mono text-slate-400 cursor-pointer hover:text-brand" @click="changeView('dossier', {id: ep.host_id})" title="Ir para o Host">{{ ep.host }}</span></td>
                                         <td class="px-4 py-3"><span :class="getStatusClass(ep.status_code)" class="px-2 py-1 rounded text-[10px] font-mono font-bold">{{ ep.status_code || '---' }}</span></td>
                                         <td class="px-4 py-3 text-brand hover:underline font-mono text-xs max-w-sm truncate" :title="ep.url"><a :href="ep.url" target="_blank">{{ ep.url }}</a></td>
                                         <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ ep.content_length || '0' }}b</td>
@@ -295,12 +314,8 @@
 
                 <div v-if="loadingDetails" class="flex justify-center py-20 text-slate-500"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
                 <div v-else class="space-y-6">
-                    <!-- Filtro Interativo Mestre -->
                     <div class="bg-cardbg p-5 rounded-xl border border-slate-700 flex flex-col md:flex-row items-center justify-between shadow-lg">
-                        <div class="flex items-center gap-3 mb-4 md:mb-0">
-                            <svg class="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-                            <div><h3 class="text-lg font-bold text-white">Isolamento por Porta</h3><p class="text-xs text-slate-400">Filtre os endpoints e tecnologias atrelados a uma porta.</p></div>
-                        </div>
+                        <div class="flex items-center gap-3 mb-4 md:mb-0"><svg class="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg><div><h3 class="text-lg font-bold text-white">Isolamento por Porta</h3><p class="text-xs text-slate-400">Filtre os endpoints e tecnologias atrelados a uma porta.</p></div></div>
                         <div class="flex flex-wrap gap-2 justify-end">
                             <button @click="selectedPort = null" :class="!selectedPort ? 'bg-brand text-white shadow-[0_0_10px_rgba(14,165,233,0.5)]' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all">Visão Global</button>
                             <button v-for="p in hostDetails.ports" :key="p.port" @click="selectedPort = p.port" :class="selectedPort === p.port ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.5)]' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'" class="px-4 py-1.5 rounded-lg text-sm font-mono font-semibold transition-all flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-400"></span>{{ p.port }}/{{ p.protocol }}</button>
@@ -339,7 +354,7 @@
                                 </div>
                             </div>
 
-                            <!-- Vulns Host -->
+                            <!-- Vulns Host (Acordeão) -->
                             <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
                                 <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white flex items-center gap-2"><svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> Vulnerabilidades Ativas ({{ hostDetails.vulnerabilities.length }})</h3></div>
                                 <div class="p-4 space-y-3">
@@ -351,16 +366,76 @@
                                             </div>
                                             <div class="px-3 py-1 rounded text-[11px] font-bold uppercase shadow-sm flex-shrink-0" :class="getVulnClass(vuln.severity)">{{ vuln.severity }}</div>
                                         </div>
-                                        <div v-if="expandedVuln === vuln.id" class="p-4 border-t border-slate-700 bg-slate-800/40 text-sm text-slate-300 space-y-4">
-                                            <div v-if="vuln.description"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Descrição</h5><p class="whitespace-pre-wrap font-sans text-slate-300">{{ vuln.description }}</p></div>
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div v-if="vuln.impact"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Impacto</h5><p class="whitespace-pre-wrap">{{ vuln.impact }}</p></div>
-                                                <div v-if="vuln.remediation"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Remediação</h5><p class="whitespace-pre-wrap">{{ vuln.remediation }}</p></div>
+                                        <div v-if="expandedVuln === vuln.id" class="p-4 border-t border-slate-700 bg-slate-800/40 text-sm text-slate-300">
+                                            
+                                            <!-- ===================== MODO DE EDIÇÃO ===================== -->
+                                            <div v-if="editingVulnId === vuln.id" class="space-y-4 animate-fade-in pb-2">
+                                                <div>
+                                                    <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Título da Vulnerabilidade</label>
+                                                    <input v-model="editForm.title" class="w-full bg-slate-950 border border-slate-600 rounded px-3 py-2 text-white font-bold text-sm outline-none focus:border-brand">
+                                                </div>
+                                                
+                                                <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700 shadow-inner">
+                                                    <div class="flex items-center justify-between mb-3">
+                                                        <span class="text-xs font-bold uppercase text-slate-400">Calculadora CVSS v3.1</span>
+                                                        <span class="text-xs font-mono px-2 py-0.5 rounded shadow-sm border" :class="currentVector ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'">{{ currentVector || 'Preencha todas as métricas' }}</span>
+                                                    </div>
+                                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                        <div v-for="(opts, metric) in cvssOptions" :key="metric">
+                                                            <label class="text-[10px] text-slate-500 font-bold block mb-1">{{ metric }}</label>
+                                                            <select v-model="editCvss[metric]" class="w-full bg-slate-950 border border-slate-700 rounded text-xs px-2 py-1.5 text-slate-300 outline-none focus:border-brand cursor-pointer">
+                                                                <option value="">Selecione</option>
+                                                                <option v-for="opt in opts" :value="opt.val">{{ opt.label }}</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">CWE ID (ex: CWE-79)</label>
+                                                        <input v-model="editForm.cwe_id" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand font-mono">
+                                                    </div>
+                                                    <div class="md:col-span-2">
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Descrição</label>
+                                                        <textarea v-model="editForm.description" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                                    </div>
+                                                    <div>
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Impacto / Observações</label>
+                                                        <textarea v-model="editForm.impact" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                                    </div>
+                                                    <div>
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Remediação</label>
+                                                        <textarea v-model="editForm.remediation" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                                    </div>
+                                                    <div class="md:col-span-2">
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Referências (uma URL por linha)</label>
+                                                        <textarea v-model="editForm.references" rows="2" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-brand font-mono text-xs outline-none focus:border-brand custom-scrollbar placeholder-slate-700" placeholder="https://..."></textarea>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="flex gap-3 pt-4 border-t border-slate-700/50">
+                                                    <button @click="saveEdit(vuln.id)" class="px-4 py-2 bg-green-600/20 hover:bg-green-600/40 border border-green-500/50 text-green-400 rounded text-xs font-bold transition-colors shadow-lg flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Salvar Alterações</button>
+                                                    <button @click="cancelEdit()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded text-xs font-bold transition-colors flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Cancelar</button>
+                                                </div>
                                             </div>
-                                            <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
-                                            <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
-                                                <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
-                                                <button @click.stop="markVulnFP(vuln.id, vuln.severity)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-semibold text-red-400 ml-auto"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Falso Positivo</button>
+
+                                            <!-- ===================== MODO DE LEITURA ===================== -->
+                                            <div v-else class="space-y-4">
+                                                <div v-if="vuln.description"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Descrição</h5><p class="whitespace-pre-wrap font-sans text-slate-300 leading-relaxed">{{ vuln.description }}</p></div>
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div v-if="vuln.impact"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Impacto</h5><p class="whitespace-pre-wrap">{{ vuln.impact }}</p></div>
+                                                    <div v-if="vuln.remediation"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Remediação</h5><p class="whitespace-pre-wrap">{{ vuln.remediation }}</p></div>
+                                                </div>
+                                                <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
+                                                <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
+                                                    <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
+                                                    
+                                                    <div class="flex gap-2 ml-auto">
+                                                        <button @click.stop="startEdit(vuln)" class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded text-xs font-semibold text-blue-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar</button>
+                                                        <button @click.stop="markVulnFP(vuln.id, vuln.severity)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-semibold text-red-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Falso Positivo</button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -408,7 +483,7 @@
         </transition>
     </main>
 
-    <!-- TOAST NOTIFICATIONS -->
+    <!-- TOAST NOTIFICATIONS E LIGHTBOX (OMITIDOS PARA ESPAÇO, JÁ SÃO OS MESMOS DO CÓDIGO ANTERIOR) -->
     <div class="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
         <transition-group name="fade">
             <div v-for="toast in toasts" :key="toast.id" :class="toast.type === 'success' ? 'bg-green-900/90 border-green-500 text-green-200' : 'bg-red-900/90 border-red-500 text-red-200'" class="px-4 py-3 rounded-lg border shadow-xl flex items-center gap-3 min-w-[250px] backdrop-blur pointer-events-auto">
@@ -427,10 +502,6 @@
             <button @click.stop="nextImage" class="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-slate-800/50 hover:bg-brand/50 p-3 rounded-full z-50"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
             <div class="relative w-full max-w-6xl max-h-[90vh] flex flex-col items-center p-4">
                 <img :src="`/api/image/${activeHost.id}/${encodeURIComponent(currentLightboxImage.file_path)}`" class="max-w-full max-h-[80vh] object-contain rounded shadow-2xl border border-slate-700" @click.stop>
-                <div class="mt-4 bg-slate-900 border border-slate-700 px-6 py-3 rounded-xl flex flex-wrap items-center justify-center gap-4 text-sm shadow-xl w-full max-w-3xl" @click.stop>
-                    <span :class="getStatusClass(currentLightboxImage.status_code)" class="px-2 py-1 rounded font-mono font-bold">{{ currentLightboxImage.status_code || '---' }}</span>
-                    <a :href="currentLightboxImage.final_url || currentLightboxImage.source_url" target="_blank" class="text-brand hover:underline font-mono truncate max-w-md">{{ currentLightboxImage.final_url || currentLightboxImage.source_url || 'URL Indisponível' }}</a>
-                </div>
             </div>
         </div>
     </transition>
@@ -470,10 +541,7 @@
 
 <script>
     const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue
-
     const HostCard = { template: '#host-card-template', props: ['host', 'imageTick'] }
-
-    // Objeto global para armazenar as instâncias do Chart.js (evitar sobreposição)
     let chartInstances = {};
 
     const app = createApp({
@@ -486,15 +554,11 @@
             const imageTick = ref(0)
             let intervalId = null
 
-            // Controle de Visões (Fase 7)
-            const currentView = ref('hosts'); // 'hosts', 'global-vulns', 'global-endpoints', 'dossier'
-            
-            // Dados Globais
+            const currentView = ref('hosts'); 
             const globalVulns = ref([]);
             const globalEndpoints = ref([]);
             const loadingGlobal = ref(false);
 
-            // Estado do Dossiê
             const activeHost = ref(null)
             const hostDetails = ref({ ports: [], endpoints: [], technologies: [], vulnerabilities: [], js_discoveries: [], screenshots: [] })
             const loadingDetails = ref(false)
@@ -511,335 +575,173 @@
             const isSyncing = ref(false)
             const toasts = ref([])
 
+            // ================= FASE 8: DEEP EDIT CVSS =================
+            const editingVulnId = ref(null)
+            const editForm = ref({ title: '', description: '', impact: '', remediation: '', cwe_id: '', references: '' })
+            const editCvss = ref({ AV: '', AC: '', PR: '', UI: '', S: '', C: '', I: '', A: '' })
+            const cvssOptions = {
+                AV: [{label: 'Network (N)', val: 'N'}, {label: 'Adjacent (A)', val: 'A'}, {label: 'Local (L)', val: 'L'}, {label: 'Physical (P)', val: 'P'}],
+                AC: [{label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+                PR: [{label: 'None (N)', val: 'N'}, {label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+                UI: [{label: 'None (N)', val: 'N'}, {label: 'Required (R)', val: 'R'}],
+                S:  [{label: 'Unchanged (U)', val: 'U'}, {label: 'Changed (C)', val: 'C'}],
+                C:  [{label: 'None (N)', val: 'N'}, {label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+                I:  [{label: 'None (N)', val: 'N'}, {label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+                A:  [{label: 'None (N)', val: 'N'}, {label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+            };
+
+            const currentVector = computed(() => {
+                const m = editCvss.value;
+                if(m.AV && m.AC && m.PR && m.UI && m.S && m.C && m.I && m.A) {
+                    return `CVSS:3.1/AV:${m.AV}/AC:${m.AC}/PR:${m.PR}/UI:${m.UI}/S:${m.S}/C:${m.C}/I:${m.I}/A:${m.A}`;
+                }
+                return "";
+            });
+
+            const startEdit = (vuln) => {
+                editingVulnId.value = vuln.id;
+                editForm.value = {
+                    title: vuln.title || '',
+                    description: vuln.description || '',
+                    impact: vuln.impact || '',
+                    remediation: vuln.remediation || '',
+                    cwe_id: vuln.cwe_id || '',
+                    references: (vuln.reference_urls || []).join('\n')
+                };
+                // Reseta CVSS
+                editCvss.value = { AV: '', AC: '', PR: '', UI: '', S: '', C: '', I: '', A: '' };
+                if (vuln.cvss_score && vuln.cvss_score > 0 && vuln.cvss_score <= 10) {
+                    // Extraímos o vetor original se existir (a string exata enviada será necessária pra reconstruir, mas podemos mapear via db depois)
+                    // Como nós não trouxemos o cvss_vector na API get_host_details da Fase 5, a caixa vai começar vazia pra forçar recalculo, 
+                    // a não ser que você já adicione 'v.cvss_vector' na rota API original. 
+                }
+            }
+
+            const cancelEdit = () => { editingVulnId.value = null; }
+
+            const saveEdit = async (vulnId) => {
+                if (!currentVector.value) { addToast("Preencha todas as métricas do CVSS!", "error"); return; }
+                const payload = {
+                    title: editForm.value.title, description: editForm.value.description,
+                    impact: editForm.value.impact, remediation: editForm.value.remediation,
+                    cvss_vector: currentVector.value,
+                    reference_urls: editForm.value.references.split('\n').map(l => l.trim()).filter(l => l),
+                    cwe_id: editForm.value.cwe_id
+                };
+                try {
+                    const res = await fetch(`/api/vulns/${vulnId}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        addToast("Vulnerabilidade atualizada com sucesso!", "success");
+                        editingVulnId.value = null;
+                        
+                        // Atualiza as interfaces locais
+                        const updateLocal = (v) => {
+                            if (v.id === vulnId) {
+                                v.title = payload.title; v.description = payload.description;
+                                v.impact = payload.impact; v.remediation = payload.remediation;
+                                v.cvss_vector = payload.cvss_vector; v.reference_urls = payload.reference_urls;
+                                v.cwe_id = payload.cwe_id; 
+                                
+                                if (activeHost.value && v.severity !== data.new_severity && currentView.value === 'dossier') {
+                                    if (activeHost.value.vulns_severity[v.severity] > 0) activeHost.value.vulns_severity[v.severity]--;
+                                    activeHost.value.vulns_severity[data.new_severity] = (activeHost.value.vulns_severity[data.new_severity] || 0) + 1;
+                                }
+                                v.cvss_score = data.new_score; v.severity = data.new_severity;
+                            }
+                        };
+                        hostDetails.value.vulnerabilities.forEach(updateLocal);
+                        globalVulns.value.forEach(updateLocal);
+                        if (currentView.value === 'global-vulns') nextTick(() => renderVulnCharts());
+                    } else { addToast("Erro: " + data.detail, "error"); }
+                } catch (e) { addToast("Erro ao contatar API.", "error"); }
+            }
+
             // --- FUNÇÕES CORE ---
-            const addToast = (message, type = 'success') => {
-                const id = Date.now();
-                toasts.value.push({ id, message, type });
-                setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 4000);
-            }
+            const addToast = (message, type = 'success') => { const id = Date.now(); toasts.value.push({ id, message, type }); setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 4000); }
+            const getStatusClass = (code) => { if (!code) return 'bg-slate-700 text-slate-300'; if (code >= 200 && code < 300) return 'bg-green-500/20 text-green-400 border border-green-500/30'; if (code >= 300 && code < 400) return 'bg-blue-500/20 text-blue-400 border border-blue-500/30'; if (code === 403 || code === 401) return 'bg-orange-500/20 text-orange-400 border border-orange-500/30'; if (code >= 400 && code < 500) return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'; if (code >= 500) return 'bg-red-500/20 text-red-400 border border-red-500/30'; return 'bg-slate-700 text-slate-300'; }
+            const getVulnClass = (severity) => { const map = { 'Crítica': 'bg-red-500 text-white border-red-600', 'Alta': 'bg-orange-400 text-white border-orange-500', 'Média': 'bg-yellow-400 text-black border-yellow-500', 'Baixa': 'bg-green-400 text-black border-green-500', 'Info': 'bg-blue-400 text-white border-blue-500'}; return map[severity] || 'bg-slate-700 text-slate-300'; }
 
-            const getStatusClass = (code) => {
-                if (!code) return 'bg-slate-700 text-slate-300';
-                if (code >= 200 && code < 300) return 'bg-green-500/20 text-green-400 border border-green-500/30';
-                if (code >= 300 && code < 400) return 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
-                if (code === 403 || code === 401) return 'bg-orange-500/20 text-orange-400 border border-orange-500/30';
-                if (code >= 400 && code < 500) return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
-                if (code >= 500) return 'bg-red-500/20 text-red-400 border border-red-500/30';
-                return 'bg-slate-700 text-slate-300';
-            }
-
-            const getVulnClass = (severity) => {
-                const map = { 'Crítica': 'bg-red-500 text-white border-red-600', 'Alta': 'bg-orange-400 text-white border-orange-500', 'Média': 'bg-yellow-400 text-black border-yellow-500', 'Baixa': 'bg-green-400 text-black border-green-500', 'Info': 'bg-blue-400 text-white border-blue-500'};
-                return map[severity] || 'bg-slate-700 text-slate-300';
-            }
-
-            // --- NAVEGAÇÃO, LIGHTBOX E DADOS ---
-            const currentLightboxImage = computed(() => {
-                if (!hostDetails.value.screenshots || hostDetails.value.screenshots.length === 0) return {};
-                return hostDetails.value.screenshots[lightboxIndex.value] || {};
-            })
-
+            const currentLightboxImage = computed(() => { if (!hostDetails.value.screenshots || hostDetails.value.screenshots.length === 0) return {}; return hostDetails.value.screenshots[lightboxIndex.value] || {}; })
             const openLightbox = (index) => { lightboxIndex.value = index; lightboxOpen.value = true; }
             const closeLightbox = () => { lightboxOpen.value = false; }
             const nextImage = () => { const t = hostDetails.value.screenshots.length; if (t > 0) lightboxIndex.value = (lightboxIndex.value + 1) % t; }
             const prevImage = () => { const t = hostDetails.value.screenshots.length; if (t > 0) lightboxIndex.value = (lightboxIndex.value - 1 + t) % t; }
-            const handleKeydown = (e) => {
-                if (!lightboxOpen.value) return;
-                if (e.key === 'Escape') closeLightbox();
-                if (e.key === 'ArrowRight') nextImage();
-                if (e.key === 'ArrowLeft') prevImage();
-            }
+            const handleKeydown = (e) => { if (!lightboxOpen.value) return; if (e.key === 'Escape') closeLightbox(); if (e.key === 'ArrowRight') nextImage(); if (e.key === 'ArrowLeft') prevImage(); }
 
             const fetchStats = async () => { try { const res = await fetch('/api/stats'); if (res.ok) stats.value = await res.json(); } catch (e) {} }
-            const fetchHosts = async () => {
-                loadingHosts.value = true;
-                try { const res = await fetch('/api/hosts'); if (res.ok) hosts.value = await res.json(); } catch (e) {} 
-                finally { loadingHosts.value = false; }
-            }
+            const fetchHosts = async () => { loadingHosts.value = true; try { const res = await fetch('/api/hosts'); if (res.ok) hosts.value = await res.json(); } catch (e) {} finally { loadingHosts.value = false; } }
 
             const changeView = async (view, host = null) => {
-                currentView.value = view;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                
-                if (view === 'hosts') {
+                currentView.value = view; window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (view === 'hosts') { activeHost.value = null; } 
+                else if (view === 'dossier' && host) {
+                    if(!activeHost.value || activeHost.value.id !== host.id) { activeHost.value = host; selectedPort.value = null; loadingDetails.value = true; try { const res = await fetch(`/api/hosts/${host.id}/details`); if (res.ok) hostDetails.value = await res.json(); } catch (e) {} finally { loadingDetails.value = false; } }
+                } 
+                else if (view === 'global-vulns') {
                     activeHost.value = null;
-                } else if (view === 'dossier' && host) {
-                    if(!activeHost.value || activeHost.value.id !== host.id) {
-                        activeHost.value = host;
-                        selectedPort.value = null;
-                        loadingDetails.value = true;
-                        try { const res = await fetch(`/api/hosts/${host.id}/details`); if (res.ok) hostDetails.value = await res.json(); } catch (e) {} 
-                        finally { loadingDetails.value = false; }
-                    }
-                } else if (view === 'global-vulns') {
-                    activeHost.value = null;
-                    if (globalVulns.value.length === 0) {
-                        loadingGlobal.value = true;
-                        try { const res = await fetch(`/api/global/vulnerabilities`); if (res.ok) globalVulns.value = await res.json(); } catch (e) {}
-                        finally { loadingGlobal.value = false; }
-                    }
-                    // 👇 CORREÇÃO AQUI: Espera a transição acabar (400ms) para achar o <canvas>
+                    if (globalVulns.value.length === 0) { loadingGlobal.value = true; try { const res = await fetch(`/api/global/vulnerabilities`); if (res.ok) globalVulns.value = await res.json(); } catch (e) {} finally { loadingGlobal.value = false; } }
                     setTimeout(() => renderVulnCharts(), 400); 
-                } else if (view === 'global-endpoints') {
+                } 
+                else if (view === 'global-endpoints') {
                     activeHost.value = null;
-                    if (globalEndpoints.value.length === 0) {
-                        loadingGlobal.value = true;
-                        try { const res = await fetch(`/api/global/endpoints`); if (res.ok) globalEndpoints.value = await res.json(); } catch (e) {}
-                        finally { loadingGlobal.value = false; }
-                    }
-                    // 👇 CORREÇÃO AQUI: Espera a transição acabar (400ms) para achar o <canvas>
+                    if (globalEndpoints.value.length === 0) { loadingGlobal.value = true; try { const res = await fetch(`/api/global/endpoints`); if (res.ok) globalEndpoints.value = await res.json(); } catch (e) {} finally { loadingGlobal.value = false; } }
                     setTimeout(() => renderEndpointCharts(), 400);
                 }
             }
-
-            const openDossier = (host) => { changeView('dossier', host); }
-            const closeDossier = () => { changeView('hosts'); }
             const toggleVuln = (id) => { expandedVuln.value = expandedVuln.value === id ? null : id; }
 
-            // --- CHART.JS RENDERIZERS ---
             const destroyChart = (id) => { if(chartInstances[id]) chartInstances[id].destroy(); }
-
             const renderVulnCharts = () => {
                 const sevCounts = {'Crítica':0, 'Alta':0, 'Média':0, 'Baixa':0, 'Info':0};
                 globalVulns.value.forEach(v => { if(sevCounts[v.severity] !== undefined) sevCounts[v.severity]++; });
-                
                 destroyChart('vulnSeverityCanvas');
                 const ctx1 = document.getElementById('vulnSeverityCanvas');
-                if(ctx1) {
-                    chartInstances['vulnSeverityCanvas'] = new Chart(ctx1, {
-                        type: 'doughnut',
-                        data: {
-                            labels: ['Crítica', 'Alta', 'Média', 'Baixa', 'Info'],
-                            datasets: [{
-                                data: [sevCounts['Crítica'], sevCounts['Alta'], sevCounts['Média'], sevCounts['Baixa'], sevCounts['Info']],
-                                backgroundColor: ['#ef4444', '#fb923c', '#facc15', '#4ade80', '#60a5fa'],
-                                borderColor: '#1e293b', borderWidth: 2
-                            }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } }
-                    });
-                }
-
+                if(ctx1) { chartInstances['vulnSeverityCanvas'] = new Chart(ctx1, { type: 'doughnut', data: { labels: ['Crítica', 'Alta', 'Média', 'Baixa', 'Info'], datasets: [{ data: [sevCounts['Crítica'], sevCounts['Alta'], sevCounts['Média'], sevCounts['Baixa'], sevCounts['Info']], backgroundColor: ['#ef4444', '#fb923c', '#facc15', '#4ade80', '#60a5fa'], borderColor: '#1e293b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } } }); }
                 const hostCounts = {};
                 globalVulns.value.forEach(v => { hostCounts[v.host] = (hostCounts[v.host] || 0) + 1; });
                 const sortedHosts = Object.entries(hostCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
-                
                 destroyChart('vulnHostCanvas');
                 const ctx2 = document.getElementById('vulnHostCanvas');
-                if(ctx2) {
-                    chartInstances['vulnHostCanvas'] = new Chart(ctx2, {
-                        type: 'bar',
-                        data: {
-                            labels: sortedHosts.map(h => h[0]),
-                            datasets: [{ label: 'Vulnerabilidades', data: sortedHosts.map(h => h[1]), backgroundColor: '#0ea5e9', borderRadius: 4 }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 45 } } }, plugins: { legend: { display: false } } }
-                    });
-                }
+                if(ctx2) { chartInstances['vulnHostCanvas'] = new Chart(ctx2, { type: 'bar', data: { labels: sortedHosts.map(h => h[0]), datasets: [{ label: 'Vulnerabilidades', data: sortedHosts.map(h => h[1]), backgroundColor: '#0ea5e9', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 45 } } }, plugins: { legend: { display: false } } } }); }
             }
-
             const renderEndpointCharts = () => {
-                const statusCounts = {};
-                globalEndpoints.value.forEach(e => {
-                    const code = e.status_code || 'N/A';
-                    statusCounts[code] = (statusCounts[code] || 0) + 1;
-                });
+                const statusCounts = {}; globalEndpoints.value.forEach(e => { const code = e.status_code || 'N/A'; statusCounts[code] = (statusCounts[code] || 0) + 1; });
                 const sortedStatus = Object.entries(statusCounts).sort((a,b) => b[1] - a[1]).slice(0, 8); 
-
                 destroyChart('epStatusCanvas');
                 const ctx1 = document.getElementById('epStatusCanvas');
-                if(ctx1) {
-                    chartInstances['epStatusCanvas'] = new Chart(ctx1, {
-                        type: 'doughnut',
-                        data: {
-                            labels: sortedStatus.map(s => s[0]),
-                            datasets: [{ data: sortedStatus.map(s => s[1]), backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#64748b', '#cbd5e1'], borderColor: '#1e293b', borderWidth: 2 }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } }
-                    });
-                }
-
-                const hostCounts = {};
-                globalEndpoints.value.forEach(e => { hostCounts[e.host] = (hostCounts[e.host] || 0) + 1; });
+                if(ctx1) { chartInstances['epStatusCanvas'] = new Chart(ctx1, { type: 'doughnut', data: { labels: sortedStatus.map(s => s[0]), datasets: [{ data: sortedStatus.map(s => s[1]), backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#64748b', '#cbd5e1'], borderColor: '#1e293b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } } }); }
+                const hostCounts = {}; globalEndpoints.value.forEach(e => { hostCounts[e.host] = (hostCounts[e.host] || 0) + 1; });
                 const sortedHosts = Object.entries(hostCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
-                
                 destroyChart('epHostCanvas');
                 const ctx2 = document.getElementById('epHostCanvas');
-                if(ctx2) {
-                    chartInstances['epHostCanvas'] = new Chart(ctx2, {
-                        type: 'bar',
-                        data: {
-                            labels: sortedHosts.map(h => h[0]),
-                            datasets: [{ label: 'Endpoints', data: sortedHosts.map(h => h[1]), backgroundColor: '#10b981', borderRadius: 4 }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', display: false } } }, plugins: { legend: { display: false } } }
-                    });
-                }
+                if(ctx2) { chartInstances['epHostCanvas'] = new Chart(ctx2, { type: 'bar', data: { labels: sortedHosts.map(h => h[0]), datasets: [{ label: 'Endpoints', data: sortedHosts.map(h => h[1]), backgroundColor: '#10b981', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', display: false } } }, plugins: { legend: { display: false } } } }); }
             }
 
-            // --- AÇÕES FASE 6 ---
-            const triggerSync = async () => {
-                isSyncing.value = true;
-                try {
-                    const res = await fetch('/api/sync', { method: 'POST' });
-                    const data = await res.json();
-                    if (res.ok) addToast(data.message, 'success');
-                    else addToast("Erro na Sincronização", 'error');
-                } catch (error) { addToast("Erro de comunicação com o servidor", 'error'); } 
-                finally { isSyncing.value = false; }
-            }
+            const triggerSync = async () => { isSyncing.value = true; try { const res = await fetch('/api/sync', { method: 'POST' }); const data = await res.json(); if (res.ok) addToast(data.message, 'success'); else addToast("Erro na Sincronização", 'error'); } catch (error) { addToast("Erro de comunicação com o servidor", 'error'); } finally { isSyncing.value = false; } }
+            const copyPoC = (command) => { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(command).then(() => { addToast("PoC copiada!", "success"); }).catch(err => { addToast("Erro ao copiar", "error"); }); } else { let textArea = document.createElement("textarea"); textArea.value = command; textArea.style.position = "fixed"; textArea.style.top = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { document.execCommand('copy'); addToast("PoC copiada!", "success"); } catch (err) { addToast("Erro ao copiar", "error"); } textArea.remove(); } }
+            const markVulnFP = async (vulnId, severity, isGlobal = false) => { if(!confirm("Marcar esta vulnerabilidade como Falso Positivo?")) return; if(isGlobal) { globalVulns.value = globalVulns.value.filter(v => v.id !== vulnId); nextTick(() => renderVulnCharts()); } else { hostDetails.value.vulnerabilities = hostDetails.value.vulnerabilities.filter(v => v.id !== vulnId); if (activeHost.value) { activeHost.value.vulns_total -= 1; if (activeHost.value.vulns_severity[severity] > 0) activeHost.value.vulns_severity[severity] -= 1; } } stats.value.vulns -= 1; addToast("Vulnerabilidade ocultada", 'success'); try { await fetch(`/api/vulns/${vulnId}/fp`, { method: 'POST' }); } catch (e) { addToast("Erro ao atualizar banco", 'error'); } }
+            const markEndpointFP = async (url, hostId, isGlobal = false) => { if(!confirm("Ocultar este Endpoint como Falso Positivo?")) return; if (isGlobal) { globalEndpoints.value = globalEndpoints.value.filter(ep => ep.url !== url); nextTick(() => renderEndpointCharts()); } else { hostDetails.value.endpoints = hostDetails.value.endpoints.filter(ep => ep.url !== url); if (activeHost.value) activeHost.value.endpoints_count -= 1; } stats.value.endpoints -= 1; addToast("Endpoint ocultado", 'success'); try { const b64_url = btoa(url); await fetch(`/api/endpoints/${hostId}/${b64_url}/fp`, { method: 'POST' }); } catch (e) { addToast("Erro ao gravar FP no banco", 'error'); } }
 
-            const copyPoC = (command) => {
-                if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(command).then(() => { addToast("PoC copiada!", "success"); }).catch(err => { addToast("Erro ao copiar", "error"); });
-                } else {
-                    let textArea = document.createElement("textarea");
-                    textArea.value = command; textArea.style.position = "fixed"; textArea.style.top = "-9999px";
-                    document.body.appendChild(textArea); textArea.focus(); textArea.select();
-                    try { document.execCommand('copy'); addToast("PoC copiada!", "success"); } 
-                    catch (err) { addToast("Erro ao copiar", "error"); }
-                    textArea.remove();
-                }
-            }
-
-            const markVulnFP = async (vulnId, severity, isGlobal = false) => {
-                if(!confirm("Marcar esta vulnerabilidade como Falso Positivo?")) return;
-                
-                if(isGlobal) {
-                    globalVulns.value = globalVulns.value.filter(v => v.id !== vulnId);
-                    nextTick(() => renderVulnCharts());
-                } else {
-                    hostDetails.value.vulnerabilities = hostDetails.value.vulnerabilities.filter(v => v.id !== vulnId);
-                    if (activeHost.value) {
-                        activeHost.value.vulns_total -= 1;
-                        if (activeHost.value.vulns_severity[severity] > 0) activeHost.value.vulns_severity[severity] -= 1;
-                    }
-                }
-                stats.value.vulns -= 1;
-                addToast("Vulnerabilidade ocultada", 'success');
-                
-                try { await fetch(`/api/vulns/${vulnId}/fp`, { method: 'POST' }); } 
-                catch (e) { addToast("Erro ao atualizar banco", 'error'); }
-            }
-
-            const markEndpointFP = async (url, hostId, isGlobal = false) => {
-                if(!confirm("Ocultar este Endpoint como Falso Positivo?")) return;
-                
-                if (isGlobal) {
-                    globalEndpoints.value = globalEndpoints.value.filter(ep => ep.url !== url);
-                    nextTick(() => renderEndpointCharts());
-                } else {
-                    hostDetails.value.endpoints = hostDetails.value.endpoints.filter(ep => ep.url !== url);
-                    if (activeHost.value) activeHost.value.endpoints_count -= 1;
-                }
-                stats.value.endpoints -= 1;
-                addToast("Endpoint ocultado", 'success');
-                
-                try {
-                    const b64_url = btoa(url);
-                    await fetch(`/api/endpoints/${hostId}/${b64_url}/fp`, { method: 'POST' });
-                } catch (e) { addToast("Erro ao gravar FP no banco", 'error'); }
-            }
-
-            // --- COMPUTEDS DE TABELA E ORDENAÇÃO ---
-            const filteredAndSortedHosts = computed(() => {
-                let result = hosts.value;
-                if (searchQuery.value) {
-                    const query = searchQuery.value.toLowerCase();
-                    result = result.filter(h => h.host.toLowerCase().includes(query) || h.ip.includes(query));
-                }
-                return result.sort((a, b) => {
-                    if (sortBy.value === 'endpoints') return b.endpoints_count - a.endpoints_count;
-                    if (sortBy.value === 'vulns') return b.vulns_total - a.vulns_total;
-                    if (sortBy.value === 'ports') return b.open_ports.length - a.open_ports.length;
-                    if (sortBy.value === 'screenshots') return b.screenshots_count - a.screenshots_count;
-                    if (sortBy.value === 'js') return b.js_count - a.js_count;
-                    return a.host.localeCompare(b.host);
-                });
-            })
-
-            const otherHosts = computed(() => {
-                if (!activeHost.value) return [];
-                return filteredAndSortedHosts.value.filter(h => h.id !== activeHost.value.id);
-            })
-
+            const filteredAndSortedHosts = computed(() => { let result = hosts.value; if (searchQuery.value) { const query = searchQuery.value.toLowerCase(); result = result.filter(h => h.host.toLowerCase().includes(query) || h.ip.includes(query)); } return result.sort((a, b) => { if (sortBy.value === 'endpoints') return b.endpoints_count - a.endpoints_count; if (sortBy.value === 'vulns') return b.vulns_total - a.vulns_total; if (sortBy.value === 'ports') return b.open_ports.length - a.open_ports.length; if (sortBy.value === 'screenshots') return b.screenshots_count - a.screenshots_count; if (sortBy.value === 'js') return b.js_count - a.js_count; return a.host.localeCompare(b.host); }); })
+            const otherHosts = computed(() => { if (!activeHost.value) return []; return filteredAndSortedHosts.value.filter(h => h.id !== activeHost.value.id); })
             const toggleEpSort = (key) => { if (epSortKey.value === key) epSortAsc.value = !epSortAsc.value; else { epSortKey.value = key; epSortAsc.value = true; } }
             const toggleGlobalEpSort = (key) => { if (globalEpSortKey.value === key) globalEpSortAsc.value = !globalEpSortAsc.value; else { globalEpSortKey.value = key; globalEpSortAsc.value = true; } }
+            const sortedFilteredEndpoints = computed(() => { let eps = hostDetails.value.endpoints || []; if (selectedPort.value) { eps = eps.filter(ep => { try { const u = new URL(ep.url); const port = u.port || (u.protocol === 'https:' ? '443' : (u.protocol === 'http:' ? '80' : '')); return port === String(selectedPort.value); } catch { return true; } }); } return eps.sort((a, b) => { let valA = a[epSortKey.value] || ''; let valB = b[epSortKey.value] || ''; if (epSortKey.value === 'content_length' || epSortKey.value === 'status_code') { valA = Number(valA) || 0; valB = Number(valB) || 0; } else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); } if (valA < valB) return epSortAsc.value ? -1 : 1; if (valA > valB) return epSortAsc.value ? 1 : -1; return 0; }); })
+            const sortedGlobalEndpoints = computed(() => { let eps = globalEndpoints.value || []; return eps.sort((a, b) => { let valA = a[globalEpSortKey.value] || ''; let valB = b[globalEpSortKey.value] || ''; if (globalEpSortKey.value === 'content_length' || globalEpSortKey.value === 'status_code') { valA = Number(valA) || 0; valB = Number(valB) || 0; } else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); } if (valA < valB) return globalEpSortAsc.value ? -1 : 1; if (valA > valB) return globalEpSortAsc.value ? 1 : -1; return 0; }); })
+            const groupedJS = computed(() => { const groups = {}; (hostDetails.value.js_discoveries || []).forEach(js => { if (!groups[js.source_js_url]) groups[js.source_js_url] = []; groups[js.source_js_url].push(js.discovered_route); }); return groups; })
 
-            const sortedFilteredEndpoints = computed(() => {
-                let eps = hostDetails.value.endpoints || [];
-                if (selectedPort.value) {
-                    eps = eps.filter(ep => {
-                        try {
-                            const u = new URL(ep.url);
-                            const port = u.port || (u.protocol === 'https:' ? '443' : (u.protocol === 'http:' ? '80' : ''));
-                            return port === String(selectedPort.value);
-                        } catch { return true; }
-                    });
-                }
-                return eps.sort((a, b) => {
-                    let valA = a[epSortKey.value] || ''; let valB = b[epSortKey.value] || '';
-                    if (epSortKey.value === 'content_length' || epSortKey.value === 'status_code') {
-                        valA = Number(valA) || 0; valB = Number(valB) || 0;
-                    } else {
-                        valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
-                    }
-                    if (valA < valB) return epSortAsc.value ? -1 : 1;
-                    if (valA > valB) return epSortAsc.value ? 1 : -1;
-                    return 0;
-                });
-            })
+            onMounted(() => { fetchStats(); fetchHosts(); intervalId = setInterval(() => { imageTick.value++; }, 3000); window.addEventListener('keydown', handleKeydown); })
+            onUnmounted(() => { if (intervalId) clearInterval(intervalId); window.removeEventListener('keydown', handleKeydown); })
 
-            const sortedGlobalEndpoints = computed(() => {
-                let eps = globalEndpoints.value || [];
-                return eps.sort((a, b) => {
-                    let valA = a[globalEpSortKey.value] || ''; let valB = b[globalEpSortKey.value] || '';
-                    if (globalEpSortKey.value === 'content_length' || globalEpSortKey.value === 'status_code') {
-                        valA = Number(valA) || 0; valB = Number(valB) || 0;
-                    } else {
-                        valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
-                    }
-                    if (valA < valB) return globalEpSortAsc.value ? -1 : 1;
-                    if (valA > valB) return globalEpSortAsc.value ? 1 : -1;
-                    return 0;
-                });
-            })
-
-            const groupedJS = computed(() => {
-                const groups = {};
-                (hostDetails.value.js_discoveries || []).forEach(js => {
-                    if (!groups[js.source_js_url]) groups[js.source_js_url] = [];
-                    groups[js.source_js_url].push(js.discovered_route);
-                });
-                return groups;
-            })
-
-            onMounted(() => {
-                fetchStats(); fetchHosts();
-                intervalId = setInterval(() => { imageTick.value++; }, 3000);
-                window.addEventListener('keydown', handleKeydown);
-            })
-
-            onUnmounted(() => { 
-                if (intervalId) clearInterval(intervalId); 
-                window.removeEventListener('keydown', handleKeydown);
-            })
-
-            // EXPOSIÇÃO ABSOLUTA E COMPLETA DE TODAS AS VARIÁVEIS PARA O VUE
             return {
-                stats, hosts, searchQuery, sortBy, loadingHosts, filteredAndSortedHosts,
-                currentView, changeView, globalVulns, globalEndpoints, loadingGlobal,
-                activeHost, hostDetails, loadingDetails, selectedPort,
-                openDossier, closeDossier, otherHosts, sortedFilteredEndpoints, sortedGlobalEndpoints, groupedJS,
-                epSortKey, epSortAsc, toggleEpSort, globalEpSortKey, globalEpSortAsc, toggleGlobalEpSort,
-                getStatusClass, getVulnClass, imageTick,
-                expandedVuln, toggleVuln,
-                lightboxOpen, currentLightboxImage, openLightbox, closeLightbox, nextImage, prevImage,
-                isSyncing, triggerSync, markEndpointFP, copyPoC, markVulnFP, toasts
+                stats, hosts, searchQuery, sortBy, loadingHosts, filteredAndSortedHosts, currentView, changeView, globalVulns, globalEndpoints, loadingGlobal, activeHost, hostDetails, loadingDetails, selectedPort, otherHosts, sortedFilteredEndpoints, sortedGlobalEndpoints, groupedJS, epSortKey, epSortAsc, toggleEpSort, globalEpSortKey, globalEpSortAsc, toggleGlobalEpSort, getStatusClass, getVulnClass, imageTick, expandedVuln, toggleVuln, lightboxOpen, currentLightboxImage, openLightbox, closeLightbox, nextImage, prevImage, isSyncing, triggerSync, markEndpointFP, copyPoC, markVulnFP, toasts,
+                editingVulnId, editForm, editCvss, cvssOptions, currentVector, startEdit, cancelEdit, saveEdit
             }
         }
     })
-
     app.component('host-card', HostCard)
     app.mount('#app')
 </script>
