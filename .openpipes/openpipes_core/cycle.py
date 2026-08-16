@@ -84,12 +84,27 @@ def _run_module(name):
     proj_name, proj_path, nmap_dir = _get_env()
     db.init_db(proj_path)
     exec_id = db.log_module_start(proj_path, name)
+
+    # ========================================================
+    # FASE 8.2: REDIRECIONAMENTO DE LOGS ISOLADOS
+    # ========================================================
+    logs_dir = os.path.join(proj_path, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    log_file = os.path.join(logs_dir, f"{name}.log")
+
     try:
         extra_args = ""
         if name == "nwrapper":
             extra_args = f"-f {os.path.join(nmap_dir, 'targets_cycle.txt')}"
         cmd = f"source {CONFIG_FILE} && {script} {extra_args}"
-        result = subprocess.run(cmd, shell=True, cwd=proj_path, executable="/bin/bash")
+        
+        # Executa o módulo jogando stdout e stderr direto para o arquivo isolado
+        with open(log_file, "w") as f_log:
+            result = subprocess.run(
+                cmd, shell=True, cwd=proj_path, executable="/bin/bash",
+                stdout=f_log, stderr=subprocess.STDOUT
+            )
+            
         exit_code = result.returncode
         db.log_module_finish(proj_path, exec_id, exit_code)
         if exit_code == 0:

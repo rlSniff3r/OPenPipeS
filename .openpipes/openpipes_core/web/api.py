@@ -4,7 +4,8 @@ import re
 import json
 import subprocess
 import base64
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+import asyncio
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -509,43 +510,103 @@ def update_vulnerability(vuln_id: int, data: VulnUpdate, username: str = Depends
 # ROTAS DA FASE 8.1 (CENTRO DE COMANDOS - MVP CYCLE)
 # =====================================================================
 
-# Variável global para atuar como Mutex (trava) de concorrência
-CYCLE_IS_RUNNING = False
 
-def _run_cycle_task():
-    """Executa o ciclo completo em background salvando tudo em um arquivo de log."""
-    global CYCLE_IS_RUNNING
+# Variável global para armazenar a instância do processo ao invés de um booleano
+CYCLE_PROCESS = None
+
+@app.post("/api/cycle")
+def start_cycle(username: str = Depends(verificar_autenticacao)):
+    """Inicia o ciclo de varredura como um Daemon isolado do servidor web."""
+    global CYCLE_PROCESS
+    
+    # Verifica se o processo existe e se ainda está rodando (poll() retorna None se estiver rodando)
+    if CYCLE_PROCESS is not None and CYCLE_PROCESS.poll() is None:
+        raise HTTPException(status_code=409, detail="Um ciclo já está em execução no servidor.")
     
     proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
-    # Cria um arquivo de log na pasta do projeto
     log_file_path = os.path.join(proj_path, "cycle_web.log") if proj_path else "/tmp/cycle_web.log"
     
     try:
-        # Usamos stdout e stderr apontando para o arquivo físico em vez da memória (capture_output)
-        with open(log_file_path, "w") as f_log:
-            subprocess.run(
-                ["openpipes-core", "cycle"], 
-                stdout=f_log,
-                stderr=subprocess.STDOUT,
-                check=False
-            )
-    finally:
-        CYCLE_IS_RUNNING = False
-
-@app.post("/api/cycle")
-def start_cycle(background_tasks: BackgroundTasks, username: str = Depends(verificar_autenticacao)):
-    """Inicia o ciclo de varredura se não houver nenhum rodando."""
-    global CYCLE_IS_RUNNING
-    
-    if CYCLE_IS_RUNNING:
-        raise HTTPException(status_code=409, detail="Um ciclo já está em execução no servidor.")
-    
-    CYCLE_IS_RUNNING = True
-    background_tasks.add_task(_run_cycle_task)
-    
-    return {"status": "success", "message": "Ciclo de varredura iniciado em background!"}
+        # Abre o arquivo para onde o output será despejado
+        f_log = open(log_file_path, "w")
+        
+        # Popen inicia o processo e solta (não trava o Python)
+        CYCLE_PROCESS = subprocess.Popen(
+            ["openpipes-core", "cycle"], 
+            stdout=f_log,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL, # Corta a entrada padrão (resolve o bug de 100% CPU)
+            start_new_session=True    # Isola o processo do servidor web (Daemon)
+        )
+        
+        return {"status": "success", "message": "Ciclo iniciado como processo fantasma!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/status")
 def get_system_status(username: str = Depends(verificar_autenticacao)):
-    """Retorna o status atual dos processos em background (Polling)."""
-    return {"cycle_running": CYCLE_IS_RUNNING}
+    """Retorna o status atual dos processos (Polling)."""
+    global CYCLE_PROCESS
+    is_running = False
+    
+    if CYCLE_PROCESS is not None:
+        # Se poll() for None, o processo ainda está vivo na máquina
+        if CYCLE_PROCESS.poll() is None:
+            is_running = True
+            
+    return {"cycle_running": is_running}
+
+# =====================================================================
+# FASE 8.3: A PONTE WEBSOCKET (TERMINAL LOGS)
+# =====================================================================
+@app.websocket("/api/ws/logs/{module_name}")
+async def websocket_logs(websocket: WebSocket, module_name: str):
+    """
+    Mantém uma conexão viva com o navegador (WebSocket) e transmite 
+    o arquivo de log em tempo real usando o `tail -f` do Linux.
+    """
+    await websocket.accept()
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    
+    if not proj_path:
+        await websocket.close()
+        return
+    
+    # Define de onde o log será lido
+    if module_name == "main":
+        # O orquestrador principal grava na raiz do projeto
+        log_path = os.path.join(proj_path, "cycle_web.log")
+    else:
+        # Ferramentas individuais gravam na subpasta logs/
+        log_path = os.path.join(proj_path, "logs", f"{module_name}.log")
+
+    # Se o log não existir ainda (módulo não começou), criamos um arquivo vazio
+    if not os.path.exists(log_path):
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        open(log_path, 'a').close()
+
+    # Cria um processo não-bloqueante no Linux para fazer o tail
+    process = await asyncio.create_subprocess_exec(
+        'tail', '-n', '100', '-f', log_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+
+    try:
+        while True:
+            # Lê linha por linha conforme são gravadas no disco
+            line = await process.stdout.readline()
+            if not line:
+                await asyncio.sleep(0.5)
+                continue
+            # Envia a linha para o Frontend
+            await websocket.send_text(line.decode('utf-8'))
+    except WebSocketDisconnect:
+        # Quando o usuário fecha o painel no navegador, a conexão cai
+        pass
+    finally:
+        # Sempre matamos o comando tail para não deixar processos zumbis
+        try:
+            process.terminate()
+        except:
+            pass
