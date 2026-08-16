@@ -13,7 +13,7 @@ gerado_em: {{ generated_at }}
 | 🖥️ Hosts em escopo | {{ summary.total_hosts }} |
 | 🔌 Portas abertas | {{ summary.total_ports }} |
 | 🌐 Endpoints verificados | {{ summary.total_endpoints }} |
-| 🛡️ Vulnerabilidades | {{ summary.total_vulns }} |
+| 🐞 Vulnerabilidades | {{ summary.total_vulns }} |
 | 📸 Screenshots | {{ summary.total_screenshots }} |
 | 🪡 Rotas em JS | {{ summary.total_js_routes }} |
 | Última atualização | {{ summary.last_updated }} |
@@ -35,29 +35,33 @@ gerado_em: {{ generated_at }}
 ---
 
 ## 🔴 Vulnerabilidades por Severidade
+
 {%- set total = summary.severity_breakdown.Crítica + summary.severity_breakdown.Alta + summary.severity_breakdown.Média + summary.severity_breakdown.Baixa + summary.severity_breakdown.Info %}
 {%- if total > 0 %}
+
+{%- set active_vulns = [] %}
+{%- if summary.severity_breakdown.Crítica > 0 %}{%- set _ = active_vulns.append(('Crítica', summary.severity_breakdown.Crítica, '#ff4d4d')) %}{%- endif %}
+{%- if summary.severity_breakdown.Alta > 0 %}{%- set _ = active_vulns.append(('Alta', summary.severity_breakdown.Alta, '#ff944d')) %}{%- endif %}
+{%- if summary.severity_breakdown.Média > 0 %}{%- set _ = active_vulns.append(('Média', summary.severity_breakdown.Média, '#ffeb3b')) %}{%- endif %}
+{%- if summary.severity_breakdown.Baixa > 0 %}{%- set _ = active_vulns.append(('Baixa', summary.severity_breakdown.Baixa, '#4caf50')) %}{%- endif %}
+{%- if summary.severity_breakdown.Info > 0 %}{%- set _ = active_vulns.append(('Info', summary.severity_breakdown.Info, '#2196f3')) %}{%- endif %}
 
 ```mermaid
 %%{init: {
   'theme': 'base',
   'themeVariables': {
-    'pie1': '#ffeb3b',
-    'pie2': '#4caf50',
-    'pie3': '#ff4d4d',
-    'pie4': '#ff944d',
-    'pie5': '#2196f3',
+    {%- for vuln in active_vulns %}
+    'pie{{ loop.index }}': '{{ vuln[2] }}',
+    {%- endfor %}
     'pieStrokeWidth': '1px',
     'pieStrokeColor': '#ffffff',
     'pieOpacity': '0.95'
   }
 }}%%
 pie title
-    "Crítica" : {{ summary.severity_breakdown.Crítica }}
-    "Alta" : {{ summary.severity_breakdown.Alta }}
-    "Média" : {{ summary.severity_breakdown.Média }}
-    "Baixa" : {{ summary.severity_breakdown.Baixa }}
-    "Info" : {{ summary.severity_breakdown.Info }}
+    {%- for vuln in active_vulns %}
+    "{{ vuln[0] }}" : {{ vuln[1] }}
+    {%- endfor %}
 ```
 
 | Severidade | Quantidade | % |
@@ -86,8 +90,8 @@ pie title
 ---
 
 ## 🌐 Endpoints Relevantes
-{%- if all_endpoints %}
 
+{%- if all_endpoints %}
 | URL | Status | Título | Servidor | Alvo |
 |-----|--------|--------|----------|------|
 {%- for ep in all_endpoints %}

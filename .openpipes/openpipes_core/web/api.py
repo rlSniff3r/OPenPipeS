@@ -7,6 +7,9 @@ import base64
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional
+from cvss import CVSS3
 
 # Adiciona o diretório raiz 'openpipes_core' ao sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -366,3 +369,138 @@ def trigger_obsidian_sync(username: str = Depends(verificar_autenticacao)):
             raise HTTPException(status_code=500, detail=f"Erro no sync: {result.stderr}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao invocar o orquestrador: {str(e)}")
+
+# =====================================================================
+# ROTAS DA FASE 7 (CAÇADA GLOBAL / DRILL-DOWN)
+# =====================================================================
+
+@app.get("/api/global/vulnerabilities")
+def get_global_vulnerabilities(username: str = Depends(verificar_autenticacao)):
+    """Busca todas as vulnerabilidades do projeto (Caçada Horizontal)."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    scope_domains = _get_scope_domains(proj_path)
+    
+    vulns = []
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            # Fazemos um JOIN para trazer o nome e ID do host junto com a vuln
+            cursor.execute("""
+                SELECT v.id, v.title, v.severity, v.cvss_score, v.cwe_id, v.cve_id, 
+                       v.description, v.curl_command, v.remediation, v.impact, v.reference_urls, 
+                       h.host, h.id as host_id
+                FROM vulnerabilities v
+                JOIN hosts h ON h.id = v.host_id
+                WHERE h.is_alive = 1 AND h.in_scope = 1 AND v.status != 'false_positive'
+                ORDER BY CASE v.severity WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2 WHEN 'Baixa' THEN 3 ELSE 4 END
+            """)
+            for row in cursor.fetchall():
+                if not _is_in_scope(row["host"], scope_domains): 
+                    continue
+                v = dict(row)
+                if v.get("reference_urls"):
+                    try:
+                        v["reference_urls"] = json.loads(v["reference_urls"])
+                    except:
+                        v["reference_urls"] = []
+                else:
+                    v["reference_urls"] = []
+                vulns.append(v)
+        return vulns
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/global/endpoints")
+def get_global_endpoints(username: str = Depends(verificar_autenticacao)):
+    """Busca todos os endpoints higienizados do projeto (Caçada Horizontal)."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    scope_domains = _get_scope_domains(proj_path)
+    fp_filter = "(e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)"
+    
+    endpoints = []
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT e.url, e.status_code, e.content_length, e.title, h.host, h.id as host_id
+                FROM endpoints e
+                JOIN hosts h ON h.id = e.host_id
+                WHERE h.is_alive = 1 AND h.in_scope = 1 AND {fp_filter}
+            """)
+            for row in cursor.fetchall():
+                if not _is_in_scope(row["host"], scope_domains): 
+                    continue
+                endpoints.append(dict(row))
+        return endpoints
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =====================================================================
+# MODELOS DE DADOS (PYDANTIC)
+# =====================================================================
+class VulnUpdate(BaseModel):
+    title: str
+    description: str
+    impact: str
+    remediation: str
+    cvss_vector: str
+    reference_urls: List[str]
+    cwe_id: str
+
+# =====================================================================
+# ROTAS DA FASE 8 (DEEP EDIT CVSS)
+# =====================================================================
+@app.put("/api/vulns/{vuln_id}")
+def update_vulnerability(vuln_id: int, data: VulnUpdate, username: str = Depends(verificar_autenticacao)):
+    """Atualiza a vulnerabilidade, recalculando o CVSS Score e Severidade via Backend."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    # Mapeamento de Severidades padrão da CVSS3 para o português da nossa UI
+    sev_map = {"CRITICAL": "Crítica", "HIGH": "Alta", "MEDIUM": "Média", "LOW": "Baixa", "NONE": "Info"}
+    score = 0.0
+    severity = "Média" # Fallback
+
+    # Recalcula o CVSS baseando-se no vetor enviado pelo Frontend
+    if data.cvss_vector and data.cvss_vector.startswith("CVSS:3"):
+        try:
+            c = CVSS3(data.cvss_vector)
+            score = float(c.scores()[0])
+            raw_sev = c.severities()[0].upper()
+            severity = sev_map.get(raw_sev, "Média")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Vetor CVSS inválido: {str(e)}")
+
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            
+            # Atualiza o banco, marcando o enriched_by como 'user_web' para o sync saber que foi edição humana
+            cursor.execute("""
+                UPDATE vulnerabilities SET
+                    title = ?, description = ?, impact = ?, remediation = ?,
+                    cvss_vector = ?, cvss_score = ?, severity = ?,
+                    reference_urls = ?, cwe_id = ?, enriched_by = 'user_web'
+                WHERE id = ?
+            """, (
+                data.title, data.description, data.impact, data.remediation,
+                data.cvss_vector, score, severity,
+                json.dumps(data.reference_urls), data.cwe_id, vuln_id
+            ))
+            conn.commit()
+            
+            return {
+                "status": "success", 
+                "message": "Vulnerabilidade atualizada!",
+                "new_score": score,
+                "new_severity": severity
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
