@@ -327,6 +327,7 @@ def mark_endpoint_fp(host_id: int, b64_url: str, username: str = Depends(verific
                 
             cursor.execute("UPDATE endpoints SET vulnerability_patterns = ? WHERE host_id = ? AND url = ?", 
                            (json.dumps(patterns), host_id, url))
+            conn.commit() # <--- ADICIONE ESTA LINHA AQUI
             
             return {"status": "success", "message": "Endpoint ocultado (Falso Positivo)."}
     except Exception as e:
@@ -344,6 +345,7 @@ def mark_vuln_fp(vuln_id: int, username: str = Depends(verificar_autenticacao)):
             cursor = conn.cursor()
             # Atualiza o status diretamente (conforme a lógica do seu renderer.py)
             cursor.execute("UPDATE vulnerabilities SET status = 'false_positive' WHERE id = ?", (vuln_id,))
+            conn.commit()
             return {"status": "success", "message": "Vulnerabilidade marcada como Falso Positivo."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

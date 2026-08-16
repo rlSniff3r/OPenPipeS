@@ -670,13 +670,32 @@
                 return map[severity] || 'bg-slate-700 text-slate-300';
             }
 
-            // Copia o comando Curl para a área de transferência
+            // Copia o comando Curl para a área de transferência (Com Fallback para HTTP/IP)
             const copyPoC = (command) => {
-                navigator.clipboard.writeText(command).then(() => {
-                    addToast("PoC copiada para a área de transferência!", "success");
-                }).catch(err => {
-                    addToast("Erro ao copiar PoC", "error");
-                });
+                // Tenta a API moderna (HTTPS/Localhost)
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(command).then(() => {
+                        addToast("PoC copiada para a área de transferência!", "success");
+                    }).catch(err => {
+                        addToast("Erro ao copiar PoC", "error");
+                    });
+                } else {
+                    // Fallback clássico para quando acessamos via IP na rede local (sem HTTPS)
+                    let textArea = document.createElement("textarea");
+                    textArea.value = command;
+                    textArea.style.position = "fixed";
+                    textArea.style.top = "-9999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        addToast("PoC copiada para a área de transferência!", "success");
+                    } catch (err) {
+                        addToast("Erro ao copiar PoC", "error");
+                    }
+                    textArea.remove();
+                }
             }
 
             // Oculta e marca a Vuln como FP

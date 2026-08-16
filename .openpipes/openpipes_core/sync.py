@@ -164,6 +164,12 @@ def _parse_host_md(conn, host_id: int, host_name: str, host_dir: str):
 
 def _ingest_vuln(conn, vuln_id: int, text: str):
     cur = conn.cursor()
+
+    cur.execute("SELECT status FROM vulnerabilities WHERE id = ?", (vuln_id,))
+    row = cur.fetchone()
+    if row and row["status"] == "false_positive":
+        return  # skip ingest for false positives
+
     updates = {}
     for callout, col in VULN_CALLOUTS.items():
         body = _extract_callout(text, callout)
