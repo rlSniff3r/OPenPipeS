@@ -1229,139 +1229,126 @@ def flag_false_positives(proj_path: str):
 
 
 def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
-    """Mark endpoints as scanned based on URLs found in the tool's output files.
-    Normalizes URLs to match DB format. Skips if tool already marked."""
+    """Marca endpoints como escaneados basendo-se nas URLs. (Versão Otimizada O(1))"""
+    import glob
+    import json
+
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
-            for nmap_folder in sorted(os.listdir(nmap_dir)):
-                if not nmap_folder.startswith("nmap-"):
-                    continue
-                target_dir = os.path.join(nmap_dir, nmap_folder)
+            
+            files_to_process = set()
 
-                files = []
-                if tool_name in ("ferox",):
-                    files = glob.glob(os.path.join(target_dir, "ferox_*.jsonl"))
+            # CORREÇÃO: Arquivos globais (como httpx) NÃO entram no loop de pastas!
+            if tool_name == "httpx":
+                f = os.path.join(nmap_dir, "httpx_output.json")
+                if os.path.exists(f):
+                    files_to_process.add(f)
+            else:
+                # Loop apenas para varrer ferramentas alvo-específicas
+                for nmap_folder in sorted(os.listdir(nmap_dir)):
+                    if not nmap_folder.startswith("nmap-"):
+                        continue
+                    target_dir = os.path.join(nmap_dir, nmap_folder)
 
-                elif tool_name in ("katana", "crawled"):
-                    f = os.path.join(target_dir, "crawled_all.jsonl")
-                    if os.path.exists(f):
-                        files = [f]
+                    if tool_name in ("ferox",):
+                        for fl in glob.glob(os.path.join(target_dir, "ferox_*.jsonl")): files_to_process.add(fl)
+                    elif tool_name in ("katana", "crawled"):
+                        f = os.path.join(target_dir, "crawled_all.jsonl")
+                        if os.path.exists(f): files_to_process.add(f)
+                    elif tool_name == "jsfinder":
+                        f = os.path.join(target_dir, "jsfinder-results.json")
+                        if os.path.exists(f): files_to_process.add(f)
+                    elif tool_name == "screenshot":
+                        f = os.path.join(target_dir, "Screenshots", "go.jsonl")
+                        if os.path.exists(f): files_to_process.add(f)
+                    elif tool_name == "nuclei":
+                        for fname in ("nuclei_pass1.json", "nuclei_pass2.json", "nuclei_output.json"):
+                            f = os.path.join(target_dir, fname)
+                            if os.path.exists(f): files_to_process.add(f)
+                    elif tool_name == "dalfox":
+                        for fl in glob.glob(os.path.join(target_dir, "dalfox_output_*.json")): files_to_process.add(fl)
 
-                elif tool_name == "jsfinder":
-                    f = os.path.join(target_dir, "jsfinder-results.json")
-                    if os.path.exists(f):
-                        files = [f]
+            # Processamento real: Lemos os arquivos coletados UMA ÚNICA VEZ
+            for fpath in files_to_process:
+                try:
+                    with open(fpath, encoding="utf-8") as fh:
+                        content = fh.read()
+                    if not content.strip():
+                        continue
 
-                elif tool_name == "screenshot":
-                    f = os.path.join(target_dir, "Screenshots", "go.jsonl")
-                    if os.path.exists(f):
-                        files = [f]
-
-                elif tool_name == "httpx":
-                    f = os.path.join(nmap_dir, "httpx_output.json")
-                    if os.path.exists(f):
-                        files = [f]
-                
-                elif tool_name == "nuclei":
-                    for fname in ("nuclei_pass1.json", "nuclei_pass2.json", "nuclei_output.json"):
-                        f = os.path.join(target_dir, fname)
-                        if os.path.exists(f):
-                            files.append(f)
-
-                elif tool_name == "dalfox":
-                    files = glob.glob(os.path.join(target_dir, "dalfox_output_*.json"))
-                    for fpath in files:
-                        try:
-                            with open(fpath, encoding="utf-8") as fh:
-                                content = fh.read().strip()
-                            # dalfox v3 outputs pretty-printed JSON objects (findings + meta)
-                            decoder = json.JSONDecoder()
-                            idx = 0
-                            while idx < len(content):
-                                while idx < len(content) and content[idx] in ' \t\n\r':
-                                    idx += 1
-                                if idx >= len(content):
-                                    break
-                                try:
-                                    obj, end = decoder.raw_decode(content, idx)
-                                    idx = end
-                                except json.JSONDecodeError:
-                                    idx += 1
-                                    continue
-                                # Extract target URLs from meta
-                                meta = obj.get("meta", {})
-                                for url in meta.get("targets", []):
-                                    url = _normalize_url(url)
-                                    cursor.execute("""
-                                        UPDATE endpoints SET scanned_by = CASE
-                                            WHEN scanned_by IS NULL OR scanned_by = '' THEN 'dalfox'
-                                            WHEN scanned_by NOT LIKE '%dalfox%' THEN scanned_by || ',dalfox'
-                                            ELSE scanned_by
-                                        END
-                                        WHERE url LIKE ?
-                                    """, (f"{url}%",))
-                        except Exception:
-                            continue
-                    continue  # Skip the rest of the loop for dalfox since we already processed files
-
-                for fpath in files:
-                    try:
-                        with open(fpath, encoding="utf-8") as fh:
-                            content = fh.read()
-                        if not content.strip():
-                            continue
-
-                        if tool_name == "nuclei":
+                    # -- 1. Lógica Dalfox --
+                    if tool_name == "dalfox":
+                        decoder = json.JSONDecoder()
+                        idx = 0
+                        while idx < len(content):
+                            while idx < len(content) and content[idx] in ' \t\n\r':
+                                idx += 1
+                            if idx >= len(content):
+                                break
                             try:
-                                findings = json.loads(content)
-                                if isinstance(findings, dict):
-                                    findings = [findings]
+                                obj, end = decoder.raw_decode(content, idx)
+                                idx = end
                             except json.JSONDecodeError:
-                                findings = [json.loads(l) for l in content.splitlines() if l.strip()]
-                            for data in findings:
-                                if not isinstance(data, dict):
-                                    continue
-                                url = data.get("url") or data.get("matched-at") or ""
-                                if not url:
-                                    continue
+                                idx += 1
+                                continue
+                            meta = obj.get("meta", {})
+                            for url in meta.get("targets", []):
                                 url = _normalize_url(url)
                                 cursor.execute("""
                                     UPDATE endpoints SET scanned_by = CASE
-                                        WHEN scanned_by IS NULL OR scanned_by = '' THEN 'nuclei'
-                                        WHEN scanned_by NOT LIKE '%nuclei%' THEN scanned_by || ',nuclei'
+                                        WHEN scanned_by IS NULL OR scanned_by = '' THEN 'dalfox'
+                                        WHEN scanned_by NOT LIKE '%dalfox%' THEN scanned_by || ',dalfox'
                                         ELSE scanned_by
                                     END
                                     WHERE url LIKE ?
                                 """, (f"{url}%",))
+                        continue # Pula o resto
+
+                    # -- 2. Lógica Nuclei --
+                    if tool_name == "nuclei":
+                        try:
+                            findings = json.loads(content)
+                            if isinstance(findings, dict):
+                                findings = [findings]
+                        except json.JSONDecodeError:
+                            findings = [json.loads(l) for l in content.splitlines() if l.strip()]
+                        for data in findings:
+                            if not isinstance(data, dict): continue
+                            url = data.get("url") or data.get("matched-at") or ""
+                            if not url: continue
+                            url = _normalize_url(url)
+                            cursor.execute("""
+                                UPDATE endpoints SET scanned_by = CASE
+                                    WHEN scanned_by IS NULL OR scanned_by = '' THEN 'nuclei'
+                                    WHEN scanned_by NOT LIKE '%nuclei%' THEN scanned_by || ',nuclei'
+                                    ELSE scanned_by
+                                END
+                                WHERE url LIKE ?
+                            """, (f"{url}%",))
+                        continue # Pula o resto
+
+                    # -- 3. Lógica Genérica (Httpx, Katana, Feroxbuster, etc) --
+                    for line in content.splitlines():
+                        line = line.strip()
+                        if not line: continue
+                        try:
+                            data = json.loads(line)
+                            url = (data.get("url") or data.get("request", {}).get("endpoint", "") or data.get("source_js_url", ""))
+                            if not url: continue
+                            url = _normalize_url(url)
+                            cursor.execute("""
+                                UPDATE endpoints SET scanned_by = CASE
+                                    WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
+                                    WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
+                                    ELSE scanned_by
+                                END
+                                WHERE url LIKE ?
+                            """, (tool_name, f"%{tool_name}%", tool_name, f"{url}%"))
+                        except Exception:
                             continue
-
-                        # ── existing generic per-line logic for the other tools ──
-                        for line in content.splitlines():
-                            line = line.strip()
-                            if not line:
-                                continue
-                            try:
-                                data = json.loads(line)
-                                url = (data.get("url") or
-                                       data.get("request", {}).get("endpoint", "") or
-                                       data.get("source_js_url", ""))
-                                if not url:
-                                    continue
-                                url = _normalize_url(url)
-                                cursor.execute("""
-                                    UPDATE endpoints SET scanned_by = CASE
-                                        WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
-                                        WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
-                                        ELSE scanned_by
-                                    END
-                                    WHERE url LIKE ?
-                                """, (tool_name, f"%{tool_name}%", tool_name, f"{url}%"))
-                            except Exception:
-                                continue
-                    except Exception:
-                        continue
-
+                except Exception:
+                    continue
 
 # ═════════════════════════════════════════════════════════════════════
 # DISPATCH

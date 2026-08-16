@@ -11,12 +11,7 @@
             darkMode: 'class',
             theme: {
                 extend: {
-                    colors: {
-                        darkbg: '#0f172a',
-                        cardbg: '#1e293b',
-                        brand: '#0ea5e9',
-                        brandhover: '#0284c7',
-                    }
+                    colors: { darkbg: '#0f172a', cardbg: '#1e293b', brand: '#0ea5e9', brandhover: '#0284c7' }
                 }
             }
         }
@@ -30,6 +25,9 @@
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .terminal-scroll::-webkit-scrollbar { width: 8px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: #000; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
     </style>
 </head>
 <body class="bg-darkbg text-slate-300 font-sans antialiased overflow-y-scroll" :class="lightboxOpen ? 'overflow-hidden' : ''">
@@ -43,7 +41,7 @@
             <h1 class="text-xl font-bold text-white tracking-wide cursor-pointer" @click="changeView('hosts')">Aurora <span class="text-brand">Dashboard</span></h1>
         </div>
         <div class="flex items-center gap-3">
-            <!-- NOVO BOTÃO RUN CYCLE -->
+            <!-- BOTÃO RUN CYCLE -->
             <button @click="triggerCycle" :disabled="isCycling || isSyncing" class="text-sm px-4 py-1.5 bg-indigo-900/50 hover:bg-indigo-600/30 border border-indigo-700/50 hover:border-indigo-500 text-indigo-300 hover:text-white rounded-lg transition-colors flex items-center gap-2">
                 <svg :class="{'animate-spin text-indigo-400': isCycling}" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 <span v-if="isCycling">Rodando Cycle...</span>
@@ -64,8 +62,8 @@
 
     <main class="flex-grow p-6 w-full max-w-[95rem] mx-auto relative">
         
-        <!-- Cards Globais -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Cards Globais (Agora são 4 Colunas) -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div @click="changeView('hosts')" :class="currentView === 'hosts' ? 'ring-2 ring-blue-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex items-center gap-4 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
                 <div class="absolute -right-4 -top-4 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
                 <div class="p-3 bg-blue-500/20 rounded-lg text-blue-400 z-10"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg></div>
@@ -81,14 +79,55 @@
                 <div class="p-3 bg-green-500/20 rounded-lg text-green-400 z-10"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg></div>
                 <div class="z-10"><div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Endpoints Ativos</div><div class="text-3xl font-bold text-white">{{ stats.endpoints }}</div></div>
             </div>
+            <!-- NOVO CARD: CENTRO DE COMANDO -->
+            <div @click="openCommandCenter()" :class="currentView === 'command-center' ? 'ring-2 ring-purple-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex items-center gap-4 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl"></div>
+                <div class="p-3 bg-purple-500/20 rounded-lg text-purple-400 z-10"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Centro de Controle</div><div class="text-2xl font-bold text-white">Live Logs</div></div>
+            </div>
         </div>
 
         <transition name="fade" mode="out-in">
             
             <!-- ========================================== -->
+            <!-- VIEW: CENTRO DE COMANDOS (TERMINAL)        -->
+            <!-- ========================================== -->
+            <div v-if="currentView === 'command-center'" key="view-command-center" class="w-full flex flex-col lg:flex-row gap-6 h-[calc(100vh-16rem)]">
+                <!-- Sidebar Tools -->
+                <div class="w-full lg:w-64 bg-cardbg border border-slate-700 rounded-xl p-4 flex flex-col gap-2 shadow-lg overflow-y-auto custom-scrollbar flex-shrink-0">
+                    <h3 class="font-bold text-white mb-4 flex items-center gap-2"><svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg> Módulos (Logs)</h3>
+                    
+                    <button @click="switchLog('main')" :class="activeLog === 'main' ? 'bg-purple-500/20 text-purple-300 border-purple-500/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm font-semibold transition-all">Orquestrador (Cycle)</button>
+                    <div class="my-2 border-t border-slate-700"></div>
+                    <button @click="switchLog('httpx-runner')" :class="activeLog === 'httpx-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">HTTPx</button>
+                    <button @click="switchLog('katana-runner')" :class="activeLog === 'katana-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">Katana</button>
+                    <button @click="switchLog('feroxbuster-runner')" :class="activeLog === 'feroxbuster-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">Feroxbuster</button>
+                    <button @click="switchLog('jsfinder-runner')" :class="activeLog === 'jsfinder-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">JS Finder</button>
+                    <button @click="switchLog('nuclei-runner')" :class="activeLog === 'nuclei-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">Nuclei</button>
+                    <button @click="switchLog('screenshot-runner')" :class="activeLog === 'screenshot-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">Screenshots</button>
+                </div>
+
+                <!-- Painel Preto de Terminal -->
+                <div class="flex-1 bg-[#0a0a0a] border border-slate-700 rounded-xl p-4 shadow-2xl flex flex-col relative overflow-hidden font-mono">
+                    <div class="flex justify-between items-center mb-3 pb-3 border-b border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <span class="flex gap-1.5"><span class="w-3 h-3 rounded-full bg-red-500"></span><span class="w-3 h-3 rounded-full bg-yellow-500"></span><span class="w-3 h-3 rounded-full bg-green-500"></span></span>
+                            <span class="text-green-500 text-sm font-bold tracking-wider">Terminal [{{ activeLog }}.log] <span v-if="wsStatus === 'connecting'" class="text-yellow-500 text-xs">(Conectando...)</span><span v-else-if="wsStatus === 'connected'" class="text-green-400 text-xs animate-pulse">(Live)</span><span v-else class="text-red-500 text-xs">(Desconectado)</span></span>
+                        </div>
+                        <button @click="clearLogs" class="text-xs px-3 py-1 border border-slate-700 rounded text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">Limpar Tela</button>
+                    </div>
+                    
+                    <div id="terminal-container" class="flex-1 overflow-y-auto terminal-scroll text-[11px] md:text-xs text-green-400/90 whitespace-pre-wrap break-all pb-4">
+                        <div v-for="(line, idx) in terminalLines" :key="idx" class="leading-snug" :class="getTerminalColor(line)">{{ line }}</div>
+                        <div v-if="terminalLines.length === 0" class="text-slate-600 italic">Aguardando saída da ferramenta... (se o log estiver vazio, o módulo pode ainda não ter sido executado).</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
             <!-- VIEW: GRADE DE HOSTS                       -->
             <!-- ========================================== -->
-            <div v-if="currentView === 'hosts'" key="view-hosts">
+            <div v-else-if="currentView === 'hosts'" key="view-hosts">
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-6 gap-4 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                     <div>
                         <h2 class="text-xl font-semibold text-white">Superfície de Ataque</h2>
@@ -238,8 +277,6 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <!-- ========================================================== -->
-
                                 </div>
                             </div>
                         </div>
@@ -251,7 +288,6 @@
             <!-- VIEW: GLOBAL ENDPOINTS                     -->
             <!-- ========================================== -->
             <div v-else-if="currentView === 'global-endpoints'" key="view-global-endpoints" class="w-full">
-                <!-- (Same as before, skipped for brevity in prompt but provided fully below) -->
                 <div class="flex items-center gap-4 mb-6">
                     <button @click="changeView('hosts')" class="w-12 h-12 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -262,10 +298,13 @@
                 <div v-if="loadingGlobal" class="flex justify-center py-20"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
                 
                 <div v-else class="space-y-6">
+                    <!-- Gráficos -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col"><h3 class="font-bold text-white mb-4 text-center">Distribuição de Status HTTP</h3><div class="relative flex-1 w-full min-h-0"><canvas id="epStatusCanvas"></canvas></div></div>
                         <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col"><h3 class="font-bold text-white mb-4 text-center">Top 10 Hosts com mais Endpoints</h3><div class="relative flex-1 w-full min-h-0"><canvas id="epHostCanvas"></canvas></div></div>
                     </div>
+
+                    <!-- Tabela Mestra -->
                     <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
                         <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white">Todos os Endpoints Mapeados ({{ globalEndpoints.length }})</h3></div>
                         <div class="overflow-x-auto max-h-[800px] overflow-y-auto custom-scrollbar relative">
@@ -323,7 +362,10 @@
                 <div v-if="loadingDetails" class="flex justify-center py-20 text-slate-500"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
                 <div v-else class="space-y-6">
                     <div class="bg-cardbg p-5 rounded-xl border border-slate-700 flex flex-col md:flex-row items-center justify-between shadow-lg">
-                        <div class="flex items-center gap-3 mb-4 md:mb-0"><svg class="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg><div><h3 class="text-lg font-bold text-white">Isolamento por Porta</h3><p class="text-xs text-slate-400">Filtre os endpoints e tecnologias atrelados a uma porta.</p></div></div>
+                        <div class="flex items-center gap-3 mb-4 md:mb-0">
+                            <svg class="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                            <div><h3 class="text-lg font-bold text-white">Isolamento por Porta</h3><p class="text-xs text-slate-400">Filtre os endpoints e tecnologias atrelados a uma porta.</p></div>
+                        </div>
                         <div class="flex flex-wrap gap-2 justify-end">
                             <button @click="selectedPort = null" :class="!selectedPort ? 'bg-brand text-white shadow-[0_0_10px_rgba(14,165,233,0.5)]' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all">Visão Global</button>
                             <button v-for="p in hostDetails.ports" :key="p.port" @click="selectedPort = p.port" :class="selectedPort === p.port ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.5)]' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'" class="px-4 py-1.5 rounded-lg text-sm font-mono font-semibold transition-all flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-400"></span>{{ p.port }}/{{ p.protocol }}</button>
@@ -437,7 +479,7 @@
                                                 </div>
                                                 <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
                                                 <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
-                                                    <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
+                                                    <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
                                                     
                                                     <div class="flex gap-2 ml-auto">
                                                         <button @click.stop="startEdit(vuln)" class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded text-xs font-semibold text-blue-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar</button>
@@ -491,7 +533,7 @@
         </transition>
     </main>
 
-    <!-- TOAST NOTIFICATIONS E LIGHTBOX (OMITIDOS PARA ESPAÇO, JÁ SÃO OS MESMOS DO CÓDIGO ANTERIOR) -->
+    <!-- TOAST NOTIFICATIONS -->
     <div class="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
         <transition-group name="fade">
             <div v-for="toast in toasts" :key="toast.id" :class="toast.type === 'success' ? 'bg-green-900/90 border-green-500 text-green-200' : 'bg-red-900/90 border-red-500 text-red-200'" class="px-4 py-3 rounded-lg border shadow-xl flex items-center gap-3 min-w-[250px] backdrop-blur pointer-events-auto">
@@ -510,6 +552,10 @@
             <button @click.stop="nextImage" class="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-slate-800/50 hover:bg-brand/50 p-3 rounded-full z-50"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
             <div class="relative w-full max-w-6xl max-h-[90vh] flex flex-col items-center p-4">
                 <img :src="`/api/image/${activeHost.id}/${encodeURIComponent(currentLightboxImage.file_path)}`" class="max-w-full max-h-[80vh] object-contain rounded shadow-2xl border border-slate-700" @click.stop>
+                <div class="mt-4 bg-slate-900 border border-slate-700 px-6 py-3 rounded-xl flex flex-wrap items-center justify-center gap-4 text-sm shadow-xl w-full max-w-3xl" @click.stop>
+                    <span :class="getStatusClass(currentLightboxImage.status_code)" class="px-2 py-1 rounded font-mono font-bold">{{ currentLightboxImage.status_code || '---' }}</span>
+                    <a :href="currentLightboxImage.final_url || currentLightboxImage.source_url" target="_blank" class="text-brand hover:underline font-mono truncate max-w-md">{{ currentLightboxImage.final_url || currentLightboxImage.source_url || 'URL Indisponível' }}</a>
+                </div>
             </div>
         </div>
     </transition>
@@ -572,17 +618,12 @@
             const loadingDetails = ref(false)
             const selectedPort = ref(null)
 
-            const epSortKey = ref('url')
-            const epSortAsc = ref(true)
-            const globalEpSortKey = ref('url')
-            const globalEpSortAsc = ref(true)
+            const epSortKey = ref('url'); const epSortAsc = ref(true)
+            const globalEpSortKey = ref('url'); const globalEpSortAsc = ref(true)
             
             const expandedVuln = ref(null)
-            const lightboxOpen = ref(false)
-            const lightboxIndex = ref(0)
-            const isSyncing = ref(false)
-            const isCycling = ref(false)
-            let cycleInterval = null
+            const lightboxOpen = ref(false); const lightboxIndex = ref(0)
+            const isSyncing = ref(false); const isCycling = ref(false); let cycleInterval = null
             const toasts = ref([])
 
             // ================= FASE 8: DEEP EDIT CVSS =================
@@ -602,59 +643,30 @@
 
             const currentVector = computed(() => {
                 const m = editCvss.value;
-                if(m.AV && m.AC && m.PR && m.UI && m.S && m.C && m.I && m.A) {
-                    return `CVSS:3.1/AV:${m.AV}/AC:${m.AC}/PR:${m.PR}/UI:${m.UI}/S:${m.S}/C:${m.C}/I:${m.I}/A:${m.A}`;
-                }
+                if(m.AV && m.AC && m.PR && m.UI && m.S && m.C && m.I && m.A) { return `CVSS:3.1/AV:${m.AV}/AC:${m.AC}/PR:${m.PR}/UI:${m.UI}/S:${m.S}/C:${m.C}/I:${m.I}/A:${m.A}`; }
                 return "";
             });
 
             const startEdit = (vuln) => {
                 editingVulnId.value = vuln.id;
-                editForm.value = {
-                    title: vuln.title || '',
-                    description: vuln.description || '',
-                    impact: vuln.impact || '',
-                    remediation: vuln.remediation || '',
-                    cwe_id: vuln.cwe_id || '',
-                    references: (vuln.reference_urls || []).join('\n')
-                };
-                // Reseta CVSS
+                editForm.value = { title: vuln.title || '', description: vuln.description || '', impact: vuln.impact || '', remediation: vuln.remediation || '', cwe_id: vuln.cwe_id || '', references: (vuln.reference_urls || []).join('\n') };
                 editCvss.value = { AV: '', AC: '', PR: '', UI: '', S: '', C: '', I: '', A: '' };
-                if (vuln.cvss_score && vuln.cvss_score > 0 && vuln.cvss_score <= 10) {
-                    // Extraímos o vetor original se existir (a string exata enviada será necessária pra reconstruir, mas podemos mapear via db depois)
-                    // Como nós não trouxemos o cvss_vector na API get_host_details da Fase 5, a caixa vai começar vazia pra forçar recalculo, 
-                    // a não ser que você já adicione 'v.cvss_vector' na rota API original. 
-                }
             }
 
             const cancelEdit = () => { editingVulnId.value = null; }
 
             const saveEdit = async (vulnId) => {
                 if (!currentVector.value) { addToast("Preencha todas as métricas do CVSS!", "error"); return; }
-                const payload = {
-                    title: editForm.value.title, description: editForm.value.description,
-                    impact: editForm.value.impact, remediation: editForm.value.remediation,
-                    cvss_vector: currentVector.value,
-                    reference_urls: editForm.value.references.split('\n').map(l => l.trim()).filter(l => l),
-                    cwe_id: editForm.value.cwe_id
-                };
+                const payload = { title: editForm.value.title, description: editForm.value.description, impact: editForm.value.impact, remediation: editForm.value.remediation, cvss_vector: currentVector.value, reference_urls: editForm.value.references.split('\n').map(l => l.trim()).filter(l => l), cwe_id: editForm.value.cwe_id };
                 try {
-                    const res = await fetch(`/api/vulns/${vulnId}`, {
-                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-                    });
+                    const res = await fetch(`/api/vulns/${vulnId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     const data = await res.json();
                     if (res.ok) {
                         addToast("Vulnerabilidade atualizada com sucesso!", "success");
                         editingVulnId.value = null;
-                        
-                        // Atualiza as interfaces locais
                         const updateLocal = (v) => {
                             if (v.id === vulnId) {
-                                v.title = payload.title; v.description = payload.description;
-                                v.impact = payload.impact; v.remediation = payload.remediation;
-                                v.cvss_vector = payload.cvss_vector; v.reference_urls = payload.reference_urls;
-                                v.cwe_id = payload.cwe_id; 
-                                
+                                v.title = payload.title; v.description = payload.description; v.impact = payload.impact; v.remediation = payload.remediation; v.cvss_vector = payload.cvss_vector; v.reference_urls = payload.reference_urls; v.cwe_id = payload.cwe_id; 
                                 if (activeHost.value && v.severity !== data.new_severity && currentView.value === 'dossier') {
                                     if (activeHost.value.vulns_severity[v.severity] > 0) activeHost.value.vulns_severity[v.severity]--;
                                     activeHost.value.vulns_severity[data.new_severity] = (activeHost.value.vulns_severity[data.new_severity] || 0) + 1;
@@ -668,6 +680,50 @@
                     } else { addToast("Erro: " + data.detail, "error"); }
                 } catch (e) { addToast("Erro ao contatar API.", "error"); }
             }
+
+            // ================= FASE 8.3: COMANDO & WEBSOCKETS =================
+            const activeLog = ref('main');
+            const terminalLines = ref([]);
+            const wsStatus = ref('disconnected'); 
+            let wsConnection = null;
+
+            const connectWebSocket = (moduleName) => {
+                if (wsConnection) { wsConnection.close(); }
+                terminalLines.value = [];
+                wsStatus.value = 'connecting';
+                
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/api/ws/logs/${moduleName}`;
+                wsConnection = new WebSocket(wsUrl);
+                
+                wsConnection.onopen = () => { wsStatus.value = 'connected'; };
+                wsConnection.onmessage = (event) => {
+                    terminalLines.value.push(event.data);
+                    if (terminalLines.value.length > 1000) terminalLines.value.shift();
+                    nextTick(() => {
+                        const container = document.getElementById('terminal-container');
+                        if (container) {
+                            const isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 50;
+                            if (isAtBottom || terminalLines.value.length < 50) { container.scrollTop = container.scrollHeight; }
+                        }
+                    });
+                };
+                wsConnection.onclose = () => { wsStatus.value = 'disconnected'; };
+            };
+
+            const switchLog = (moduleName) => { activeLog.value = moduleName; connectWebSocket(moduleName); };
+            const clearLogs = () => { terminalLines.value = []; };
+            const openCommandCenter = () => { changeView('command-center'); switchLog('main'); };
+
+            const getTerminalColor = (line) => {
+                const lower = line.toLowerCase();
+                if (lower.includes('[inf]') || lower.includes('info')) return 'text-blue-400';
+                if (lower.includes('[err]') || lower.includes('error') || lower.includes('fail')) return 'text-red-500';
+                if (lower.includes('[wrn]') || lower.includes('warn') || lower.includes('warning')) return 'text-yellow-400';
+                if (lower.includes('[+]') || lower.includes('success') || lower.includes('ok')) return 'text-green-300 font-bold';
+                if (lower.includes('▶') || lower.includes('✔') || lower.includes('✖')) return 'text-cyan-400';
+                return 'text-green-500/80';
+            };
 
             // --- FUNÇÕES CORE ---
             const addToast = (message, type = 'success') => { const id = Date.now(); toasts.value.push({ id, message, type }); setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 4000); }
@@ -684,101 +740,74 @@
             const fetchStats = async () => { try { const res = await fetch('/api/stats'); if (res.ok) stats.value = await res.json(); } catch (e) {} }
             const fetchHosts = async () => { loadingHosts.value = true; try { const res = await fetch('/api/hosts'); if (res.ok) hosts.value = await res.json(); } catch (e) {} finally { loadingHosts.value = false; } }
 
-            const changeView = async (view, host = null) => {
-                currentView.value = view; window.scrollTo({ top: 0, behavior: 'smooth' });
-                if (view === 'hosts') { activeHost.value = null; } 
-                else if (view === 'dossier' && host) {
-                    if(!activeHost.value || activeHost.value.id !== host.id) { activeHost.value = host; selectedPort.value = null; loadingDetails.value = true; try { const res = await fetch(`/api/hosts/${host.id}/details`); if (res.ok) hostDetails.value = await res.json(); } catch (e) {} finally { loadingDetails.value = false; } }
-                } 
-                else if (view === 'global-vulns') {
-                    activeHost.value = null;
-                    if (globalVulns.value.length === 0) { loadingGlobal.value = true; try { const res = await fetch(`/api/global/vulnerabilities`); if (res.ok) globalVulns.value = await res.json(); } catch (e) {} finally { loadingGlobal.value = false; } }
-                    setTimeout(() => renderVulnCharts(), 400); 
-                } 
-                else if (view === 'global-endpoints') {
-                    activeHost.value = null;
-                    if (globalEndpoints.value.length === 0) { loadingGlobal.value = true; try { const res = await fetch(`/api/global/endpoints`); if (res.ok) globalEndpoints.value = await res.json(); } catch (e) {} finally { loadingGlobal.value = false; } }
-                    setTimeout(() => renderEndpointCharts(), 400);
-                }
-            }
-            const toggleVuln = (id) => { expandedVuln.value = expandedVuln.value === id ? null : id; }
-
-            const destroyChart = (id) => { if(chartInstances[id]) chartInstances[id].destroy(); }
-            const renderVulnCharts = () => {
-                const sevCounts = {'Crítica':0, 'Alta':0, 'Média':0, 'Baixa':0, 'Info':0};
-                globalVulns.value.forEach(v => { if(sevCounts[v.severity] !== undefined) sevCounts[v.severity]++; });
-                destroyChart('vulnSeverityCanvas');
-                const ctx1 = document.getElementById('vulnSeverityCanvas');
-                if(ctx1) { chartInstances['vulnSeverityCanvas'] = new Chart(ctx1, { type: 'doughnut', data: { labels: ['Crítica', 'Alta', 'Média', 'Baixa', 'Info'], datasets: [{ data: [sevCounts['Crítica'], sevCounts['Alta'], sevCounts['Média'], sevCounts['Baixa'], sevCounts['Info']], backgroundColor: ['#ef4444', '#fb923c', '#facc15', '#4ade80', '#60a5fa'], borderColor: '#1e293b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } } }); }
-                const hostCounts = {};
-                globalVulns.value.forEach(v => { hostCounts[v.host] = (hostCounts[v.host] || 0) + 1; });
-                const sortedHosts = Object.entries(hostCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
-                destroyChart('vulnHostCanvas');
-                const ctx2 = document.getElementById('vulnHostCanvas');
-                if(ctx2) { chartInstances['vulnHostCanvas'] = new Chart(ctx2, { type: 'bar', data: { labels: sortedHosts.map(h => h[0]), datasets: [{ label: 'Vulnerabilidades', data: sortedHosts.map(h => h[1]), backgroundColor: '#0ea5e9', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 45 } } }, plugins: { legend: { display: false } } } }); }
-            }
-            const renderEndpointCharts = () => {
-                const statusCounts = {}; globalEndpoints.value.forEach(e => { const code = e.status_code || 'N/A'; statusCounts[code] = (statusCounts[code] || 0) + 1; });
-                const sortedStatus = Object.entries(statusCounts).sort((a,b) => b[1] - a[1]).slice(0, 8); 
-                destroyChart('epStatusCanvas');
-                const ctx1 = document.getElementById('epStatusCanvas');
-                if(ctx1) { chartInstances['epStatusCanvas'] = new Chart(ctx1, { type: 'doughnut', data: { labels: sortedStatus.map(s => s[0]), datasets: [{ data: sortedStatus.map(s => s[1]), backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#64748b', '#cbd5e1'], borderColor: '#1e293b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } } }); }
-                const hostCounts = {}; globalEndpoints.value.forEach(e => { hostCounts[e.host] = (hostCounts[e.host] || 0) + 1; });
-                const sortedHosts = Object.entries(hostCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
-                destroyChart('epHostCanvas');
-                const ctx2 = document.getElementById('epHostCanvas');
-                if(ctx2) { chartInstances['epHostCanvas'] = new Chart(ctx2, { type: 'bar', data: { labels: sortedHosts.map(h => h[0]), datasets: [{ label: 'Endpoints', data: sortedHosts.map(h => h[1]), backgroundColor: '#10b981', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', display: false } } }, plugins: { legend: { display: false } } } }); }
-            }
-
-            const triggerSync = async () => { isSyncing.value = true; try { const res = await fetch('/api/sync', { method: 'POST' }); const data = await res.json(); if (res.ok) addToast(data.message, 'success'); else addToast("Erro na Sincronização", 'error'); } catch (error) { addToast("Erro de comunicação com o servidor", 'error'); } finally { isSyncing.value = false; } }
-
             const checkSystemStatus = async () => {
                 try {
                     const res = await fetch('/api/status');
                     if (res.ok) {
                         const data = await res.json();
-                        // Se o backend diz que NÃO está rodando, e o frontend achava que estava...
-                        if (!data.cycle_running && isCycling.value) {
-                            addToast("Ciclo de varredura finalizado com sucesso!", "success");
-                            if (cycleInterval) clearInterval(cycleInterval);
-                            cycleInterval = null;
-                        }
+                        if (!data.cycle_running && isCycling.value) { addToast("Ciclo de varredura finalizado com sucesso!", "success"); if (cycleInterval) clearInterval(cycleInterval); cycleInterval = null; }
                         isCycling.value = data.cycle_running;
-                        
-                        // Se o backend diz que está rodando, garantimos o loop ligado
-                        if (isCycling.value && !cycleInterval) {
-                            cycleInterval = setInterval(checkSystemStatus, 5000);
-                        }
+                        if (isCycling.value && !cycleInterval) { cycleInterval = setInterval(checkSystemStatus, 5000); }
                     }
                 } catch (error) { }
             }
 
             const triggerCycle = async () => {
-                if(!confirm("Tem certeza que deseja iniciar um ciclo completo? Isso pode levar horas e consumir recursos do sistema.")) return;
-                
+                if(!confirm("Iniciar o ciclo massivo? Isso rodará em background.")) return;
                 try {
                     isCycling.value = true;
                     const res = await fetch('/api/cycle', { method: 'POST' });
                     const data = await res.json();
-                    
-                    if (res.ok) {
-                        addToast(data.message, 'success');
-                        // Inicia o radar a cada 5 segundos
-                        if(!cycleInterval) cycleInterval = setInterval(checkSystemStatus, 5000);
-                    } else {
-                        addToast(data.detail || "Erro ao iniciar o ciclo", 'error');
-                        isCycling.value = false;
-                    }
-                } catch (error) {
-                    addToast("Erro de comunicação com o servidor", 'error');
-                    isCycling.value = false;
-                }
+                    if (res.ok) { addToast(data.message, 'success'); if(!cycleInterval) cycleInterval = setInterval(checkSystemStatus, 5000); openCommandCenter(); } 
+                    else { addToast(data.detail || "Erro", 'error'); isCycling.value = false; }
+                } catch (error) { addToast("Erro de API", 'error'); isCycling.value = false; }
             }
-
+            
+            const triggerSync = async () => { isSyncing.value = true; try { const res = await fetch('/api/sync', { method: 'POST' }); const data = await res.json(); if (res.ok) addToast(data.message, 'success'); else addToast("Erro na Sincronização", 'error'); } catch (error) { addToast("Erro de comunicação com o servidor", 'error'); } finally { isSyncing.value = false; } }
             const copyPoC = (command) => { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(command).then(() => { addToast("PoC copiada!", "success"); }).catch(err => { addToast("Erro ao copiar", "error"); }); } else { let textArea = document.createElement("textarea"); textArea.value = command; textArea.style.position = "fixed"; textArea.style.top = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { document.execCommand('copy'); addToast("PoC copiada!", "success"); } catch (err) { addToast("Erro ao copiar", "error"); } textArea.remove(); } }
             const markVulnFP = async (vulnId, severity, isGlobal = false) => { if(!confirm("Marcar esta vulnerabilidade como Falso Positivo?")) return; if(isGlobal) { globalVulns.value = globalVulns.value.filter(v => v.id !== vulnId); nextTick(() => renderVulnCharts()); } else { hostDetails.value.vulnerabilities = hostDetails.value.vulnerabilities.filter(v => v.id !== vulnId); if (activeHost.value) { activeHost.value.vulns_total -= 1; if (activeHost.value.vulns_severity[severity] > 0) activeHost.value.vulns_severity[severity] -= 1; } } stats.value.vulns -= 1; addToast("Vulnerabilidade ocultada", 'success'); try { await fetch(`/api/vulns/${vulnId}/fp`, { method: 'POST' }); } catch (e) { addToast("Erro ao atualizar banco", 'error'); } }
             const markEndpointFP = async (url, hostId, isGlobal = false) => { if(!confirm("Ocultar este Endpoint como Falso Positivo?")) return; if (isGlobal) { globalEndpoints.value = globalEndpoints.value.filter(ep => ep.url !== url); nextTick(() => renderEndpointCharts()); } else { hostDetails.value.endpoints = hostDetails.value.endpoints.filter(ep => ep.url !== url); if (activeHost.value) activeHost.value.endpoints_count -= 1; } stats.value.endpoints -= 1; addToast("Endpoint ocultado", 'success'); try { const b64_url = btoa(url); await fetch(`/api/endpoints/${hostId}/${b64_url}/fp`, { method: 'POST' }); } catch (e) { addToast("Erro ao gravar FP no banco", 'error'); } }
 
+            const openDossier = (host) => { changeView('dossier', host); }
+            const closeDossier = () => { changeView('hosts'); }
+            const toggleVuln = (id) => { expandedVuln.value = expandedVuln.value === id ? null : id; }
+
+            const changeView = async (view, host = null) => {
+                if (currentView.value === 'command-center' && view !== 'command-center' && wsConnection) { wsConnection.close(); wsConnection = null; }
+                currentView.value = view; window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (view === 'hosts') { activeHost.value = null; } 
+                else if (view === 'dossier' && host) { if(!activeHost.value || activeHost.value.id !== host.id) { activeHost.value = host; selectedPort.value = null; loadingDetails.value = true; try { const res = await fetch(`/api/hosts/${host.id}/details`); if (res.ok) hostDetails.value = await res.json(); } catch (e) {} finally { loadingDetails.value = false; } } } 
+                else if (view === 'global-vulns') {
+                    if (globalVulns.value.length === 0) { loadingGlobal.value = true; try { const res = await fetch(`/api/global/vulnerabilities`); if (res.ok) globalVulns.value = await res.json(); } catch(e){} finally { loadingGlobal.value = false; } }
+                    setTimeout(() => renderVulnCharts(), 400); 
+                } 
+                else if (view === 'global-endpoints') {
+                    if (globalEndpoints.value.length === 0) { loadingGlobal.value = true; try { const res = await fetch(`/api/global/endpoints`); if (res.ok) globalEndpoints.value = await res.json(); } catch(e){} finally { loadingGlobal.value = false; } }
+                    setTimeout(() => renderEndpointCharts(), 400);
+                }
+            }
+
+            const destroyChart = (id) => { if(chartInstances[id]) chartInstances[id].destroy(); }
+            const renderVulnCharts = () => {
+                const sevCounts = {'Crítica':0, 'Alta':0, 'Média':0, 'Baixa':0, 'Info':0}; globalVulns.value.forEach(v => { if(sevCounts[v.severity] !== undefined) sevCounts[v.severity]++; });
+                destroyChart('vulnSeverityCanvas'); const ctx1 = document.getElementById('vulnSeverityCanvas');
+                if(ctx1) { chartInstances['vulnSeverityCanvas'] = new Chart(ctx1, { type: 'doughnut', data: { labels: ['Crítica', 'Alta', 'Média', 'Baixa', 'Info'], datasets: [{ data: [sevCounts['Crítica'], sevCounts['Alta'], sevCounts['Média'], sevCounts['Baixa'], sevCounts['Info']], backgroundColor: ['#ef4444', '#fb923c', '#facc15', '#4ade80', '#60a5fa'], borderColor: '#1e293b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } } }); }
+                const hostCounts = {}; globalVulns.value.forEach(v => { hostCounts[v.host] = (hostCounts[v.host] || 0) + 1; });
+                const sortedHosts = Object.entries(hostCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+                destroyChart('vulnHostCanvas'); const ctx2 = document.getElementById('vulnHostCanvas');
+                if(ctx2) { chartInstances['vulnHostCanvas'] = new Chart(ctx2, { type: 'bar', data: { labels: sortedHosts.map(h => h[0]), datasets: [{ label: 'Vulnerabilidades', data: sortedHosts.map(h => h[1]), backgroundColor: '#0ea5e9', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 45 } } }, plugins: { legend: { display: false } } } }); }
+            }
+            const renderEndpointCharts = () => {
+                const statusCounts = {}; globalEndpoints.value.forEach(e => { const code = e.status_code || 'N/A'; statusCounts[code] = (statusCounts[code] || 0) + 1; });
+                const sortedStatus = Object.entries(statusCounts).sort((a,b) => b[1] - a[1]).slice(0, 8); 
+                destroyChart('epStatusCanvas'); const ctx1 = document.getElementById('epStatusCanvas');
+                if(ctx1) { chartInstances['epStatusCanvas'] = new Chart(ctx1, { type: 'doughnut', data: { labels: sortedStatus.map(s => s[0]), datasets: [{ data: sortedStatus.map(s => s[1]), backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#64748b', '#cbd5e1'], borderColor: '#1e293b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } } }); }
+                const hostCounts = {}; globalEndpoints.value.forEach(e => { hostCounts[e.host] = (hostCounts[e.host] || 0) + 1; });
+                const sortedHosts = Object.entries(hostCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
+                destroyChart('epHostCanvas'); const ctx2 = document.getElementById('epHostCanvas');
+                if(ctx2) { chartInstances['epHostCanvas'] = new Chart(ctx2, { type: 'bar', data: { labels: sortedHosts.map(h => h[0]), datasets: [{ label: 'Endpoints', data: sortedHosts.map(h => h[1]), backgroundColor: '#10b981', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', display: false } } }, plugins: { legend: { display: false } } } }); }
+            }
+            
             const filteredAndSortedHosts = computed(() => { let result = hosts.value; if (searchQuery.value) { const query = searchQuery.value.toLowerCase(); result = result.filter(h => h.host.toLowerCase().includes(query) || h.ip.includes(query)); } return result.sort((a, b) => { if (sortBy.value === 'endpoints') return b.endpoints_count - a.endpoints_count; if (sortBy.value === 'vulns') return b.vulns_total - a.vulns_total; if (sortBy.value === 'ports') return b.open_ports.length - a.open_ports.length; if (sortBy.value === 'screenshots') return b.screenshots_count - a.screenshots_count; if (sortBy.value === 'js') return b.js_count - a.js_count; return a.host.localeCompare(b.host); }); })
             const otherHosts = computed(() => { if (!activeHost.value) return []; return filteredAndSortedHosts.value.filter(h => h.id !== activeHost.value.id); })
             const toggleEpSort = (key) => { if (epSortKey.value === key) epSortAsc.value = !epSortAsc.value; else { epSortKey.value = key; epSortAsc.value = true; } }
@@ -787,17 +816,15 @@
             const sortedGlobalEndpoints = computed(() => { let eps = globalEndpoints.value || []; return eps.sort((a, b) => { let valA = a[globalEpSortKey.value] || ''; let valB = b[globalEpSortKey.value] || ''; if (globalEpSortKey.value === 'content_length' || globalEpSortKey.value === 'status_code') { valA = Number(valA) || 0; valB = Number(valB) || 0; } else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); } if (valA < valB) return globalEpSortAsc.value ? -1 : 1; if (valA > valB) return globalEpSortAsc.value ? 1 : -1; return 0; }); })
             const groupedJS = computed(() => { const groups = {}; (hostDetails.value.js_discoveries || []).forEach(js => { if (!groups[js.source_js_url]) groups[js.source_js_url] = []; groups[js.source_js_url].push(js.discovered_route); }); return groups; })
 
-            onMounted(() => {
-                fetchStats(); fetchHosts();
-                checkSystemStatus(); // <-- ADICIONAR AQUI
-                intervalId = setInterval(() => { imageTick.value++; }, 3000);
-                window.addEventListener('keydown', handleKeydown);
-            })
-            onUnmounted(() => { if (intervalId) clearInterval(intervalId); window.removeEventListener('keydown', handleKeydown); })
+            onMounted(() => { fetchStats(); fetchHosts(); checkSystemStatus(); intervalId = setInterval(() => { imageTick.value++; }, 3000); window.addEventListener('keydown', handleKeydown); })
+            onUnmounted(() => { if (intervalId) clearInterval(intervalId); if (wsConnection) wsConnection.close(); window.removeEventListener('keydown', handleKeydown); })
 
             return {
-                stats, hosts, searchQuery, sortBy, loadingHosts, filteredAndSortedHosts, currentView, changeView, globalVulns, globalEndpoints, loadingGlobal, activeHost, hostDetails, loadingDetails, selectedPort, otherHosts, sortedFilteredEndpoints, sortedGlobalEndpoints, groupedJS, epSortKey, epSortAsc, toggleEpSort, globalEpSortKey, globalEpSortAsc, toggleGlobalEpSort, getStatusClass, getVulnClass, imageTick, expandedVuln, toggleVuln, lightboxOpen, currentLightboxImage, openLightbox, closeLightbox, nextImage, prevImage, isSyncing, triggerSync, markEndpointFP, copyPoC, markVulnFP, toasts,
-                editingVulnId, editForm, editCvss, cvssOptions, currentVector, startEdit, cancelEdit, saveEdit, isCycling, triggerCycle
+                stats, hosts, searchQuery, sortBy, loadingHosts, filteredAndSortedHosts, currentView, changeView, globalVulns, globalEndpoints, loadingGlobal, activeHost, hostDetails, loadingDetails, selectedPort, getStatusClass, getVulnClass, imageTick, expandedVuln, toggleVuln, lightboxOpen, currentLightboxImage, openLightbox, closeLightbox, nextImage, prevImage, isSyncing, isCycling, triggerCycle, triggerSync, markEndpointFP, copyPoC, markVulnFP, toasts, openDossier, closeDossier, otherHosts, sortedFilteredEndpoints, sortedGlobalEndpoints, groupedJS, epSortKey, epSortAsc, toggleEpSort, globalEpSortKey, globalEpSortAsc, toggleGlobalEpSort,
+                // CVSS
+                editingVulnId, editForm, editCvss, cvssOptions, currentVector, startEdit, cancelEdit, saveEdit,
+                // WEBSOCKETS
+                activeLog, terminalLines, wsStatus, switchLog, clearLogs, openCommandCenter, getTerminalColor
             }
         }
     })
