@@ -4,7 +4,7 @@ import re
 import json
 import subprocess
 import base64
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -504,3 +504,48 @@ def update_vulnerability(vuln_id: int, data: VulnUpdate, username: str = Depends
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# =====================================================================
+# ROTAS DA FASE 8.1 (CENTRO DE COMANDOS - MVP CYCLE)
+# =====================================================================
+
+# Variável global para atuar como Mutex (trava) de concorrência
+CYCLE_IS_RUNNING = False
+
+def _run_cycle_task():
+    """Executa o ciclo completo em background salvando tudo em um arquivo de log."""
+    global CYCLE_IS_RUNNING
+    
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    # Cria um arquivo de log na pasta do projeto
+    log_file_path = os.path.join(proj_path, "cycle_web.log") if proj_path else "/tmp/cycle_web.log"
+    
+    try:
+        # Usamos stdout e stderr apontando para o arquivo físico em vez da memória (capture_output)
+        with open(log_file_path, "w") as f_log:
+            subprocess.run(
+                ["openpipes-core", "cycle"], 
+                stdout=f_log,
+                stderr=subprocess.STDOUT,
+                check=False
+            )
+    finally:
+        CYCLE_IS_RUNNING = False
+
+@app.post("/api/cycle")
+def start_cycle(background_tasks: BackgroundTasks, username: str = Depends(verificar_autenticacao)):
+    """Inicia o ciclo de varredura se não houver nenhum rodando."""
+    global CYCLE_IS_RUNNING
+    
+    if CYCLE_IS_RUNNING:
+        raise HTTPException(status_code=409, detail="Um ciclo já está em execução no servidor.")
+    
+    CYCLE_IS_RUNNING = True
+    background_tasks.add_task(_run_cycle_task)
+    
+    return {"status": "success", "message": "Ciclo de varredura iniciado em background!"}
+
+@app.get("/api/status")
+def get_system_status(username: str = Depends(verificar_autenticacao)):
+    """Retorna o status atual dos processos em background (Polling)."""
+    return {"cycle_running": CYCLE_IS_RUNNING}
