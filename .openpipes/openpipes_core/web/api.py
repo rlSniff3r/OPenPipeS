@@ -387,14 +387,15 @@ def get_global_vulnerabilities(username: str = Depends(verificar_autenticacao)):
     if not proj_path:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
-    scope_domains = renderer._get_scope_domains(proj_path)
+    # CORREÇÃO: Removido o prefixo 'renderer.'
+    scope_domains = _get_scope_domains(proj_path)
     
     vulns = []
     try:
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT v.id, v.title, v.severity, v.cvss_score, v.cwe_id, v.cve_id, 
+                SELECT v.id, v.title, v.severity, v.cvss_score, v.cwe_id, v.cve_id, v.cvss_vector,
                        v.description, v.curl_command, v.remediation, v.impact, v.reference_urls, 
                        h.host, h.id as host_id
                 FROM vulnerabilities v
@@ -405,7 +406,8 @@ def get_global_vulnerabilities(username: str = Depends(verificar_autenticacao)):
             rows = cursor.fetchall()
             
             for row in rows:
-                if not renderer._is_in_scope(row["host"], scope_domains): 
+                # CORREÇÃO: Removido o prefixo 'renderer.'
+                if not _is_in_scope(row["host"], scope_domains): 
                     continue
                 v = dict(row)
                 
