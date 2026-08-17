@@ -24,9 +24,9 @@ status: {{ vuln.status or "open" }}
 
 > [!note] Descrição
 {{ vuln.description or "*Nenhuma descrição fornecida.*" }}
-{%- if vuln.matched_at %}
 
 {%- if vuln.matched_at or vuln.evidences %}
+
 > [!example] Evidência
 {%- if vuln.matched_at %}
 > **Match:** {{ vuln.matched_at }}
@@ -52,8 +52,8 @@ status: {{ vuln.status or "open" }}
 > - {{ ref }} {%- endfor %} {%- else %} Nenhuma referência. {%- endif %}
 
 {%- if vuln.cve_id %}
+
 > [!info]
-> CVE {{ vuln.cve_id }}
-> CVSS {{ vuln.cvss_score }} ({{ vuln.severity }})
-> Vector: {{ vuln.cvss_vector or "N/A" }}
-{%- endif %}
+> **CVE:** `{{ vuln.cve_id }}`
+> **CVSS:** `{{ vuln.cvss_score }} ({{ vuln.severity }})`
+> **Vector:** `{{ vuln.cvss_vector or "N/A" }}` {%- endif %}
