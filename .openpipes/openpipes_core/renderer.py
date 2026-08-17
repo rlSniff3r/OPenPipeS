@@ -517,6 +517,38 @@ def _cleanup_fp_vuln_files(proj_path, obsdir, proj_name):
         console.print(f" [dim]↳ Removidos {removed} arquivos FP do vault Obsidian.[/dim]")
 
 
+def _archive_inactive_vulns(proj_path: str, vault_dir: str):
+    """Move FP/fixed/orphaned vuln files to _Arquivados/ (frozen, never re-rendered)."""
+    vulns_dir = os.path.join(vault_dir, "Vulnerabilidades")
+    archive_dir = os.path.join(vault_dir, "_Arquivados")
+    if not os.path.isdir(vulns_dir):
+        return
+    archived_count = 0
+    with db.get_connection(proj_path) as conn:
+        cur = conn.cursor()
+        for fname in os.listdir(vulns_dir):
+            if not fname.endswith(".md"):
+                continue
+            fpath = os.path.join(vulns_dir, fname)
+            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+            m = re.search(r"^vuln_id:\s*(\d+)", text, re.MULTILINE)
+            if not m:
+                continue
+            cur.execute("SELECT status FROM vulnerabilities WHERE id = ?", (int(m.group(1)),))
+            row = cur.fetchone()
+            if not row or row["status"] != "open":
+                os.makedirs(archive_dir, exist_ok=True)
+                dst = os.path.join(archive_dir, fname)
+                if os.path.exists(dst):
+                    base, ext = os.path.splitext(fname)
+                    dst = os.path.join(archive_dir, f"{base}_{int(time.time())}{ext}")
+                shutil.move(fpath, dst)
+                archived_count += 1
+    if archived_count:
+        console.print(f"  [dim]↳ Arquivados {archived_count} apontamentos (FP/Resolvidos).[/dim]")
+
+
 def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -> bool:
     report = get_target_report(proj_path, host_name)
     if not report:
@@ -531,7 +563,7 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     os.makedirs(vulns_dir, exist_ok=True)
 
     # Cleanup FP vulnerability files from vault
-    _cleanup_fp_vuln_files(proj_path, obsdir, proj_name)
+    _archive_inactive_vulns(proj_path, vault_dir)
 
     # Group endpoints by route, apply FP filter and threshold
     MIN_ROUTE_SIZE = 3

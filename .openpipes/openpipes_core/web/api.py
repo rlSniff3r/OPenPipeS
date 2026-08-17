@@ -4,8 +4,9 @@ import re
 import json
 import subprocess
 import base64
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+import renderer
 import asyncio
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -474,17 +475,15 @@ class VulnUpdate(BaseModel):
 # =====================================================================
 @app.put("/api/vulns/{vuln_id}")
 def update_vulnerability(vuln_id: int, data: VulnUpdate, username: str = Depends(verificar_autenticacao)):
-    """Atualiza a vulnerabilidade, recalculando o CVSS Score e Severidade via Backend."""
+    """Atualiza a vulnerabilidade, recalcula o CVSS e sincroniza o Obsidian na mesma hora."""
     proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
     if not proj_path:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
-    # Mapeamento de Severidades padrão da CVSS3 para o português da nossa UI
     sev_map = {"CRITICAL": "Crítica", "HIGH": "Alta", "MEDIUM": "Média", "LOW": "Baixa", "NONE": "Info"}
     score = 0.0
-    severity = "Média" # Fallback
+    severity = "Média"
 
-    # Recalcula o CVSS baseando-se no vetor enviado pelo Frontend
     if data.cvss_vector and data.cvss_vector.startswith("CVSS:3"):
         try:
             c = CVSS3(data.cvss_vector)
@@ -498,7 +497,6 @@ def update_vulnerability(vuln_id: int, data: VulnUpdate, username: str = Depends
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
             
-            # Atualiza o banco, marcando o enriched_by como 'user_web' para o sync saber que foi edição humana
             cursor.execute("""
                 UPDATE vulnerabilities SET
                     title = ?, description = ?, impact = ?, remediation = ?,
@@ -510,14 +508,28 @@ def update_vulnerability(vuln_id: int, data: VulnUpdate, username: str = Depends
                 data.cvss_vector, score, severity,
                 json.dumps(data.reference_urls), data.cwe_id, vuln_id
             ))
+            
+            # Precisamos descobrir qual é o host dessa vulnerabilidade para atualizar o Obsidian dele
+            cursor.execute("SELECT h.host FROM vulnerabilities v JOIN hosts h ON h.id = v.host_id WHERE v.id = ?", (vuln_id,))
+            row = cursor.fetchone()
+            host_name = row["host"] if row else None
             conn.commit()
             
-            return {
-                "status": "success", 
-                "message": "Vulnerabilidade atualizada!",
-                "new_score": score,
-                "new_severity": severity
-            }
+        # ========================================================
+        # AUTO-SYNC: Atualiza o Obsidian instantaneamente!
+        # ========================================================
+        if host_name:
+            proj_name, p_path, obsdir = renderer._get_env_from_config()
+            if proj_name and obsdir:
+                # Reescreve o arquivo Markdown deste alvo específico com os dados recém-salvos
+                renderer.render_target(proj_path, obsdir, proj_name, host_name)
+
+        return {
+            "status": "success", 
+            "message": "Vulnerabilidade atualizada e sincronizada!",
+            "new_score": score,
+            "new_severity": severity
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
