@@ -443,13 +443,14 @@ def get_global_endpoints(username: str = Depends(verificar_autenticacao)):
     try:
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
+            
+            # REMOVIDO os filtros restritivos de status_code e title!
             cursor.execute("""
                 SELECT e.id, e.url, e.title, e.status_code, e.web_server, e.content_length, 
                        h.host, h.id as host_id 
                 FROM endpoints e 
                 JOIN hosts h ON h.id = e.host_id
-                WHERE h.is_alive = 1 AND h.in_scope = 1 AND e.status_code IN (200, 401, 403)
-                AND e.title IS NOT NULL AND e.title != '' AND e.title != '-'
+                WHERE h.is_alive = 1 AND h.in_scope = 1
                 AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)
                 ORDER BY h.host, e.url
             """)
@@ -457,15 +458,14 @@ def get_global_endpoints(username: str = Depends(verificar_autenticacao)):
                 if not _is_in_scope(row["host"], scope_domains): 
                     continue
                 
-                # CORREÇÃO 1: Indentado para dentro do FOR
                 endpoints.append({
                     "id": row["id"],             
                     "host_id": row["host_id"],   
                     "url": row["url"], 
                     "title": row["title"] or "-",
-                    "status_code": row["status_code"],  # CORREÇÃO 2: Chave renomeada para 'status_code'
+                    "status_code": row["status_code"],
                     "server": row["web_server"] or "",
-                    "target": row["host"],
+                    "host": row["host"],
                     "content_length": row["content_length"] or 0
                 })
         return endpoints
@@ -491,6 +491,24 @@ class EndpointInlineEdit(BaseModel):
 class GenericDBEdit(BaseModel):
     column: str
     value: Any
+
+class DBFilter(BaseModel):
+    column: str
+    operator: str
+    value: str
+
+class DBQuery(BaseModel):
+    page: int = 1
+    limit: int = 50
+    sort_by: Optional[str] = None
+    sort_desc: bool = False
+    filters: List[DBFilter] = []
+
+class BulkActionPayload(BaseModel):
+    action: str  # Pode ser 'UPDATE' ou 'DELETE'
+    column: Optional[str] = None
+    value: Optional[Any] = None
+    filters: List[DBFilter] = []
 
 # =====================================================================
 # ROTAS DA FASE 8 (DEEP EDIT CVSS)
@@ -715,25 +733,67 @@ def get_db_tables(username: str = Depends(verificar_autenticacao)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/db/data/{table}")
-def get_db_table_data(table: str, username: str = Depends(verificar_autenticacao)):
-    """Busca as colunas e os dados (limite 500) de uma tabela selecionada."""
+@app.post("/api/db/query/{table}")
+def query_db_table(table: str, query: DBQuery, username: str = Depends(verificar_autenticacao)):
+    """Busca dados no DB com paginação, ordenação e Query Builder dinâmico."""
     proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
     if not proj_path: raise HTTPException(status_code=404, detail="Projeto não encontrado")
     
+    # Proteção anti-SQLi no nome da tabela
     if not table.isidentifier(): 
         raise HTTPException(status_code=400, detail="Nome de tabela inválido")
-    
+        
     try:
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
-            cursor.execute(f"PRAGMA table_info({table})")
-            columns = [row["name"] for row in cursor.fetchall()]
             
-            cursor.execute(f"SELECT * FROM {table} ORDER BY id DESC LIMIT 500")
+            # Pega as colunas seguras da tabela para validar
+            cursor.execute(f"PRAGMA table_info({table})")
+            valid_columns = [row["name"] for row in cursor.fetchall()]
+            
+            # Montador de SQL dinâmico
+            where_clauses = []
+            params = []
+            allowed_ops = {"=": "=", "!=": "!=", "LIKE": "LIKE", "NOT LIKE": "NOT LIKE"}
+            
+            for f in query.filters:
+                if f.column in valid_columns and f.operator in allowed_ops:
+                    where_clauses.append(f"{f.column} {allowed_ops[f.operator]} ?")
+                    val = f.value
+                    # Autocompleta % para operadores LIKE, caso o usuário não digite
+                    if "LIKE" in f.operator and "%" not in val:
+                        val = f"%{val}%"
+                    params.append(val)
+            
+            where_sql = ""
+            if where_clauses:
+                where_sql = " WHERE " + " AND ".join(where_clauses)
+            
+            # Descobre o total real de linhas para a paginação funcionar
+            cursor.execute(f"SELECT COUNT(*) FROM {table} {where_sql}", params)
+            total_rows = cursor.fetchone()[0]
+            
+            # Monta a ordenação (Sortable Headers)
+            order_sql = " ORDER BY id DESC" # Padrão
+            if query.sort_by in valid_columns:
+                direction = "DESC" if query.sort_desc else "ASC"
+                order_sql = f" ORDER BY {query.sort_by} {direction}"
+                
+            # Calcula a página e os limites
+            offset = (query.page - 1) * query.limit
+            limit_sql = f" LIMIT {query.limit} OFFSET {offset}"
+            
+            # Executa o tiro de Sniper perfeito no SQLite
+            cursor.execute(f"SELECT * FROM {table} {where_sql} {order_sql} {limit_sql}", params)
             rows = [dict(row) for row in cursor.fetchall()]
             
-        return {"columns": columns, "rows": rows}
+        return {
+            "columns": valid_columns,
+            "rows": rows,
+            "total": total_rows,
+            "page": query.page,
+            "limit": query.limit
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -753,5 +813,91 @@ def update_db_cell(table: str, row_id: int, data: GenericDBEdit, username: str =
             cursor.execute(f"UPDATE {table} SET {data.column} = ? WHERE id = ?", (data.value, row_id))
             conn.commit()
         return {"status": "success", "message": "Célula atualizada!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def render_affected_hosts(proj_path: str, hosts: set):
+    """Roda em background para atualizar o Obsidian sem travar a interface Web do analista."""
+    if not hosts:
+        return
+    import renderer
+    proj_name, p_path, obsdir = renderer._get_env_from_config()
+    if not proj_name or not obsdir:
+        return
+    for host in hosts:
+        try:
+            # Reconstrói os arquivos markdown apenas dos hosts que sofreram alterações na base
+            renderer.render_target(proj_path, obsdir, proj_name, host)
+        except Exception:
+            pass
+
+@app.post("/api/db/bulk/{table}")
+def execute_bulk_action(table: str, payload: BulkActionPayload, background_tasks: BackgroundTasks, username: str = Depends(verificar_autenticacao)):
+    """Executa UPDATE/DELETE em massa com base em filtros e renderiza o Obsidian em background."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path: raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    
+    if not table.isidentifier(): 
+        raise HTTPException(status_code=400, detail="Nome de tabela inválido")
+        
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA table_info({table})")
+            valid_columns = [row["name"] for row in cursor.fetchall()]
+            
+            # 1. Monta a cláusula WHERE a partir dos filtros
+            where_clauses = []
+            params = []
+            allowed_ops = {"=": "=", "!=": "!=", "LIKE": "LIKE", "NOT LIKE": "NOT LIKE"}
+            
+            for f in payload.filters:
+                if f.column in valid_columns and f.operator in allowed_ops:
+                    where_clauses.append(f"{f.column} {allowed_ops[f.operator]} ?")
+                    val = f.value
+                    if "LIKE" in f.operator and "%" not in val:
+                        val = f"%{val}%"
+                    params.append(val)
+            
+            where_sql = ""
+            if where_clauses:
+                where_sql = " WHERE " + " AND ".join(where_clauses)
+            else:
+                # Segurança Kamikaze nível 1: proíbe Bulk Action sem filtro
+                raise HTTPException(status_code=400, detail="Operação em massa requer pelo menos 1 filtro como salvaguarda.")
+            
+            # 2. Descobre quais Hosts serão afetados ANTES de alterar o banco
+            affected_hosts = set()
+            if table == "hosts":
+                cursor.execute(f"SELECT host FROM hosts {where_sql}", params)
+                affected_hosts = {row["host"] for row in cursor.fetchall()}
+            elif "host_id" in valid_columns:
+                cursor.execute(f"SELECT h.host FROM {table} t JOIN hosts h ON h.id = t.host_id {where_sql}", params)
+                affected_hosts = {row["host"] for row in cursor.fetchall()}
+            
+            # 3. Executa a Ação (Tiro)
+            affected_rows = 0
+            if payload.action == "DELETE":
+                cursor.execute(f"DELETE FROM {table} {where_sql}", params)
+                affected_rows = cursor.rowcount
+            elif payload.action == "UPDATE":
+                if not payload.column or payload.column not in valid_columns:
+                    raise HTTPException(status_code=400, detail="Coluna inválida para UPDATE")
+                update_sql = f"UPDATE {table} SET {payload.column} = ? {where_sql}"
+                cursor.execute(update_sql, [payload.value] + params)
+                affected_rows = cursor.rowcount
+            else:
+                raise HTTPException(status_code=400, detail="Ação inválida. Use UPDATE ou DELETE.")
+            
+            conn.commit()
+            
+        # 4. Aciona a renderização dos markdowns no Obsidian de forma Assíncrona!
+        background_tasks.add_task(render_affected_hosts, proj_path, affected_hosts)
+        
+        return {
+            "status": "success", 
+            "message": f"Operação concluída. {affected_rows} linha(s) afetada(s).",
+            "affected_rows": affected_rows
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

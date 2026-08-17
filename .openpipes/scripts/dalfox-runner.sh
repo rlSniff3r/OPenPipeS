@@ -18,6 +18,7 @@ for d in "$NMAP_DIR"/nmap-*/; do
         dalfox scan "$TARGET_FILE" \
             --follow-redirects \
             --stream-findings \
+            --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36" \
             --max-targets-per-host 200 \
             --ignore-return 302,403,404 \
             --workers 150 \

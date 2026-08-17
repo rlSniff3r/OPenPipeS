@@ -58,6 +58,10 @@ process_target() {
         -jc \
         -kf all \
         -or -ob \
+        -fx \
+        -pc \
+        -kb \
+        -kb-endpoints \
         -jsonl \
         -o "$WORK_DIR/crawled_all.jsonl"
 

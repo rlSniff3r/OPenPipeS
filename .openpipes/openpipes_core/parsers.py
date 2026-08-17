@@ -1167,8 +1167,9 @@ def parse_sqlmap(proj_path, nmap_dir):
 def flag_false_positives(proj_path: str):
     """
     Tag endpoints as potential_false_positive based on:
-    1. Content-length clustering (5+ URLs, same host+status+size → same error page)
+    1. Content-length clustering
     2. Error keywords in title
+    (Endpoints descobertos por Crawlers oficiais, como o Katana, ganham imunidade)
     """
     error_titles = [
         "not found", "404", "error", "forbidden", "access denied",
@@ -1183,13 +1184,13 @@ def flag_false_positives(proj_path: str):
             cursor = conn.cursor()
             tagged = 0
 
-            # ── Cluster detection: 5+ endpoints with same host+status+size ──
+            # ── Cluster detection: ignora imunizados ('crawled') ──
             cursor.execute("""
                 SELECT host_id, status_code, content_length, COUNT(*) as cnt
                 FROM endpoints
-                WHERE content_length > 0
+                WHERE content_length > 0 AND source_tool != 'crawled'
                 GROUP BY host_id, status_code, content_length
-                HAVING cnt >= 5
+                HAVING cnt >= 20
                 ORDER BY cnt DESC
             """)
             clusters = cursor.fetchall()
@@ -1197,6 +1198,7 @@ def flag_false_positives(proj_path: str):
                 cursor.execute("""
                     SELECT id, url, vulnerability_patterns FROM endpoints
                     WHERE host_id = ? AND status_code = ? AND content_length = ?
+                    AND source_tool != 'crawled'
                 """, (row["host_id"], row["status_code"], row["content_length"]))
                 for ep in cursor.fetchall():
                     patterns = json.loads(ep["vulnerability_patterns"]) if ep["vulnerability_patterns"] else []
@@ -1208,11 +1210,12 @@ def flag_false_positives(proj_path: str):
                         )
                         tagged += 1
 
-            # ── Title heuristic ──
+            # ── Title heuristic: ignora imunizados ('crawled') ──
             for kw in error_titles:
                 cursor.execute("""
                     SELECT id, vulnerability_patterns FROM endpoints
                     WHERE LOWER(title) LIKE ? AND title IS NOT NULL AND title != ''
+                    AND source_tool != 'crawled'
                 """, (f"%{kw}%",))
                 for ep in cursor.fetchall():
                     patterns = json.loads(ep["vulnerability_patterns"]) if ep["vulnerability_patterns"] else []
@@ -1225,7 +1228,7 @@ def flag_false_positives(proj_path: str):
                         tagged += 1
 
     if tagged > 0:
-        console.print(f" [dim]↳ False Positive Detection: Marcou {tagged} endpoints como potenciais falsos positivos.[/dim]")
+        console.print(f" [dim]↳ False Positive Detection: Marcou {tagged} endpoints como potenciais FPs (Katana imunizado).[/dim]")
 
 
 def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):

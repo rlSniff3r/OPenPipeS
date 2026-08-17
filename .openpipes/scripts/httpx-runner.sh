@@ -22,6 +22,7 @@ for dir in "$NMAP_DIR"/nmap-*; do
     url_list="$dir/httpx-$timestamp.list"
 
     httpx -l "$target_list" -p "$ports" -x GET,POST,OPTIONS,HEAD \
+        -random-agent \
         -title -tech-detect -server -sc -fr -ip \
         -json -o "$json_out"
 

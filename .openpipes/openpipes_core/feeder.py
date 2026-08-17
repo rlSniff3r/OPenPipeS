@@ -233,7 +233,46 @@ def feed_katana(proj_path: str, nmap_dir: str):
 
 
 def feed_ferox(proj_path: str, nmap_dir: str):
-    _feed_from_unscanned(proj_path, nmap_dir, "ferox", "ferox_urls.txt")
+    """Fuzzing Profundo: Extrai apenas DIRETÓRIOS das URLs descobertas para o Feroxbuster."""
+    rows = _get_unscanned(proj_path, "ferox")
+    if not rows:
+        console.print("[dim]↳ Feed ferox: nada novo.[/dim]")
+        return
+        
+    by_host = defaultdict(set)
+    for r in rows:
+        parsed = urlparse(r["url"])
+        path = parsed.path
+        
+        # Lógica Kamikaze para garantir que extraímos o DIRETÓRIO limpo
+        if not path.endswith('/'):
+            last_part = path.split('/')[-1]
+            if "." in last_part:  # Ex: index.php, app.js -> Volta uma pasta
+                path = path.rsplit('/', 1)[0] + '/'
+            else:                 # Ex: /api/v1/users -> Considera diretório
+                path = path + '/'
+                
+        if not path.startswith('/'):
+            path = '/' + path
+            
+        dir_url = f"{parsed.scheme}://{parsed.netloc}{path}"
+        by_host[r["host"]].add(dir_url)
+        
+    total = 0
+    for host, dirs in by_host.items():
+        target_dir = os.path.join(nmap_dir, f"nmap-{host}")
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # Fallback se a lista ficar vazia
+        if not dirs:
+            dirs = {f"https://{host}/", f"http://{host}/"}
+            
+        with open(os.path.join(target_dir, "ferox_urls.txt"), "w") as f:
+            for d in sorted(dirs):
+                f.write(d + "\n")
+        total += len(dirs)
+        
+    console.print(f" [dim]↳ Feed ferox: {total} DIRETÓRIOS profundos para {len(by_host)} hosts[/dim]")
 
 
 def feed_arjun(proj_path: str, nmap_dir: str):

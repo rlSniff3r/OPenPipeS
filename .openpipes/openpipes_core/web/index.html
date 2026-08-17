@@ -59,7 +59,7 @@
 
     <main class="flex-grow p-6 w-full max-w-[95rem] mx-auto relative">
         
-        <!-- Cards Globais (Agora 5 Colunas) -->
+        <!-- Cards Globais -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <div @click="changeView('hosts')" :class="currentView === 'hosts' ? 'ring-2 ring-blue-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
                 <div class="absolute -right-4 -top-4 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl"></div>
@@ -91,44 +91,152 @@
         <transition name="fade" mode="out-in">
             
             <!-- ========================================== -->
-            <!-- VIEW: DB MANAGER (NOVA)                    -->
+            <!-- VIEW: DB MANAGER (STAGING & BULK)          -->
             <!-- ========================================== -->
             <div v-if="currentView === 'db-manager'" key="view-db-manager" class="w-full">
-                <div class="flex items-center gap-4 mb-6">
-                    <button @click="changeView('hosts')" class="w-12 h-12 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg></button>
-                    <div><h2 class="text-2xl font-bold text-white">Database Manager</h2><p class="text-sm text-slate-400">Edição direta e irrestrita no SQLite do Projeto.</p></div>
-                </div>
-
-                <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col h-[calc(100vh-18rem)]">
-                    <div class="flex items-center gap-4 mb-4">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+                    <div class="flex items-center gap-4">
+                        <button @click="changeView('hosts')" class="w-12 h-12 flex-shrink-0 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg></button>
+                        <div><h2 class="text-2xl font-bold text-white">Database Manager</h2><p class="text-sm text-slate-400">Edição e Consulta Dinâmica no SQLite do Projeto.</p></div>
+                    </div>
+                    <div class="flex items-center gap-2">
                         <label class="text-sm font-bold text-slate-400 uppercase tracking-wider">Tabela:</label>
-                        <select v-model="dbCurrentTable" @change="loadTableData" class="bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500 cursor-pointer shadow-inner">
-                            <option value="" disabled>Selecione uma tabela...</option>
+                        <select v-model="dbCurrentTable" @change="onTableChange" class="bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500 cursor-pointer shadow-inner">
+                            <option value="" disabled>Selecione...</option>
                             <option v-for="t in dbTables" :key="t" :value="t">{{ t }}</option>
                         </select>
-                        <span class="text-xs text-slate-500 italic ml-auto"><span class="font-bold text-amber-400">Duplo-clique</span> em qualquer célula para editar. Pressione <span class="font-bold text-white">ENTER</span> para salvar.</span>
+                    </div>
+                </div>
+
+                <div class="bg-cardbg border border-slate-700 rounded-xl p-4 md:p-5 shadow-lg flex flex-col min-h-[calc(100vh-18rem)] relative">
+                    
+                    <div v-if="loadingDb" class="absolute inset-0 bg-cardbg/80 z-20 flex justify-center items-center backdrop-blur-sm rounded-xl">
+                        <svg class="animate-spin h-10 w-10 text-amber-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     </div>
 
-                    <div v-if="loadingDb" class="flex-1 flex justify-center items-center"><svg class="animate-spin h-10 w-10 text-amber-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
-                    <div v-else-if="!dbCurrentTable" class="flex-1 flex justify-center items-center border-2 border-dashed border-slate-700 rounded-xl bg-slate-800/20 text-slate-500">Selecione uma tabela acima.</div>
-                    <div v-else class="flex-1 overflow-auto custom-scrollbar relative border border-slate-700 rounded-lg bg-slate-900 shadow-inner">
-                        <table class="w-full text-left text-xs whitespace-nowrap">
-                            <thead class="bg-slate-950 text-slate-400 sticky top-0 z-10 shadow-md">
-                                <tr>
-                                    <th v-for="col in dbColumns" :key="col" class="px-4 py-3 font-semibold border-r border-slate-800 tracking-wider">{{ col }}</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-800">
-                                <tr v-for="row in dbRows" :key="row.id" class="hover:bg-slate-800/80 transition-colors">
-                                    <td v-for="col in dbColumns" :key="col" class="px-4 py-2 border-r border-slate-800/50" @dblclick="startDbEdit(row.id, col, row[col])">
-                                        <input v-if="dbEdit.id === row.id && dbEdit.col === col" v-model="dbEdit.value" @blur="saveDbEdit(row)" @keyup.enter="saveDbEdit(row)" class="w-full min-w-[120px] bg-black border border-amber-500 text-amber-400 font-bold px-2 py-1 rounded outline-none shadow-[0_0_10px_rgba(245,158,11,0.2)]">
-                                        <span v-else class="truncate max-w-[250px] inline-block cursor-pointer hover:text-amber-400 transition-colors font-mono" :title="row[col]">{{ row[col] === null ? 'NULL' : row[col] }}</span>
-                                    </td>
-                                </tr>
-                                <tr v-if="dbRows.length === 0"><td :colspan="dbColumns.length" class="text-center py-10 text-slate-500 italic">Tabela vazia.</td></tr>
-                            </tbody>
-                        </table>
+                    <div v-if="!dbCurrentTable" class="flex-1 flex flex-col justify-center items-center border-2 border-dashed border-slate-700 rounded-xl bg-slate-800/20 text-slate-500 p-10">
+                        <svg class="w-16 h-16 mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                        <span>Selecione uma tabela no menu acima.</span>
                     </div>
+
+                    <template v-else>
+                        <!-- QUERY BUILDER -->
+                        <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 mb-4 shadow-inner">
+                            <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+                                <div class="flex items-center gap-3">
+                                    <button @click="addDbFilter" class="px-3 py-1.5 bg-brand/10 text-brand border border-brand/50 rounded text-xs font-bold hover:bg-brand/20 flex items-center gap-1 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Novo Filtro</button>
+                                    <button v-if="dbQuery.filters.length > 0" @click="loadTableData(true)" class="px-3 py-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/50 rounded text-xs font-bold hover:bg-amber-500/30 transition-colors shadow-lg">▶ Aplicar Filtros</button>
+                                </div>
+                                <span class="text-[10px] text-slate-500 italic hidden sm:block"><span class="font-bold text-amber-400">Duplo-clique</span> na célula edita. <span class="font-bold text-white">Clique no título</span> ordena.</span>
+                            </div>
+
+                            <transition-group name="fade" tag="div" class="space-y-2">
+                                <div v-for="(f, idx) in dbQuery.filters" :key="idx" class="flex flex-wrap gap-2 items-center bg-slate-950 p-2 rounded border border-slate-800">
+                                    <select v-model="f.column" class="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none cursor-pointer">
+                                        <option v-for="col in dbColumns" :key="col" :value="col">{{ col }}</option>
+                                    </select>
+                                    <select v-model="f.operator" class="bg-slate-900 border border-slate-700 rounded text-xs text-amber-400 font-bold p-1.5 outline-none cursor-pointer">
+                                        <option value="=">=</option>
+                                        <option value="!=">!= (Dif)</option>
+                                        <option value="LIKE">LIKE (Contém)</option>
+                                        <option value="NOT LIKE">NOT LIKE (Não Contém)</option>
+                                    </select>
+                                    <input v-model="f.value" @keyup.enter="loadTableData(true)" placeholder="Valor da busca..." class="flex-1 min-w-[150px] bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none focus:border-amber-500">
+                                    <button @click="removeDbFilter(idx)" class="text-red-500 hover:bg-red-500/20 p-1.5 rounded transition-colors" title="Remover Filtro"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                                </div>
+                            </transition-group>
+
+                            <!-- BULK ACTIONS CONTROL (Aparece se houver filtro ativo) -->
+                            <div v-if="dbQuery.filters.length > 0" class="mt-3 pt-3 border-t border-slate-700/50 flex flex-wrap gap-2">
+                                <div v-if="!bulkMode" class="flex gap-2 w-full">
+                                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest self-center mr-2">Ações em Massa:</span>
+                                    <button @click="startBulkAction('UPDATE')" class="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 rounded text-xs font-bold transition-colors flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar (UPDATE)</button>
+                                    <button @click="startBulkAction('DELETE')" class="px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 rounded text-xs font-bold transition-colors flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Apagar (DELETE)</button>
+                                </div>
+                                
+                                <div v-if="bulkMode && !previewActive" class="flex flex-wrap items-center gap-3 w-full bg-slate-950 p-2 rounded border border-slate-700">
+                                    <span class="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">Ação: <span :class="bulkMode === 'DELETE' ? 'text-red-400' : 'text-blue-400'">{{ bulkMode }}</span></span>
+                                    
+                                    <template v-if="bulkMode === 'UPDATE'">
+                                        <span class="text-xs text-slate-500 font-bold">SET</span>
+                                        <select v-model="bulkColumn" class="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none cursor-pointer">
+                                            <option v-for="col in dbColumns" :key="col" :value="col">{{ col }}</option>
+                                        </select>
+                                        <span class="text-xs text-slate-500 font-bold">=</span>
+                                        <input v-model="bulkValue" placeholder="Novo valor..." class="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none focus:border-amber-500 w-48">
+                                    </template>
+                                    
+                                    <div class="ml-auto flex gap-2">
+                                        <button @click="togglePreview" class="px-4 py-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/50 hover:bg-amber-500/30 rounded text-xs font-bold transition-colors shadow-lg flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Preview</button>
+                                        <button @click="cancelBulkAction" class="px-3 py-1.5 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 rounded text-xs font-bold transition-colors">Cancelar</button>
+                                    </div>
+                                </div>
+
+                                <div v-if="previewActive" class="flex items-center justify-between w-full bg-red-900/20 border border-red-500/50 p-3 rounded animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.15)]">
+                                    <span class="text-xs font-bold text-red-400 uppercase flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> MODO PREVIEW: {{ dbTotalRows }} linha(s) afetadas. Confirme a alteração abaixo.</span>
+                                    <div class="flex gap-2">
+                                        <button @click="commitBulkAction" class="px-5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-bold transition-colors shadow-[0_0_15px_rgba(220,38,38,0.5)] flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> COMMIT (Atirar)</button>
+                                        <button @click="cancelBulkAction" class="px-3 py-1.5 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 rounded text-xs font-bold transition-colors">Abortar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DATA TABLE -->
+                        <div class="flex-1 overflow-auto custom-scrollbar relative border border-slate-700 rounded-lg bg-slate-900 shadow-inner">
+                            <table class="w-full text-left text-xs whitespace-nowrap">
+                                <thead class="bg-slate-950 text-slate-400 sticky top-0 z-10 shadow-md">
+                                    <tr>
+                                        <th v-for="col in dbColumns" :key="col" @click="setDbSort(col)" class="px-4 py-3 font-semibold border-r border-slate-800 tracking-wider cursor-pointer hover:bg-slate-800 hover:text-white select-none group transition-colors">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <span>{{ col }}</span>
+                                                <span v-if="dbQuery.sort_by === col" class="text-amber-400 font-bold">{{ dbQuery.sort_desc ? '↓' : '↑' }}</span>
+                                                <span v-else class="text-slate-600 opacity-0 group-hover:opacity-100">↕</span>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800">
+                                    <tr v-for="row in dbRows" :key="row.id" :class="[previewActive && bulkMode === 'DELETE' ? 'bg-red-900/20 border-y border-dashed border-red-500/50 opacity-80' : 'hover:bg-slate-800/80']" class="transition-colors group">
+                                        <td v-for="col in dbColumns" :key="col" class="px-4 py-2 border-r border-slate-800/50 group-hover:border-slate-700/50" @dblclick="startDbEdit(row.id, col, row[col])">
+                                            <!-- MODO INLINE EDIT NORMAL -->
+                                            <input v-if="dbEdit.id === row.id && dbEdit.col === col && !previewActive" v-model="dbEdit.value" @blur="saveDbEdit(row)" @keyup.enter="saveDbEdit(row)" class="w-full min-w-[120px] bg-black border border-amber-500 text-amber-400 font-bold px-2 py-1 rounded outline-none shadow-[0_0_10px_rgba(245,158,11,0.2)]" autofocus>
+                                            
+                                            <!-- MODO PREVIEW UPDATE (AMARELO) -->
+                                            <span v-else-if="previewActive && bulkMode === 'UPDATE' && bulkColumn === col" class="text-amber-400 font-bold bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/50 inline-block">{{ bulkValue === '' ? 'NULL' : bulkValue }}</span>
+                                            
+                                            <!-- TEXTO NORMAL -->
+                                            <span v-else class="truncate max-w-[250px] inline-block cursor-pointer hover:text-amber-400 transition-colors font-mono" :title="row[col]">{{ row[col] === null ? 'NULL' : row[col] }}</span>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="dbRows.length === 0"><td :colspan="dbColumns.length" class="text-center py-10 text-slate-500 italic bg-slate-900/50">Nenhum registro encontrado para esta consulta.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- PAGINAÇÃO -->
+                        <div class="flex flex-wrap justify-between items-center mt-4 bg-slate-900 border border-slate-700 rounded-lg p-2 gap-4">
+                            <div class="flex items-center gap-2 text-xs text-slate-400">
+                                <span>Linhas por pág:</span>
+                                <select v-model="dbQuery.limit" @change="loadTableData(true)" class="bg-slate-950 border border-slate-700 rounded p-1 text-white outline-none cursor-pointer">
+                                    <option :value="20">20</option>
+                                    <option :value="50">50</option>
+                                    <option :value="100">100</option>
+                                    <option :value="500">500</option>
+                                </select>
+                            </div>
+                            
+                            <div class="flex items-center gap-4">
+                                <span class="text-xs text-slate-400 hidden md:inline">Mostrando <span class="font-bold text-white">{{ dbTotalRows > 0 ? (dbQuery.page - 1) * dbQuery.limit + 1 : 0 }}</span> - <span class="font-bold text-white">{{ Math.min(dbQuery.page * dbQuery.limit, dbTotalRows) }}</span> de <span class="font-bold text-white">{{ dbTotalRows }}</span></span>
+                                
+                                <div class="flex items-center gap-1">
+                                    <button @click="prevDbPage" :disabled="dbQuery.page === 1" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs border border-slate-700 transition-colors">&lt; Ant</button>
+                                    <span class="text-xs px-3 py-1 bg-slate-950 border border-slate-700 rounded text-amber-400 font-bold font-mono">Pág {{ dbQuery.page }} / {{ dbTotalPages }}</span>
+                                    <button @click="nextDbPage" :disabled="dbQuery.page >= dbTotalPages || dbTotalRows === 0" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs border border-slate-700 transition-colors">Próx &gt;</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
                 </div>
             </div>
 
@@ -329,11 +437,11 @@
 
                                         <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
                                         <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
-                                            <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
+                                            <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
                                             
                                             <div class="flex gap-2 ml-auto">
                                                 <button @click.stop="startEdit(vuln)" class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded text-xs font-semibold text-blue-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar</button>
-                                                <button @click.stop="markVulnFP(vuln.id, vuln.severity, true)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-semibold text-red-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Falso Positivo</button>
+                                                <button @click.stop="markVulnFP(vuln.id, vuln.severity)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-semibold text-red-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Falso Positivo</button>
                                             </div>
                                         </div>
                                     </div>
@@ -575,7 +683,7 @@
 
                                                 <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
                                                 <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
-                                                    <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
+                                                    <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
                                                     
                                                     <div class="flex gap-2 ml-auto">
                                                         <button @click.stop="startEdit(vuln)" class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded text-xs font-semibold text-blue-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar</button>
@@ -761,18 +869,33 @@
 
             const startEdit = (vuln) => {
                 editingVulnId.value = vuln.id;
-                editForm.value = { title: vuln.title || '', description: vuln.description || '', impact: vuln.impact || '', remediation: vuln.remediation || '', cwe_id: vuln.cwe_id || '', references: (vuln.reference_urls || []).join('\n') };
-                const cvssData = { AV: '', AC: '', PR: '', UI: '', S: '', C: '', I: '', A: '' };
-                if (vuln.cvss_vector && vuln.cvss_vector.startsWith('CVSS:3')) {
-                    vuln.cvss_vector.split('/').forEach(part => {
+                
+                // Preenche os campos de texto
+                editForm.value = { 
+                    title: vuln.title || '', 
+                    description: vuln.description || '', 
+                    impact: vuln.impact || '', 
+                    remediation: vuln.remediation || '', 
+                    cwe_id: vuln.cwe_id || '', 
+                    references: (vuln.reference_urls || []).join('\n') 
+                };
+                
+                // Reseta o CVSS de forma reativa segura
+                editCvss.value = { AV: '', AC: '', PR: '', UI: '', S: '', C: '', I: '', A: '' };
+                
+                // Disseca o vetor e preenche os dropdowns diretamente
+                if (vuln.cvss_vector && vuln.cvss_vector.trim().startsWith('CVSS:3')) {
+                    const parts = vuln.cvss_vector.trim().split('/');
+                    parts.forEach(part => {
                         if (part.includes(':')) {
                             const [key, val] = part.split(':');
-                            if (cvssData[key] !== undefined) cvssData[key] = val;
+                            if (editCvss.value[key] !== undefined) {
+                                editCvss.value[key] = val; // Vue reage na hora!
+                            }
                         }
                     });
                 }
-                editCvss.value = cvssData;
-            }
+            };
 
             const cancelEdit = () => { editingVulnId.value = null; }
 
@@ -857,37 +980,22 @@
                 return 'text-green-500/80';
             };
 
-            // ================= FASE 9: INLINE EDITING & DB MANAGER =================
-            
-            // INLINE EDIT
+            // ================= FASE 9: INLINE EDITING =================
             const epInlineEdit = ref({ id: null, field: null, value: '' });
-            
-            const startInlineEdit = (id, field, value) => {
-                if(!id) return; // Algumas views antigas não trazem o ID
-                epInlineEdit.value = { id, field, value: value || '' };
-            };
-            
+            const startInlineEdit = (id, field, value) => { if(!id) return; epInlineEdit.value = { id, field, value: value || '' }; };
             const saveInlineEdit = async (ep) => {
                 if (!epInlineEdit.value.id) return;
                 const payload = { field: epInlineEdit.value.field, value: epInlineEdit.value.value };
-                
-                // Converte status pra número se for o campo
                 if (payload.field === 'status_code') payload.value = parseInt(payload.value) || 0;
-                
                 try {
-                    const res = await fetch(`/api/endpoints/${epInlineEdit.value.id}`, {
-                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-                    });
-                    if(res.ok) {
-                        addToast("Endpoint editado e Obsidian sincronizado!", "success");
-                        ep[epInlineEdit.value.field] = payload.value;
-                    } else { addToast("Erro ao editar endpoint", "error"); }
+                    const res = await fetch(`/api/endpoints/${epInlineEdit.value.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if(res.ok) { addToast("Endpoint editado e Obsidian sincronizado!", "success"); ep[epInlineEdit.value.field] = payload.value; } 
+                    else { addToast("Erro ao editar endpoint", "error"); }
                 } catch(e) { addToast("Falha de conexão", "error"); }
-                
                 epInlineEdit.value = { id: null, field: null, value: '' };
             };
 
-            // DB MANAGER
+            // ================= FASE 9 e 10: DB MANAGER GOURMET (BULK ACTIONS) =================
             const dbTables = ref([]);
             const dbCurrentTable = ref('');
             const dbColumns = ref([]);
@@ -895,53 +1003,113 @@
             const loadingDb = ref(false);
             const dbEdit = ref({ id: null, col: null, value: '' });
 
-            const loadDbTables = async () => {
-                try {
-                    const res = await fetch('/api/db/tables');
-                    if(res.ok) dbTables.value = await res.json();
-                } catch(e){}
-            };
+            const dbQuery = ref({ page: 1, limit: 50, sort_by: null, sort_desc: false, filters: [] });
+            const dbTotalRows = ref(0);
+            const dbTotalPages = computed(() => Math.ceil(dbTotalRows.value / dbQuery.value.limit) || 1);
 
-            const loadTableData = async () => {
+            // Staging Mode (Fase 10)
+            const bulkMode = ref(false); // false, 'UPDATE', 'DELETE'
+            const bulkColumn = ref('');
+            const bulkValue = ref('');
+            const previewActive = ref(false);
+
+            const loadDbTables = async () => { try { const res = await fetch('/api/db/tables'); if(res.ok) dbTables.value = await res.json(); } catch(e){} };
+
+            const loadTableData = async (resetPage = false) => {
                 if(!dbCurrentTable.value) return;
+                if(resetPage) dbQuery.value.page = 1;
                 loadingDb.value = true;
+                
                 try {
-                    const res = await fetch(`/api/db/data/${dbCurrentTable.value}`);
+                    const res = await fetch(`/api/db/query/${dbCurrentTable.value}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbQuery.value)
+                    });
                     if(res.ok) {
                         const d = await res.json();
                         dbColumns.value = d.columns;
                         dbRows.value = d.rows;
+                        dbTotalRows.value = d.total;
+                        if(bulkMode.value && dbColumns.value.length > 0 && !bulkColumn.value) { bulkColumn.value = dbColumns.value[0]; }
                     }
                 } catch(e){} finally { loadingDb.value = false; }
             };
 
-            const startDbEdit = (id, col, val) => {
-                if(!id || col === 'id') return; // Bloqueia edição de PK
-                dbEdit.value = { id, col, value: val || '' };
+            const addDbFilter = () => { dbQuery.value.filters.push({ column: dbColumns.value[0] || 'id', operator: 'LIKE', value: '' }); };
+            const removeDbFilter = (idx) => { dbQuery.value.filters.splice(idx, 1); loadTableData(true); };
+            
+            const setDbSort = (col) => {
+                if(dbQuery.value.sort_by === col) { dbQuery.value.sort_desc = !dbQuery.value.sort_desc; } 
+                else { dbQuery.value.sort_by = col; dbQuery.value.sort_desc = false; }
+                loadTableData(true);
             };
 
+            const nextDbPage = () => { if(dbQuery.value.page < dbTotalPages.value) { dbQuery.value.page++; loadTableData(); } };
+            const prevDbPage = () => { if(dbQuery.value.page > 1) { dbQuery.value.page--; loadTableData(); } };
+
+            const onTableChange = () => {
+                dbQuery.value = { page: 1, limit: 50, sort_by: null, sort_desc: false, filters: [] };
+                cancelBulkAction();
+                loadTableData(true);
+            };
+
+            const startDbEdit = (id, col, val) => { if(!id || col === 'id' || previewActive.value) return; dbEdit.value = { id, col, value: val || '' }; };
             const saveDbEdit = async (row) => {
                 if(!dbEdit.value.id) return;
                 const payload = { column: dbEdit.value.col, value: dbEdit.value.value };
                 try {
-                    const res = await fetch(`/api/db/data/${dbCurrentTable.value}/${dbEdit.value.id}`, {
-                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-                    });
-                    if(res.ok) {
-                        addToast("Célula salva com sucesso!", "success");
-                        row[dbEdit.value.col] = payload.value;
-                    } else { addToast("Erro ao salvar célula", "error"); }
+                    const res = await fetch(`/api/db/data/${dbCurrentTable.value}/${dbEdit.value.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if(res.ok) { addToast("Célula salva com sucesso!", "success"); row[dbEdit.value.col] = payload.value; } 
+                    else { addToast("Erro ao salvar célula", "error"); }
                 } catch(e) { addToast("Falha de conexão", "error"); }
-                
                 dbEdit.value = { id: null, col: null, value: '' };
             };
 
-            const openDbManager = () => {
-                changeView('db-manager');
-                if(dbTables.value.length === 0) loadDbTables();
+            const openDbManager = () => { changeView('db-manager'); if(dbTables.value.length === 0) loadDbTables(); };
+
+            // --- FUNÇÕES FASE 10: BULK ACTIONS ---
+            const startBulkAction = (action) => {
+                bulkMode.value = action;
+                bulkColumn.value = dbColumns.value[0] || '';
+                bulkValue.value = '';
+                previewActive.value = false;
             };
 
-            // --- FUNÇÕES CORE ---
+            const cancelBulkAction = () => {
+                bulkMode.value = false;
+                previewActive.value = false;
+            };
+
+            const togglePreview = () => {
+                if (bulkMode.value === 'UPDATE' && !bulkColumn.value) { addToast("Selecione uma coluna para atualizar", "error"); return; }
+                previewActive.value = true;
+            };
+
+            const commitBulkAction = async () => {
+                if(!confirm(`ATENÇÃO: Ação irreversível de ${bulkMode.value} em massa. Confirma a operação?`)) return;
+                
+                const payload = {
+                    action: bulkMode.value,
+                    column: bulkMode.value === 'UPDATE' ? bulkColumn.value : null,
+                    value: bulkMode.value === 'UPDATE' ? bulkValue.value : null,
+                    filters: dbQuery.value.filters
+                };
+                
+                try {
+                    const res = await fetch(`/api/db/bulk/${dbCurrentTable.value}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if(res.ok) {
+                        addToast(data.message + " O Obsidian será atualizado em background.", "success");
+                        cancelBulkAction();
+                        loadTableData(true);
+                        fetchStats();
+                    } else { addToast("Erro: " + data.detail, "error"); }
+                } catch(e) { addToast("Falha de conexão com a API", "error"); }
+            };
+
+
+            // --- FUNÇÕES CORE DA TELA GLOBAL E DOSSIÊ ---
             const addToast = (message, type = 'success') => { const id = Date.now(); toasts.value.push({ id, message, type }); setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 4000); }
             const getStatusClass = (code) => { if (!code) return 'bg-slate-700 text-slate-300'; if (code >= 200 && code < 300) return 'bg-green-500/20 text-green-400 border border-green-500/30'; if (code >= 300 && code < 400) return 'bg-blue-500/20 text-blue-400 border border-blue-500/30'; if (code === 403 || code === 401) return 'bg-orange-500/20 text-orange-400 border border-orange-500/30'; if (code >= 400 && code < 500) return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'; if (code >= 500) return 'bg-red-500/20 text-red-400 border border-red-500/30'; return 'bg-slate-700 text-slate-300'; }
             const getVulnClass = (severity) => { const map = { 'Crítica': 'bg-red-500 text-white border-red-600', 'Alta': 'bg-orange-400 text-white border-orange-500', 'Média': 'bg-yellow-400 text-black border-yellow-500', 'Baixa': 'bg-green-400 text-black border-green-500', 'Info': 'bg-blue-400 text-white border-blue-500'}; return map[severity] || 'bg-slate-700 text-slate-300'; }
@@ -1057,9 +1225,13 @@
                 // WEBSOCKETS
                 activeLog, terminalLines, wsStatus, switchLog, clearLogs, openCommandCenter, getTerminalColor,
                 
-                // INLINE EDIT & DB MANAGER
+                // INLINE EDIT
                 epInlineEdit, startInlineEdit, saveInlineEdit,
-                dbTables, dbCurrentTable, dbColumns, dbRows, loadingDb, dbEdit, loadDbTables, loadTableData, startDbEdit, saveDbEdit, openDbManager
+                
+                // DB MANAGER & BULK ACTIONS
+                dbTables, dbCurrentTable, dbColumns, dbRows, loadingDb, dbEdit, loadDbTables, loadTableData, startDbEdit, saveDbEdit, openDbManager,
+                dbQuery, dbTotalRows, dbTotalPages, addDbFilter, removeDbFilter, setDbSort, nextDbPage, prevDbPage, onTableChange,
+                bulkMode, bulkColumn, bulkValue, previewActive, startBulkAction, cancelBulkAction, togglePreview, commitBulkAction
             }
         }
     })

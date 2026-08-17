@@ -44,11 +44,11 @@ process_target() {
         return 1
     fi
 
-    # ── Filtra apenas URLs base para evitar scans redundantes ──────────
+    # ── Utiliza os diretórios profundos gerados de forma inteligente pelo feeder.py ──
     local BASE_URLS="$WORK_DIR/base_urls.txt"
-    grep -Eo 'https?://[^/]+' "$URLS_FILE" | sort -u > "$BASE_URLS"
+    sort -u "$URLS_FILE" > "$BASE_URLS"
     local BASE_COUNT=$(wc -l < "$BASE_URLS")
-    echo "[*] $TARGET: $BASE_COUNT base URL(s)"
+    echo "[*] $TARGET: $BASE_COUNT diretório(s) profundo(s) para fuzzing"
 
     # ── Selecionar wordlist ─────────────────────────────────────────────
     local CONTEXT_WL="$WORK_DIR/context_wordlist.txt"
@@ -75,6 +75,7 @@ process_target() {
             --time-limit "$FEROX_TIMEOUT" \
             --auto-tune \
             --filter-status 400,401,404,405,500,502,503 \
+            --randon-agent \
             --no-state \
             --json \
             -o "$OUTPUT_FILE.jsonl" \

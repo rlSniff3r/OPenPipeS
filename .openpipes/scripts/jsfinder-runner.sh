@@ -75,7 +75,7 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
     for url in "${js_urls[@]}"; do
         jsFile="$tmpDir/$(basename "$url" | cut -d '?' -f1)"
         echo "[*] Baixando $url..."
-        curl -s -L --max-time 15 "$url" -o "$jsFile" || { echo "[-] Falha ao baixar: $url"; continue; }
+        curl -s -L --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36" --max-time 15 "$url" -o "$jsFile" || { echo "[-] Falha ao baixar: $url"; continue; }
 
         routes=$(linkfinder.py -i "$jsFile" -o cli 2>/dev/null | grep -Eo 'https?://[^ ")]+' | sort -u | jq -R -s 'split("\n") | map(select(length > 0))')
         results+=("$(jq -n --arg url "$url" --argjson routes "$routes" '{source_js_url: $url, discovered_routes: $routes}')")
