@@ -10,7 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket,
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any
 from cvss import CVSS3
 
 # Adiciona o diretório raiz 'openpipes_core' ao sys.path
@@ -438,22 +438,36 @@ def get_global_endpoints(username: str = Depends(verificar_autenticacao)):
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
     scope_domains = _get_scope_domains(proj_path)
-    fp_filter = "(e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)"
     
     endpoints = []
     try:
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
-            cursor.execute(f"""
-                SELECT e.url, e.status_code, e.content_length, e.title, h.host, h.id as host_id
-                FROM endpoints e
+            cursor.execute("""
+                SELECT e.id, e.url, e.title, e.status_code, e.web_server, e.content_length, 
+                       h.host, h.id as host_id 
+                FROM endpoints e 
                 JOIN hosts h ON h.id = e.host_id
-                WHERE h.is_alive = 1 AND h.in_scope = 1 AND {fp_filter}
+                WHERE h.is_alive = 1 AND h.in_scope = 1 AND e.status_code IN (200, 401, 403)
+                AND e.title IS NOT NULL AND e.title != '' AND e.title != '-'
+                AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)
+                ORDER BY h.host, e.url
             """)
             for row in cursor.fetchall():
                 if not _is_in_scope(row["host"], scope_domains): 
                     continue
-                endpoints.append(dict(row))
+                
+                # CORREÇÃO 1: Indentado para dentro do FOR
+                endpoints.append({
+                    "id": row["id"],             
+                    "host_id": row["host_id"],   
+                    "url": row["url"], 
+                    "title": row["title"] or "-",
+                    "status_code": row["status_code"],  # CORREÇÃO 2: Chave renomeada para 'status_code'
+                    "server": row["web_server"] or "",
+                    "target": row["host"],
+                    "content_length": row["content_length"] or 0
+                })
         return endpoints
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -469,6 +483,14 @@ class VulnUpdate(BaseModel):
     cvss_vector: str
     reference_urls: List[str]
     cwe_id: str
+
+class EndpointInlineEdit(BaseModel):
+    field: str  # Pode ser 'status_code' ou 'title'
+    value: Any
+
+class GenericDBEdit(BaseModel):
+    column: str
+    value: Any
 
 # =====================================================================
 # ROTAS DA FASE 8 (DEEP EDIT CVSS)
@@ -637,3 +659,99 @@ async def websocket_logs(websocket: WebSocket, module_name: str):
             process.terminate()
         except:
             pass
+
+# =====================================================================
+# FASE 9: INLINE EDITING E DB MANAGER
+# =====================================================================
+
+@app.put("/api/endpoints/{ep_id}")
+def update_endpoint_inline(ep_id: int, data: EndpointInlineEdit, username: str = Depends(verificar_autenticacao)):
+    """Atualiza um campo específico do Endpoint (Inline Edit) e sincroniza o Obsidian."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    
+    # Proteção de segurança: apenas campos permitidos
+    allowed_fields = ["status_code", "title"]
+    if data.field not in allowed_fields:
+        raise HTTPException(status_code=400, detail="Campo não editável inline.")
+    
+    try:
+        import renderer
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            
+            # Atualiza o campo
+            cursor.execute(f"UPDATE endpoints SET {data.field} = ? WHERE id = ?", (data.value, ep_id))
+            
+            # Busca o nome do host para re-renderizar o MD
+            cursor.execute("SELECT h.host FROM endpoints e JOIN hosts h ON h.id = e.host_id WHERE e.id = ?", (ep_id,))
+            row = cursor.fetchone()
+            host_name = row["host"] if row else None
+            conn.commit()
+        
+        # Auto-sync Obsidian instantâneo para o alvo afetado
+        if host_name:
+            proj_name, p_path, obsdir = renderer._get_env_from_config()
+            if proj_name and obsdir:
+                renderer.render_target(proj_path, obsdir, proj_name, host_name)
+                
+        return {"status": "success", "message": f"Endpoint atualizado com sucesso!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/db/tables")
+def get_db_tables(username: str = Depends(verificar_autenticacao)):
+    """Lista todas as tabelas do banco de dados SQLite."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path: raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            tables = [row["name"] for row in cursor.fetchall()]
+        return tables
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/db/data/{table}")
+def get_db_table_data(table: str, username: str = Depends(verificar_autenticacao)):
+    """Busca as colunas e os dados (limite 500) de uma tabela selecionada."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path: raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    
+    if not table.isidentifier(): 
+        raise HTTPException(status_code=400, detail="Nome de tabela inválido")
+    
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA table_info({table})")
+            columns = [row["name"] for row in cursor.fetchall()]
+            
+            cursor.execute(f"SELECT * FROM {table} ORDER BY id DESC LIMIT 500")
+            rows = [dict(row) for row in cursor.fetchall()]
+            
+        return {"columns": columns, "rows": rows}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/db/data/{table}/{row_id}")
+def update_db_cell(table: str, row_id: int, data: GenericDBEdit, username: str = Depends(verificar_autenticacao)):
+    """Edição genérica de qualquer célula do banco (DB Manager)."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path: raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    
+    # Sanitização básica contra SQL Injection no nome da tabela/coluna
+    if not table.isidentifier() or not data.column.isidentifier():
+        raise HTTPException(status_code=400, detail="Tabela ou Coluna inválida")
+        
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE {table} SET {data.column} = ? WHERE id = ?", (data.value, row_id))
+            conn.commit()
+        return {"status": "success", "message": "Célula atualizada!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

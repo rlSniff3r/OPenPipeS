@@ -30,7 +30,7 @@
         .terminal-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
     </style>
 </head>
-<body class="bg-darkbg text-slate-300 font-sans antialiased overflow-y-scroll" :class="lightboxOpen ? 'overflow-hidden' : ''">
+<body class="bg-darkbg text-slate-300 font-sans antialiased overflow-y-scroll" :class="lightboxOpen || evLightboxOpen ? 'overflow-hidden' : ''">
 
 <div id="app" class="min-h-screen flex flex-col relative">
     
@@ -41,58 +41,101 @@
             <h1 class="text-xl font-bold text-white tracking-wide cursor-pointer" @click="changeView('hosts')">Aurora <span class="text-brand">Dashboard</span></h1>
         </div>
         <div class="flex items-center gap-3">
-            <!-- BOTÃO RUN CYCLE -->
             <button @click="triggerCycle" :disabled="isCycling || isSyncing" class="text-sm px-4 py-1.5 bg-indigo-900/50 hover:bg-indigo-600/30 border border-indigo-700/50 hover:border-indigo-500 text-indigo-300 hover:text-white rounded-lg transition-colors flex items-center gap-2">
                 <svg :class="{'animate-spin text-indigo-400': isCycling}" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 <span v-if="isCycling">Rodando Cycle...</span>
                 <span v-else>Run Cycle</span>
             </button>
-            
-            <!-- BOTÃO ANTIGO SYNC VAULT -->
             <button @click="triggerSync" :disabled="isSyncing || isCycling" class="text-sm px-4 py-1.5 bg-slate-800 hover:bg-brand/20 border border-slate-600 hover:border-brand text-slate-300 hover:text-white rounded-lg transition-colors flex items-center gap-2">
                 <svg :class="{'animate-spin text-brand': isSyncing}" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 <span v-if="isSyncing">Sincronizando...</span>
                 <span v-else>Sync Vault</span>
             </button>
             <div class="text-sm px-3 py-1 bg-slate-700 rounded-full text-brand font-mono border border-slate-600 shadow-inner">
-                {{ stats.projeto || 'Carregando Projeto...' }}
+                {{ stats.projeto || 'Carregando...' }}
             </div>
         </div>
     </header>
 
     <main class="flex-grow p-6 w-full max-w-[95rem] mx-auto relative">
         
-        <!-- Cards Globais (Agora são 4 Colunas) -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div @click="changeView('hosts')" :class="currentView === 'hosts' ? 'ring-2 ring-blue-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex items-center gap-4 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
-                <div class="absolute -right-4 -top-4 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
-                <div class="p-3 bg-blue-500/20 rounded-lg text-blue-400 z-10"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg></div>
-                <div class="z-10"><div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Hosts Mapeados</div><div class="text-3xl font-bold text-white">{{ stats.hosts }}</div></div>
+        <!-- Cards Globais (Agora 5 Colunas) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <div @click="changeView('hosts')" :class="currentView === 'hosts' ? 'ring-2 ring-blue-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-blue-500/20 rounded-lg text-blue-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Hosts</div><div class="text-2xl font-bold text-white">{{ stats.hosts }}</div></div>
             </div>
-            <div @click="changeView('global-vulns')" :class="currentView === 'global-vulns' ? 'ring-2 ring-red-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex items-center gap-4 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
-                <div class="absolute -right-4 -top-4 w-24 h-24 bg-red-500/10 rounded-full blur-2xl"></div>
-                <div class="p-3 bg-red-500/20 rounded-lg text-red-400 z-10"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></div>
-                <div class="z-10"><div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Vulnerabilidades</div><div class="text-3xl font-bold text-white">{{ stats.vulns }}</div></div>
+            <div @click="changeView('global-vulns')" :class="currentView === 'global-vulns' ? 'ring-2 ring-red-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-red-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-red-500/20 rounded-lg text-red-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Vulns</div><div class="text-2xl font-bold text-white">{{ stats.vulns }}</div></div>
             </div>
-            <div @click="changeView('global-endpoints')" :class="currentView === 'global-endpoints' ? 'ring-2 ring-green-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex items-center gap-4 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
-                <div class="absolute -right-4 -top-4 w-24 h-24 bg-green-500/10 rounded-full blur-2xl"></div>
-                <div class="p-3 bg-green-500/20 rounded-lg text-green-400 z-10"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg></div>
-                <div class="z-10"><div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Endpoints Ativos</div><div class="text-3xl font-bold text-white">{{ stats.endpoints }}</div></div>
+            <div @click="changeView('global-endpoints')" :class="currentView === 'global-endpoints' ? 'ring-2 ring-green-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-green-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-green-500/20 rounded-lg text-green-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Endpoints</div><div class="text-2xl font-bold text-white">{{ stats.endpoints }}</div></div>
             </div>
-            <!-- NOVO CARD: CENTRO DE COMANDO -->
-            <div @click="openCommandCenter()" :class="currentView === 'command-center' ? 'ring-2 ring-purple-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex items-center gap-4 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
-                <div class="absolute -right-4 -top-4 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl"></div>
-                <div class="p-3 bg-purple-500/20 rounded-lg text-purple-400 z-10"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>
-                <div class="z-10"><div class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Centro de Controle</div><div class="text-2xl font-bold text-white">Live Logs</div></div>
+            <div @click="openCommandCenter()" :class="currentView === 'command-center' ? 'ring-2 ring-purple-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-purple-500/20 rounded-lg text-purple-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Centro C2</div><div class="text-xl font-bold text-white">Live Logs</div></div>
+            </div>
+            <div @click="openDbManager()" :class="currentView === 'db-manager' ? 'ring-2 ring-amber-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-amber-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-amber-500/20 rounded-lg text-amber-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Database</div><div class="text-xl font-bold text-white">Manager</div></div>
             </div>
         </div>
 
         <transition name="fade" mode="out-in">
             
             <!-- ========================================== -->
+            <!-- VIEW: DB MANAGER (NOVA)                    -->
+            <!-- ========================================== -->
+            <div v-if="currentView === 'db-manager'" key="view-db-manager" class="w-full">
+                <div class="flex items-center gap-4 mb-6">
+                    <button @click="changeView('hosts')" class="w-12 h-12 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg></button>
+                    <div><h2 class="text-2xl font-bold text-white">Database Manager</h2><p class="text-sm text-slate-400">Edição direta e irrestrita no SQLite do Projeto.</p></div>
+                </div>
+
+                <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col h-[calc(100vh-18rem)]">
+                    <div class="flex items-center gap-4 mb-4">
+                        <label class="text-sm font-bold text-slate-400 uppercase tracking-wider">Tabela:</label>
+                        <select v-model="dbCurrentTable" @change="loadTableData" class="bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500 cursor-pointer shadow-inner">
+                            <option value="" disabled>Selecione uma tabela...</option>
+                            <option v-for="t in dbTables" :key="t" :value="t">{{ t }}</option>
+                        </select>
+                        <span class="text-xs text-slate-500 italic ml-auto"><span class="font-bold text-amber-400">Duplo-clique</span> em qualquer célula para editar. Pressione <span class="font-bold text-white">ENTER</span> para salvar.</span>
+                    </div>
+
+                    <div v-if="loadingDb" class="flex-1 flex justify-center items-center"><svg class="animate-spin h-10 w-10 text-amber-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
+                    <div v-else-if="!dbCurrentTable" class="flex-1 flex justify-center items-center border-2 border-dashed border-slate-700 rounded-xl bg-slate-800/20 text-slate-500">Selecione uma tabela acima.</div>
+                    <div v-else class="flex-1 overflow-auto custom-scrollbar relative border border-slate-700 rounded-lg bg-slate-900 shadow-inner">
+                        <table class="w-full text-left text-xs whitespace-nowrap">
+                            <thead class="bg-slate-950 text-slate-400 sticky top-0 z-10 shadow-md">
+                                <tr>
+                                    <th v-for="col in dbColumns" :key="col" class="px-4 py-3 font-semibold border-r border-slate-800 tracking-wider">{{ col }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800">
+                                <tr v-for="row in dbRows" :key="row.id" class="hover:bg-slate-800/80 transition-colors">
+                                    <td v-for="col in dbColumns" :key="col" class="px-4 py-2 border-r border-slate-800/50" @dblclick="startDbEdit(row.id, col, row[col])">
+                                        <input v-if="dbEdit.id === row.id && dbEdit.col === col" v-model="dbEdit.value" @blur="saveDbEdit(row)" @keyup.enter="saveDbEdit(row)" class="w-full min-w-[120px] bg-black border border-amber-500 text-amber-400 font-bold px-2 py-1 rounded outline-none shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                                        <span v-else class="truncate max-w-[250px] inline-block cursor-pointer hover:text-amber-400 transition-colors font-mono" :title="row[col]">{{ row[col] === null ? 'NULL' : row[col] }}</span>
+                                    </td>
+                                </tr>
+                                <tr v-if="dbRows.length === 0"><td :colspan="dbColumns.length" class="text-center py-10 text-slate-500 italic">Tabela vazia.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
             <!-- VIEW: CENTRO DE COMANDOS (TERMINAL)        -->
             <!-- ========================================== -->
-            <div v-if="currentView === 'command-center'" key="view-command-center" class="w-full flex flex-col lg:flex-row gap-6 h-[calc(100vh-16rem)]">
+            <div v-else-if="currentView === 'command-center'" key="view-command-center" class="w-full flex flex-col lg:flex-row gap-6 h-[calc(100vh-16rem)]">
                 <!-- Sidebar Tools -->
                 <div class="w-full lg:w-64 bg-cardbg border border-slate-700 rounded-xl p-4 flex flex-col gap-2 shadow-lg overflow-y-auto custom-scrollbar flex-shrink-0">
                     <h3 class="font-bold text-white mb-4 flex items-center gap-2"><svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg> Módulos (Logs)</h3>
@@ -267,6 +310,7 @@
                                             <div v-if="vuln.impact"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Impacto</h5><p class="whitespace-pre-wrap">{{ vuln.impact }}</p></div>
                                             <div v-if="vuln.remediation"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Remediação</h5><p class="whitespace-pre-wrap">{{ vuln.remediation }}</p></div>
                                         </div>
+                                        
                                         <!-- 🔥 INÍCIO: GALERIA DE EVIDÊNCIAS 🔥 -->
                                         <div v-if="vuln.evidences && vuln.evidences.length > 0" class="mt-4 pt-4 border-t border-slate-700/50">
                                             <h5 class="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-2">
@@ -275,13 +319,14 @@
                                             </h5>
                                             <div class="flex flex-wrap gap-4">
                                                 <div v-for="(ev, idx) in vuln.evidences" :key="idx" 
-                                                    @click.stop="openEvLightbox(vuln.host_id, vuln.evidences, idx)"
-                                                    class="w-40 h-24 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden cursor-pointer shadow-md hover:border-brand hover:shadow-brand/20 transition-all">
+                                                     @click.stop="openEvLightbox(vuln.host_id, vuln.evidences, idx)"
+                                                     class="w-40 h-24 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden cursor-pointer shadow-md hover:border-brand hover:shadow-brand/20 transition-all">
                                                     <img :src="`/api/image/${vuln.host_id}/${encodeURIComponent(ev)}`" class="w-full h-full object-cover object-top opacity-80 hover:opacity-100 transition-opacity">
                                                 </div>
                                             </div>
                                         </div>
                                         <!-- 🔥 FIM: GALERIA DE EVIDÊNCIAS 🔥 -->
+
                                         <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
                                         <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
                                             <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
@@ -307,19 +352,18 @@
                     <button @click="changeView('hosts')" class="w-12 h-12 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     </button>
-                    <div><h2 class="text-2xl font-bold text-white">Dashboard Global de Endpoints</h2><p class="text-sm text-slate-400">Análise de exposição e status de todas as rotas mapeadas.</p></div>
+                    <div><h2 class="text-2xl font-bold text-white">Dashboard Global de Endpoints</h2><p class="text-sm text-slate-400">Análise de exposição e status de todas as rotas mapeadas. <span class="text-amber-400 italic font-normal text-xs ml-2">(Duplo-clique no Status ou Título para edição rápida)</span></p></div>
                 </div>
 
                 <div v-if="loadingGlobal" class="flex justify-center py-20"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
                 
                 <div v-else class="space-y-6">
-                    <!-- Gráficos -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col"><h3 class="font-bold text-white mb-4 text-center">Distribuição de Status HTTP</h3><div class="relative flex-1 w-full min-h-0"><canvas id="epStatusCanvas"></canvas></div></div>
                         <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col"><h3 class="font-bold text-white mb-4 text-center">Top 10 Hosts com mais Endpoints</h3><div class="relative flex-1 w-full min-h-0"><canvas id="epHostCanvas"></canvas></div></div>
                     </div>
 
-                    <!-- Tabela Mestra -->
+                    <!-- Tabela Mestra Endpoints com INLINE EDIT -->
                     <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
                         <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white">Todos os Endpoints Mapeados ({{ globalEndpoints.length }})</h3></div>
                         <div class="overflow-x-auto max-h-[800px] overflow-y-auto custom-scrollbar relative">
@@ -336,12 +380,22 @@
                                 <tbody class="divide-y divide-slate-700/50">
                                     <tr v-for="ep in sortedGlobalEndpoints" :key="ep.url" class="hover:bg-slate-800/50 transition-colors group">
                                         <td class="px-4 py-3"><span class="text-[10px] font-mono text-slate-400 cursor-pointer hover:text-brand" @click="changeView('dossier', {id: ep.host_id})" title="Ir para o Host">{{ ep.host }}</span></td>
-                                        <td class="px-4 py-3"><span :class="getStatusClass(ep.status_code)" class="px-2 py-1 rounded text-[10px] font-mono font-bold">{{ ep.status_code || '---' }}</span></td>
+                                        
+                                        <!-- INLINE EDIT: STATUS CODE -->
+                                        <td class="px-4 py-3" @dblclick="startInlineEdit(ep.id, 'status_code', ep.status_code)">
+                                            <input v-if="epInlineEdit.id === ep.id && epInlineEdit.field === 'status_code'" v-model="epInlineEdit.value" @blur="saveInlineEdit(ep)" @keyup.enter="saveInlineEdit(ep)" class="w-16 bg-slate-900 border border-amber-500 text-amber-400 font-bold px-1 py-0.5 rounded outline-none text-xs text-center" autofocus>
+                                            <span v-else :class="getStatusClass(ep.status_code)" class="px-2 py-1 rounded text-[10px] font-mono font-bold cursor-pointer hover:ring-1 hover:ring-amber-500 transition-all">{{ ep.status_code || '---' }}</span>
+                                        </td>
+                                        
                                         <td class="px-4 py-3 text-brand hover:underline font-mono text-xs max-w-sm truncate" :title="ep.url"><a :href="ep.url" target="_blank">{{ ep.url }}</a></td>
                                         <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ ep.content_length || '0' }}b</td>
-                                        <td class="px-4 py-3 text-xs text-slate-300 max-w-[200px] truncate flex justify-between items-center group">
-                                            <span :title="ep.title">{{ ep.title || '-' }}</span>
-                                            <button @click="markEndpointFP(ep.url, ep.host_id, true)" class="opacity-0 group-hover:opacity-100 p-1 text-red-500/50 hover:text-red-400 hover:bg-red-500/10 rounded transition-all" title="Ocultar (Falso Positivo)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                                        
+                                        <!-- INLINE EDIT: TITLE -->
+                                        <td class="px-4 py-3 text-xs text-slate-300 max-w-[200px] flex justify-between items-center group" @dblclick="startInlineEdit(ep.id, 'title', ep.title)">
+                                            <input v-if="epInlineEdit.id === ep.id && epInlineEdit.field === 'title'" v-model="epInlineEdit.value" @blur="saveInlineEdit(ep)" @keyup.enter="saveInlineEdit(ep)" class="w-full bg-slate-900 border border-amber-500 text-amber-400 px-2 py-1 rounded outline-none text-xs" autofocus>
+                                            <span v-else class="truncate cursor-pointer hover:text-amber-400 transition-colors" :title="ep.title">{{ ep.title || '-' }}</span>
+                                            
+                                            <button v-if="!(epInlineEdit.id === ep.id && epInlineEdit.field === 'title')" @click.stop="markEndpointFP(ep.url, ep.host_id, true)" class="opacity-0 group-hover:opacity-100 p-1 text-red-500/50 hover:text-red-400 hover:bg-red-500/10 rounded transition-all ml-2" title="Ocultar (Falso Positivo)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -390,9 +444,9 @@
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div class="lg:col-span-2 space-y-6">
                             
-                            <!-- Endpoints Host -->
+                            <!-- Endpoints Host com INLINE EDIT -->
                             <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
-                                <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white flex items-center gap-2"><svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg> Endpoints Mapeados ({{ sortedFilteredEndpoints.length }})</h3></div>
+                                <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white flex items-center gap-2"><svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg> Endpoints Mapeados ({{ sortedFilteredEndpoints.length }}) <span class="text-amber-400 italic font-normal text-xs ml-2 opacity-80">(Duplo-clique para editar)</span></h3></div>
                                 <div class="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar relative">
                                     <table class="w-full text-left text-sm whitespace-nowrap">
                                         <thead class="bg-slate-900 text-slate-400 sticky top-0 shadow z-10">
@@ -405,12 +459,22 @@
                                         </thead>
                                         <tbody class="divide-y divide-slate-700/50">
                                             <tr v-for="ep in sortedFilteredEndpoints" :key="ep.url" class="hover:bg-slate-800/50 transition-colors group">
-                                                <td class="px-4 py-3"><span :class="getStatusClass(ep.status_code)" class="px-2 py-1 rounded text-xs font-mono font-bold">{{ ep.status_code || '---' }}</span></td>
+                                                
+                                                <!-- INLINE EDIT: STATUS CODE -->
+                                                <td class="px-4 py-3" @dblclick="startInlineEdit(ep.id, 'status_code', ep.status_code)">
+                                                    <input v-if="epInlineEdit.id === ep.id && epInlineEdit.field === 'status_code'" v-model="epInlineEdit.value" @blur="saveInlineEdit(ep)" @keyup.enter="saveInlineEdit(ep)" class="w-16 bg-slate-900 border border-amber-500 text-amber-400 font-bold px-1 py-0.5 rounded outline-none text-xs text-center" autofocus>
+                                                    <span v-else :class="getStatusClass(ep.status_code)" class="px-2 py-1 rounded text-xs font-mono font-bold cursor-pointer hover:ring-1 hover:ring-amber-500 transition-all">{{ ep.status_code || '---' }}</span>
+                                                </td>
+
                                                 <td class="px-4 py-3 text-brand hover:underline font-mono text-xs max-w-xs truncate" :title="ep.url"><a :href="ep.url" target="_blank">{{ ep.url }}</a></td>
                                                 <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ ep.content_length || '0' }}b</td>
-                                                <td class="px-4 py-3 text-xs text-slate-300 max-w-[200px] truncate flex justify-between items-center group">
-                                                    <span :title="ep.title">{{ ep.title || '-' }}</span>
-                                                    <button @click="markEndpointFP(ep.url, activeHost.id)" class="opacity-0 group-hover:opacity-100 p-1 text-red-500/50 hover:text-red-400 hover:bg-red-500/10 rounded transition-all" title="Ocultar (Falso Positivo)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                                                
+                                                <!-- INLINE EDIT: TITLE -->
+                                                <td class="px-4 py-3 text-xs text-slate-300 max-w-[200px] flex justify-between items-center group" @dblclick="startInlineEdit(ep.id, 'title', ep.title)">
+                                                    <input v-if="epInlineEdit.id === ep.id && epInlineEdit.field === 'title'" v-model="epInlineEdit.value" @blur="saveInlineEdit(ep)" @keyup.enter="saveInlineEdit(ep)" class="w-full bg-slate-900 border border-amber-500 text-amber-400 px-2 py-1 rounded outline-none text-xs" autofocus>
+                                                    <span v-else class="truncate cursor-pointer hover:text-amber-400 transition-colors" :title="ep.title">{{ ep.title || '-' }}</span>
+                                                    
+                                                    <button v-if="!(epInlineEdit.id === ep.id && epInlineEdit.field === 'title')" @click="markEndpointFP(ep.url, activeHost.id)" class="opacity-0 group-hover:opacity-100 p-1 text-red-500/50 hover:text-red-400 hover:bg-red-500/10 rounded transition-all ml-2" title="Ocultar (Falso Positivo)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
                                                 </td>
                                             </tr>
                                             <tr v-if="sortedFilteredEndpoints.length === 0"><td colspan="4" class="px-4 py-8 text-center text-slate-500">Nenhum endpoint detectado.</td></tr>
@@ -492,6 +556,7 @@
                                                     <div v-if="vuln.impact"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Impacto</h5><p class="whitespace-pre-wrap">{{ vuln.impact }}</p></div>
                                                     <div v-if="vuln.remediation"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Remediação</h5><p class="whitespace-pre-wrap">{{ vuln.remediation }}</p></div>
                                                 </div>
+                                                
                                                 <!-- 🔥 INÍCIO: GALERIA DE EVIDÊNCIAS 🔥 -->
                                                 <div v-if="vuln.evidences && vuln.evidences.length > 0" class="mt-4 pt-4 border-t border-slate-700/50">
                                                     <h5 class="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-2">
@@ -500,16 +565,17 @@
                                                     </h5>
                                                     <div class="flex flex-wrap gap-4">
                                                         <div v-for="(ev, idx) in vuln.evidences" :key="idx" 
-                                                            @click.stop="openEvLightbox(vuln.host_id, vuln.evidences, idx)"
-                                                            class="w-40 h-24 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden cursor-pointer shadow-md hover:border-brand hover:shadow-brand/20 transition-all">
+                                                             @click.stop="openEvLightbox(vuln.host_id, vuln.evidences, idx)"
+                                                             class="w-40 h-24 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden cursor-pointer shadow-md hover:border-brand hover:shadow-brand/20 transition-all">
                                                             <img :src="`/api/image/${vuln.host_id}/${encodeURIComponent(ev)}`" class="w-full h-full object-cover object-top opacity-80 hover:opacity-100 transition-opacity">
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <!-- 🔥 FIM: GALERIA DE EVIDÊNCIAS 🔥 -->
+
                                                 <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
                                                 <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
-                                                    <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
+                                                    <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
                                                     
                                                     <div class="flex gap-2 ml-auto">
                                                         <button @click.stop="startEdit(vuln)" class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded text-xs font-semibold text-blue-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar</button>
@@ -604,6 +670,7 @@
             </div>
         </div>
     </transition>
+
 </div>
 
 <!-- ========================================== -->
@@ -694,35 +761,16 @@
 
             const startEdit = (vuln) => {
                 editingVulnId.value = vuln.id;
-                
-                // Preenche os campos de texto normalmente
-                editForm.value = { 
-                    title: vuln.title || '', 
-                    description: vuln.description || '', 
-                    impact: vuln.impact || '', 
-                    remediation: vuln.remediation || '', 
-                    cwe_id: vuln.cwe_id || '', 
-                    references: (vuln.reference_urls || []).join('\n') 
-                };
-                
-                // Inicializa o CVSS vazio
+                editForm.value = { title: vuln.title || '', description: vuln.description || '', impact: vuln.impact || '', remediation: vuln.remediation || '', cwe_id: vuln.cwe_id || '', references: (vuln.reference_urls || []).join('\n') };
                 const cvssData = { AV: '', AC: '', PR: '', UI: '', S: '', C: '', I: '', A: '' };
-                
-                // Se existir um vetor CVSS v3, nós o dissecamos e populamos os dropdowns!
                 if (vuln.cvss_vector && vuln.cvss_vector.startsWith('CVSS:3')) {
-                    const parts = vuln.cvss_vector.split('/');
-                    parts.forEach(part => {
+                    vuln.cvss_vector.split('/').forEach(part => {
                         if (part.includes(':')) {
                             const [key, val] = part.split(':');
-                            // Se a chave for válida (AV, AC, PR, etc), preenche o valor (N, L, H, etc)
-                            if (cvssData[key] !== undefined) {
-                                cvssData[key] = val;
-                            }
+                            if (cvssData[key] !== undefined) cvssData[key] = val;
                         }
                     });
                 }
-                
-                // Aplica os dados dissecados na interface
                 editCvss.value = cvssData;
             }
 
@@ -735,7 +783,7 @@
                     const res = await fetch(`/api/vulns/${vulnId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     const data = await res.json();
                     if (res.ok) {
-                        addToast("Vulnerabilidade atualizada com sucesso!", "success");
+                        addToast("Vulnerabilidade atualizada e sincronizada com o Obsidian!", "success");
                         editingVulnId.value = null;
                         const updateLocal = (v) => {
                             if (v.id === vulnId) {
@@ -753,6 +801,17 @@
                     } else { addToast("Erro: " + data.detail, "error"); }
                 } catch (e) { addToast("Erro ao contatar API.", "error"); }
             }
+
+            // ================= FASE 8.4: EVIDÊNCIAS =================
+            const evLightboxOpen = ref(false);
+            const evLightboxImages = ref([]);
+            const evLightboxIndex = ref(0);
+            const evLightboxHostId = ref(null);
+
+            const openEvLightbox = (hostId, images, index) => { evLightboxHostId.value = hostId; evLightboxImages.value = images; evLightboxIndex.value = index; evLightboxOpen.value = true; };
+            const closeEvLightbox = () => { evLightboxOpen.value = false; };
+            const nextEvImage = () => { const t = evLightboxImages.value.length; if (t > 0) evLightboxIndex.value = (evLightboxIndex.value + 1) % t; };
+            const prevEvImage = () => { const t = evLightboxImages.value.length; if (t > 0) evLightboxIndex.value = (evLightboxIndex.value - 1 + t) % t; };
 
             // ================= FASE 8.3: COMANDO & WEBSOCKETS =================
             const activeLog = ref('main');
@@ -798,6 +857,90 @@
                 return 'text-green-500/80';
             };
 
+            // ================= FASE 9: INLINE EDITING & DB MANAGER =================
+            
+            // INLINE EDIT
+            const epInlineEdit = ref({ id: null, field: null, value: '' });
+            
+            const startInlineEdit = (id, field, value) => {
+                if(!id) return; // Algumas views antigas não trazem o ID
+                epInlineEdit.value = { id, field, value: value || '' };
+            };
+            
+            const saveInlineEdit = async (ep) => {
+                if (!epInlineEdit.value.id) return;
+                const payload = { field: epInlineEdit.value.field, value: epInlineEdit.value.value };
+                
+                // Converte status pra número se for o campo
+                if (payload.field === 'status_code') payload.value = parseInt(payload.value) || 0;
+                
+                try {
+                    const res = await fetch(`/api/endpoints/${epInlineEdit.value.id}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    });
+                    if(res.ok) {
+                        addToast("Endpoint editado e Obsidian sincronizado!", "success");
+                        ep[epInlineEdit.value.field] = payload.value;
+                    } else { addToast("Erro ao editar endpoint", "error"); }
+                } catch(e) { addToast("Falha de conexão", "error"); }
+                
+                epInlineEdit.value = { id: null, field: null, value: '' };
+            };
+
+            // DB MANAGER
+            const dbTables = ref([]);
+            const dbCurrentTable = ref('');
+            const dbColumns = ref([]);
+            const dbRows = ref([]);
+            const loadingDb = ref(false);
+            const dbEdit = ref({ id: null, col: null, value: '' });
+
+            const loadDbTables = async () => {
+                try {
+                    const res = await fetch('/api/db/tables');
+                    if(res.ok) dbTables.value = await res.json();
+                } catch(e){}
+            };
+
+            const loadTableData = async () => {
+                if(!dbCurrentTable.value) return;
+                loadingDb.value = true;
+                try {
+                    const res = await fetch(`/api/db/data/${dbCurrentTable.value}`);
+                    if(res.ok) {
+                        const d = await res.json();
+                        dbColumns.value = d.columns;
+                        dbRows.value = d.rows;
+                    }
+                } catch(e){} finally { loadingDb.value = false; }
+            };
+
+            const startDbEdit = (id, col, val) => {
+                if(!id || col === 'id') return; // Bloqueia edição de PK
+                dbEdit.value = { id, col, value: val || '' };
+            };
+
+            const saveDbEdit = async (row) => {
+                if(!dbEdit.value.id) return;
+                const payload = { column: dbEdit.value.col, value: dbEdit.value.value };
+                try {
+                    const res = await fetch(`/api/db/data/${dbCurrentTable.value}/${dbEdit.value.id}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    });
+                    if(res.ok) {
+                        addToast("Célula salva com sucesso!", "success");
+                        row[dbEdit.value.col] = payload.value;
+                    } else { addToast("Erro ao salvar célula", "error"); }
+                } catch(e) { addToast("Falha de conexão", "error"); }
+                
+                dbEdit.value = { id: null, col: null, value: '' };
+            };
+
+            const openDbManager = () => {
+                changeView('db-manager');
+                if(dbTables.value.length === 0) loadDbTables();
+            };
+
             // --- FUNÇÕES CORE ---
             const addToast = (message, type = 'success') => { const id = Date.now(); toasts.value.push({ id, message, type }); setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 4000); }
             const getStatusClass = (code) => { if (!code) return 'bg-slate-700 text-slate-300'; if (code >= 200 && code < 300) return 'bg-green-500/20 text-green-400 border border-green-500/30'; if (code >= 300 && code < 400) return 'bg-blue-500/20 text-blue-400 border border-blue-500/30'; if (code === 403 || code === 401) return 'bg-orange-500/20 text-orange-400 border border-orange-500/30'; if (code >= 400 && code < 500) return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'; if (code >= 500) return 'bg-red-500/20 text-red-400 border border-red-500/30'; return 'bg-slate-700 text-slate-300'; }
@@ -806,21 +949,6 @@
             const currentLightboxImage = computed(() => { if (!hostDetails.value.screenshots || hostDetails.value.screenshots.length === 0) return {}; return hostDetails.value.screenshots[lightboxIndex.value] || {}; })
             const openLightbox = (index) => { lightboxIndex.value = index; lightboxOpen.value = true; }
             const closeLightbox = () => { lightboxOpen.value = false; }
-            // ================= FASE 8.4: EVIDÊNCIAS =================
-            const evLightboxOpen = ref(false);
-            const evLightboxImages = ref([]);
-            const evLightboxIndex = ref(0);
-            const evLightboxHostId = ref(null);
-
-            const openEvLightbox = (hostId, images, index) => {
-                evLightboxHostId.value = hostId;
-                evLightboxImages.value = images;
-                evLightboxIndex.value = index;
-                evLightboxOpen.value = true;
-            };
-            const closeEvLightbox = () => { evLightboxOpen.value = false; };
-            const nextEvImage = () => { const t = evLightboxImages.value.length; if (t > 0) evLightboxIndex.value = (evLightboxIndex.value + 1) % t; };
-            const prevEvImage = () => { const t = evLightboxImages.value.length; if (t > 0) evLightboxIndex.value = (evLightboxIndex.value - 1 + t) % t; };
             const nextImage = () => { const t = hostDetails.value.screenshots.length; if (t > 0) lightboxIndex.value = (lightboxIndex.value + 1) % t; }
             const prevImage = () => { const t = hostDetails.value.screenshots.length; if (t > 0) lightboxIndex.value = (lightboxIndex.value - 1 + t) % t; }
             const handleKeydown = (e) => { 
@@ -834,6 +962,7 @@
                     if (e.key === 'ArrowLeft') prevEvImage(); 
                 }
             }
+
             const fetchStats = async () => { try { const res = await fetch('/api/stats'); if (res.ok) stats.value = await res.json(); } catch (e) {} }
             const fetchHosts = async () => { loadingHosts.value = true; try { const res = await fetch('/api/hosts'); if (res.ok) hosts.value = await res.json(); } catch (e) {} finally { loadingHosts.value = false; } }
 
@@ -918,13 +1047,19 @@
 
             return {
                 stats, hosts, searchQuery, sortBy, loadingHosts, filteredAndSortedHosts, currentView, changeView, globalVulns, globalEndpoints, loadingGlobal, activeHost, hostDetails, loadingDetails, selectedPort, getStatusClass, getVulnClass, imageTick, expandedVuln, toggleVuln, lightboxOpen, currentLightboxImage, openLightbox, closeLightbox, nextImage, prevImage, isSyncing, isCycling, triggerCycle, triggerSync, markEndpointFP, copyPoC, markVulnFP, toasts, openDossier, closeDossier, otherHosts, sortedFilteredEndpoints, sortedGlobalEndpoints, groupedJS, epSortKey, epSortAsc, toggleEpSort, globalEpSortKey, globalEpSortAsc, toggleGlobalEpSort,
+                
                 // CVSS
                 editingVulnId, editForm, editCvss, cvssOptions, currentVector, startEdit, cancelEdit, saveEdit,
+                
+                // EVIDÊNCIAS
+                evLightboxOpen, evLightboxImages, evLightboxIndex, evLightboxHostId, openEvLightbox, closeEvLightbox, nextEvImage, prevEvImage,
+                
                 // WEBSOCKETS
                 activeLog, terminalLines, wsStatus, switchLog, clearLogs, openCommandCenter, getTerminalColor,
-                // EVIDÊNCIAS
-                evLightboxOpen, evLightboxImages, evLightboxIndex, evLightboxHostId, 
-                openEvLightbox, closeEvLightbox, nextEvImage, prevEvImage
+                
+                // INLINE EDIT & DB MANAGER
+                epInlineEdit, startInlineEdit, saveInlineEdit,
+                dbTables, dbCurrentTable, dbColumns, dbRows, loadingDb, dbEdit, loadDbTables, loadTableData, startDbEdit, saveDbEdit, openDbManager
             }
         }
     })

@@ -25,7 +25,7 @@ gerado_em: {{ generated_at }}
 {%- if all_vulnerabilities %}
 | Severidade | Título | CVSS | CWE | Alvo |
 |------------|--------|------|-----|------|
-{%- for vuln in all_vulnerabilities %}
+{%- for vuln in all_vulnerabilities | sort(attribute='cvss_score', reverse=true) %}
 | {{ vuln.severity_emoji }} {{ vuln.severity }} | [[{{ vuln.target }}/Vulnerabilidades/{{ vuln.filename }}\|{{ vuln.title }}]] | {{ vuln.cvss_score or "N/A" }} | {{ vuln.cwe_id }} | [[{{ vuln.target }}.md\|{{ vuln.target }}]] |
 {%- endfor %}
 {%- else %}

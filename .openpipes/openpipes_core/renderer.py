@@ -177,7 +177,8 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
         ports = [dict(r) for r in cursor.fetchall()]
         open_ports = [p for p in ports if p["state"] == "open"]
 
-        cursor.execute("""SELECT url, status_code, content_length, content_type,
+        # ADICIONADO O 'id' LOGO NO INÍCIO DO SELECT
+        cursor.execute("""SELECT id, url, status_code, content_length, content_type,
                           title, web_server, tech_stack, source_tool,
                           vulnerability_patterns
                           FROM endpoints WHERE host_id = ? ORDER BY url""",
@@ -371,7 +372,7 @@ def _get_dashboard_endpoints(proj_path: str, limit: int = 100) -> list[dict]:
     endpoints = []
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("""SELECT e.url, e.title, e.status_code, e.web_server, h.host, h.ips
+        cursor.execute("""SELECT e.id, e.url, e.title, e.status_code, e.web_server, h.host, h.ips
                           FROM endpoints e JOIN hosts h ON h.id = e.host_id
                           WHERE h.is_alive = 1 AND h.in_scope = 1 AND e.status_code IN (200, 401, 403)
                           AND e.title IS NOT NULL AND e.title != '' AND e.title != '-'
