@@ -113,9 +113,9 @@ def serve_dashboard(username: str = Depends(verificar_autenticacao)):
 def api_stats(username: str = Depends(verificar_autenticacao)):
     return get_stats_from_db()
 
-@app.get("/api/image/{host_id}/{filename:path}")
-def get_image(host_id: int, filename: str, username: str = Depends(verificar_autenticacao)):
-    """Serve as imagens de screenshots direto do diretório Nmap."""
+@app.get("/api/image/{host_id}/{file_path:path}")
+def get_image(host_id: int, file_path: str, username: str = Depends(verificar_autenticacao)):
+    """Serve imagens das pastas Screenshots e Evidencias."""
     proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
     if not proj_path:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
@@ -129,13 +129,18 @@ def get_image(host_id: int, filename: str, username: str = Depends(verificar_aut
                 raise HTTPException(status_code=404, detail="Host não encontrado")
             host_name = row["host"]
 
-        nmap_dir = _get_nmap_dir(proj_path)
-        img_path = os.path.join(nmap_dir, f"nmap-{host_name}", "Screenshots", filename)
+        # Verifica na pasta Screenshots (Reconhecimento Automático)
+        ss_path = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Screenshots", file_path)
+        # Verifica na pasta Evidencias (Imagens coladas pelo usuário no Obsidian)
+        ev_path = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Evidencias", file_path)
 
-        if os.path.exists(img_path):
-            return FileResponse(img_path)
+        if os.path.exists(ss_path):
+            return FileResponse(ss_path)
+        elif os.path.exists(ev_path):
+            return FileResponse(ev_path)
         else:
-            raise HTTPException(status_code=404, detail="Imagem não encontrada no sistema de arquivos.")
+            raise HTTPException(status_code=404, detail="Imagem não encontrada no disco")
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -382,13 +387,12 @@ def get_global_vulnerabilities(username: str = Depends(verificar_autenticacao)):
     if not proj_path:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
-    scope_domains = _get_scope_domains(proj_path)
+    scope_domains = renderer._get_scope_domains(proj_path)
     
     vulns = []
     try:
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
-            # Fazemos um JOIN para trazer o nome e ID do host junto com a vuln
             cursor.execute("""
                 SELECT v.id, v.title, v.severity, v.cvss_score, v.cwe_id, v.cve_id, 
                        v.description, v.curl_command, v.remediation, v.impact, v.reference_urls, 
@@ -398,10 +402,14 @@ def get_global_vulnerabilities(username: str = Depends(verificar_autenticacao)):
                 WHERE h.is_alive = 1 AND h.in_scope = 1 AND v.status != 'false_positive'
                 ORDER BY CASE v.severity WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2 WHEN 'Baixa' THEN 3 ELSE 4 END
             """)
-            for row in cursor.fetchall():
-                if not _is_in_scope(row["host"], scope_domains): 
+            rows = cursor.fetchall()
+            
+            for row in rows:
+                if not renderer._is_in_scope(row["host"], scope_domains): 
                     continue
                 v = dict(row)
+                
+                # Tratamento de URLs de Referência
                 if v.get("reference_urls"):
                     try:
                         v["reference_urls"] = json.loads(v["reference_urls"])
@@ -409,6 +417,11 @@ def get_global_vulnerabilities(username: str = Depends(verificar_autenticacao)):
                         v["reference_urls"] = []
                 else:
                     v["reference_urls"] = []
+                    
+                # BUSCA AS EVIDÊNCIAS DESTA VULNERABILIDADE
+                cursor.execute("SELECT stored_name FROM user_evidences WHERE vuln_id = ?", (v["id"],))
+                v["evidences"] = [ev["stored_name"] for ev in cursor.fetchall()]
+                
                 vulns.append(v)
         return vulns
     except Exception as e:
