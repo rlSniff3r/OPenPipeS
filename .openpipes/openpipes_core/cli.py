@@ -100,6 +100,7 @@ def run_bash_module(module_name, extra_args=None):
             console.print(f"\n[bold red]✖ Erro: domains.txt não encontrado em {proj_path}[/bold red]")
             input("Pressione ENTER para continuar...")
             return
+
     elif module_name == "nwrapper":
         run_cwd = nmap_dir
         os.makedirs(run_cwd, exist_ok=True)
@@ -111,6 +112,10 @@ def run_bash_module(module_name, extra_args=None):
             cwd=proj_path,
         )
         parsers.parse_dalfox(proj_path, nmap_dir)
+
+    elif module_name == "arjun-runner":
+        parse_arjun(proj_path, nmap_dir)
+        _mark_scanned_by_url(proj_path, nmap_dir, "arjun")
 
     # Append extra CLI arguments (e.g.: -f targets_retry.txt)
     if extra_args:
@@ -413,8 +418,9 @@ Framework de Reconhecimento v2.0
             "1": "recon", "2": "nwrapper", "3": "cria-alvos",
             "4": "httpx-runner", "5": "katana-runner", "6": "feroxbuster-runner",
             "7": "katana-buster", "8": "jsfinder-runner", "9": "screenshot-runner",
-            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "22": "reporter",
-            "23": "arjun-runner"
+            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "22": "dalfox-runner",
+            "23": "arjun-runner", "24": "dashboard", "13": "pipeline", "14": "history", "16": "reparse-all", "17": "db-viewer", "18": "sync-vault",
+            "19": "verifier", "20": "feed-tools", "21": "cycle", "99": "help", "0": "exit", "25": "report-docx"
         }
 
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]MÓDULOS DE PENTEST[/bold cyan]")
@@ -435,6 +441,8 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("[21]", "[bold yellow]Cycle (Completo)[/bold yellow]")
         menu_table.add_row("[22]", "[bold green]Gerar Relatório DOCX[/bold green]")
         menu_table.add_row("[23]", "[bold magenta]Arjun Runner[/bold magenta]")
+        menu_table.add_row("[24]", "[bold green]Iniciar Web Dashboard[/bold green]")
+        menu_table.add_row("[25]", "[bold green]Gerar Relatório DOCX[/bold green]")
 
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
@@ -494,7 +502,7 @@ Framework de Reconhecimento v2.0
             # Chama o próprio script passando os argumentos
             subprocess.run([sys.executable, __file__, "dashboard", "--host", "0.0.0.0", "--port", "5000"])
         
-        elif escolha == "22":
+        elif escolha == "25":
             from reporter import generate_report, create_default_template
             proj_name, proj_path, _ = get_project_env()
             if proj_path:
@@ -514,6 +522,12 @@ Framework de Reconhecimento v2.0
 
         elif escolha == "23":
             run_bash_module("arjun-runner")
+
+        elif escolha == "24":
+            run_bash_module("dashboard")
+
+        elif escolha == "25":
+            run_bash_module("report-docx")
 
         elif escolha in opcoes:
             run_bash_module(opcoes[escolha])
@@ -561,7 +575,7 @@ def run_reparse_all():
         ("nuclei",     lambda: parsers.parse_nuclei(proj_path, nmap_dir_path)),
         ("whois",      lambda: parsers.parse_whois_enrichment(proj_path, nmap_dir_path)),
         ("dalfox",       lambda: parsers.parse_dalfox(proj_path, nmap_dir_path)),  # ← add this
-        ("arjun", lambda: parsers.parse_arjun(proj_path, nmap_dir_path)),
+        ("arjun",   lambda: parsers.parse_arjun(proj_path, nmap_dir_path)),
     ]
 
     for name, fn in modules:
@@ -874,10 +888,6 @@ def main():
                 cwd=proj_path,
             )
             parsers.parse_dalfox(proj_path, nmap_dir)
-
-        elif module_name == "arjun-runner":
-            parse_arjun(proj_path, nmap_dir)
-            _mark_scanned_by_url(proj_path, nmap_dir, "arjun")
         
         elif args.command == "report":
             from reporter import generate_report, create_default_template
