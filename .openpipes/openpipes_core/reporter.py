@@ -274,253 +274,457 @@ def _build_report_context(proj_path: str, client_name: str = "",
 
 
 # ── Default template generator ───────────────────────────────────
-def create_default_template(output_path: str = None):
-    """
-    Generate a professional starter .docx template with Jinja2 placeholders.
-    The analyst opens this in Word to customize branding, styles, and sections.
-    """
-    output_path = output_path or DEFAULT_TEMPLATE
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
+def create_default_template():
+    """Generate a rich, pre-formatted default DOCX report template."""
     from docx import Document
-    from docx.shared import Inches, Pt, RGBColor, Cm
+    from docx.shared import Inches, Pt, Cm, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.enum.section import WD_ORIENT
     from docx.oxml.ns import qn
 
+    os.makedirs(os.path.dirname(DEFAULT_TEMPLATE), exist_ok=True)
     doc = Document()
 
-    # ── Style defaults ────────────────────────────────────────
+    # ── Page setup ────────────────────────────────────────────────
+    section = doc.sections[0]
+    section.page_height = Cm(29.7)
+    section.page_width = Cm(21.0)
+    section.top_margin = Cm(2.5)
+    section.bottom_margin = Cm(2.5)
+    section.left_margin = Cm(2.5)
+    section.right_margin = Cm(2.5)
+
+    # ── Styles ────────────────────────────────────────────────────
     style = doc.styles["Normal"]
     style.font.name = "Calibri"
     style.font.size = Pt(11)
     style.paragraph_format.space_after = Pt(6)
 
-    for level in range(1, 4):
-        hs = doc.styles[f"Heading {level}"]
-        hs.font.color.rgb = RGBColor(0, 51, 102)
+    for level, size, color in [
+        ("Heading 1", 20, RGBColor(0x1a, 0x56, 0x8e)),
+        ("Heading 2", 16, RGBColor(0x1a, 0x56, 0x8e)),
+        ("Heading 3", 13, RGBColor(0x2c, 0x3e, 0x50)),
+    ]:
+        h = doc.styles[level]
+        h.font.name = "Calibri"
+        h.font.size = Pt(size)
+        h.font.color.rgb = color
+        h.font.bold = True
 
-    # ── Cover Page ────────────────────────────────────────────
+    # ── Helper: add a styled table ────────────────────────────────
+    def add_table(doc, headers, rows_data=None):
+        """Create a table with header row + optional template rows."""
+        ncols = len(headers)
+        nrows = 1 + (len(rows_data) if rows_data else 1)
+        tbl = doc.add_table(rows=nrows, cols=ncols)
+        tbl.style = "Light Grid Accent 1"
+        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        # header
+        for i, h in enumerate(headers):
+            cell = tbl.rows[0].cells[i]
+            cell.text = h
+            for p in cell.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in p.runs:
+                    run.bold = True
+                    run.font.size = Pt(9)
+        # data rows
+        if rows_data:
+            for r_idx, row_vals in enumerate(rows_data):
+                for c_idx, val in enumerate(row_vals):
+                    cell = tbl.rows[r_idx + 1].cells[c_idx]
+                    cell.text = str(val)
+                    for p in cell.paragraphs:
+                        for run in p.runs:
+                            run.font.size = Pt(9)
+        return tbl
+
+    # ══════════════════════════════════════════════════════════════
+    #  COVER PAGE
+    # ══════════════════════════════════════════════════════════════
     for _ in range(6):
-        doc.add_paragraph()
+        doc.add_paragraph("")
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run("{{ project_name }}")
+    run.font.size = Pt(36)
+    run.font.color.rgb = RGBColor(0x1a, 0x56, 0x8e)
     run.bold = True
-    run.font.size = Pt(32)
-    run.font.color.rgb = RGBColor(0, 51, 102)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("Relatório de Teste de Segurança")
-    run.font.size = Pt(18)
-    run.font.color.rgb = RGBColor(100, 100, 100)
+    run = p.add_run("Relatório de Pentest")
+    run.font.size = Pt(20)
+    run.font.color.rgb = RGBColor(0x2c, 0x3e, 0x50)
 
-    doc.add_paragraph()
+    doc.add_paragraph("")
 
-    for label, var in [("Cliente", "{{ client_name }}"),
-                       ("Data", "{{ report_date }}"),
-                       ("Classificação", "{{ classification }}")]:
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run(f"{label}: ")
-        run.font.size = Pt(12)
-        run.font.color.rgb = RGBColor(100, 100, 100)
-        run = p.add_run(var)
-        run.bold = True
-        run.font.size = Pt(12)
-
-    doc.add_page_break()
-
-    # ── Executive Summary ─────────────────────────────────────
-    doc.add_heading("1. Resumo Executivo", level=1)
-    doc.add_paragraph(
-        "Este relatório apresenta os resultados do teste de segurança realizado "
-        "contra a infraestrutura de {{ client_name }}. "
-        "Foram identificadas {{ stats.total_vulns }} vulnerabilidades em "
-        "{{ stats.vulnerable_hosts }} hosts de {{ stats.total_hosts }} analisados."
-    )
-
-    # Summary table
-    table = doc.add_table(rows=3, cols=3)
-    table.style = "Light Shading Accent 1"
-    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    cells = [
-        ("Métrica", "Valor", ""),
-        ("Hosts analisados", "{{ stats.total_hosts }}", ""),
-        ("Hosts com vulnerabilidades", "{{ stats.vulnerable_hosts }}", ""),
+    # Cover details table
+    cover_data = [
+        ("Cliente:", "{{ client_name }}"),
+        ("Data:", "{{ report_date }}"),
+        ("Classificação:", "Confidencial"),
     ]
-    for i, (a, b, _) in enumerate(cells):
-        table.rows[i].cells[0].text = a
-        table.rows[i].cells[1].text = b
+    tbl = doc.add_table(rows=3, cols=2)
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, (label, value) in enumerate(cover_data):
+        tbl.rows[i].cells[0].text = label
+        tbl.rows[i].cells[1].text = value
+        for p in tbl.rows[i].cells[0].paragraphs:
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(12)
+        for p in tbl.rows[i].cells[1].paragraphs:
+            for run in p.runs:
+                run.font.size = Pt(12)
 
-    # Severity table
-    doc.add_paragraph()
+    doc.add_page_break()
+
+    # ══════════════════════════════════════════════════════════════
+    #  TABLE OF CONTENTS (Word auto-generated)
+    # ══════════════════════════════════════════════════════════════
+    doc.add_heading("Sumário", level=1)
     p = doc.add_paragraph()
-    run = p.add_run("Distribuição por Severidade:")
-    run.bold = True
-    table2 = doc.add_table(rows=6, cols=2)
-    table2.style = "Light Shading Accent 1"
-    table2.alignment = WD_TABLE_ALIGNMENT.CENTER
-    severities = [("🔴 Crítica", "{{ stats.critical }}"),
-                  ("🟠 Alta", "{{ stats.high }}"),
-                  ("🟡 Média", "{{ stats.medium }}"),
-                  ("🟢 Baixa", "{{ stats.low }}"),
-                  ("🔵 Info", "{{ stats.info }}")]
-    table2.rows[0].cells[0].text = "Severidade"
-    table2.rows[0].cells[1].text = "Quantidade"
-    for i, (sev, val) in enumerate(severities):
-        table2.rows[i + 1].cells[0].text = sev
-        table2.rows[i + 1].cells[1].text = val
+    run = p.add_run()
+    fld_char_begin = run._element.makeelement(qn("w:fldChar"), {qn("w:fldCharType"): "begin"})
+    run._element.append(fld_char_begin)
+    run2 = p.add_run()
+    fld_code = run2._element.makeelement(qn("w:instrText"), {qn("xml:space"): "preserve"})
+    fld_code.text = " TOC \\o \"1-3\" \\h \\z \\u "
+    run2._element.append(fld_code)
+    run3 = p.add_run()
+    fld_char_end = run3._element.makeelement(qn("w:fldChar"), {qn("w:fldCharType"): "end"})
+    run3._element.append(fld_char_end)
+    p = doc.add_paragraph("(Atualize o campo no Word: clique → F9, ou Ctrl+A → F9)")
+    p.runs[0].font.size = Pt(9)
+    p.runs[0].font.color.rgb = RGBColor(0x99, 0x99, 0x99)
 
-    # Severity chart placeholder
-    doc.add_paragraph()
+    doc.add_page_break()
+
+    # ══════════════════════════════════════════════════════════════
+    #  1. EXECUTIVE SUMMARY
+    # ══════════════════════════════════════════════════════════════
+    doc.add_heading("1. Resumo Executivo", level=1)
+
+    doc.add_paragraph(
+        "Este relatório apresenta os resultados da avaliação de segurança realizada "
+        "no projeto {{ project_name }}, conduzida entre {{ methodology.scope_summary }}."
+    )
+    doc.add_paragraph(
+        "Foram avaliados {{ stats.total_hosts }} hosts, identificando-se "
+        "{{ stats.total_vulns }} vulnerabilidades e mapeando {{ stats.total_endpoints }} "
+        "endpoints web e {{ stats.total_ports }} portas abertas."
+    )
+
+    doc.add_heading("Visão Geral por Severidade", level=2)
+
+    sev_headers = ["Severidade", "Quantidade"]
+    sev_rows = [
+        ("🔴 Crítica", "{{ stats.critical }}"),
+        ("🟠 Alta", "{{ stats.high }}"),
+        ("🟡 Média", "{{ stats.medium }}"),
+        ("🟢 Baixa", "{{ stats.low }}"),
+        ("🔵 Informativo", "{{ stats.info }}"),
+    ]
+    add_table(doc, sev_headers, sev_rows)
+
+    doc.add_paragraph("")
+    doc.add_paragraph("Distribuição visual:")
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("{{ severity_chart }}")
-    run.font.size = Pt(10)
+    run = p.add_run()
+    run.add_picture("{{ severity_chart }}", width=Inches(4.0))
 
     doc.add_page_break()
 
-    # ── Scope ─────────────────────────────────────────────────
-    doc.add_heading("2. Escopo", level=1)
-    doc.add_paragraph(
-        "O teste de segurança foi realizado nos seguintes domínios e recursos:"
-    )
-    doc.add_paragraph("Domínios em escopo:")
-    doc.add_paragraph(
-        "{% for d in scope.domains %}\n• {{ d }}\n{% endfor %}"
-    )
-    doc.add_paragraph(
-        "Total de endpoints identificados: {{ scope.total_endpoints }}\n"
-        "Total de portas abertas: {{ scope.total_ports }}"
-    )
+    # ══════════════════════════════════════════════════════════════
+    #  2. ESCOPO
+    # ══════════════════════════════════════════════════════════════
+    doc.add_heading("2. Escopo da Avaliação", level=1)
 
-    doc.add_page_break()
+    doc.add_heading("2.1 Domínios em Escopo", level=2)
+    doc.add_paragraph("{{ methodology.scope_summary }}")
 
-    # ── Methodology ───────────────────────────────────────────
-    doc.add_heading("3. Metodologia", level=1)
-    doc.add_paragraph("{{ methodology }}")
-
-    doc.add_page_break()
-
-    # ── Detailed Findings ─────────────────────────────────────
-    doc.add_heading("4. Achados Detalhados", level=1)
-
-    doc.add_paragraph(
+    doc.add_heading("2.2 Hosts Avaliados", level=2)
+    host_headers = ["Host", "IP", "Portas Abertas", "Endpoints", "Vulns"]
+    host_rows_tmpl = (
         "{% for host in hosts %}"
-    )
-    doc.add_heading("{{ host.name }} ({{ host.ip }})", level=2)
-    doc.add_paragraph("Stack tecnológica: {{ host.tech_summary }}")
-
-    # Open ports table
-    doc.add_paragraph()
-    p = doc.add_paragraph()
-    run = p.add_run("Portas abertas:")
-    run.bold = True
-    doc.add_paragraph(
-        "{% for port in host.open_ports %}"
-        "• {{ port.port }}/{{ port.protocol }} — {{ port.service }} {{ port.version }}\n"
+        "{% raw %}<row>{% endraw %}"
+        "{{ host.name }} | {{ host.ip }} | {{ host.open_ports | length }} | "
+        "{{ host.endpoints | length }} | {{ host.vulnerabilities | length }}"
+        "{% raw %}</row>{% endraw %}"
         "{% endfor %}"
     )
+    # For docxtpl, we build the table with Jinja2 row tags:
+    tbl = doc.add_table(rows=2, cols=5)
+    tbl.style = "Light Grid Accent 1"
+    for i, h in enumerate(host_headers):
+        cell = tbl.rows[0].cells[i]
+        cell.text = h
+        for p in cell.paragraphs:
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(9)
+    # Jinja2 tags in first cell, endfor in last cell
+    tbl.rows[1].cells[0].text = "{% for host in hosts %}"
+    tbl.rows[1].cells[1].text = "{{ host.ip }}"
+    tbl.rows[1].cells[2].text = "{{ host.open_ports | length }}"
+    tbl.rows[1].cells[3].text = "{{ host.endpoints | length }}"
+    tbl.rows[1].cells[4].text = "{{ host.vulnerabilities | length }}{% endfor %}"
 
-    # Per-vulnerability
+    doc.add_page_break()
+
+    # ══════════════════════════════════════════════════════════════
+    #  3. METODOLOGIA
+    # ══════════════════════════════════════════════════════════════
+    doc.add_heading("3. Metodologia", level=1)
+
     doc.add_paragraph(
-        "{% for vuln in host.vulnerabilities %}"
+        "A avaliação foi conduzida seguindo as melhores práticas da OWASP e PTES "
+        "(Penetration Testing Execution Standard), abrangendo as seguintes fases:"
     )
+
+    doc.add_heading("3.1 Ferramentas Utilizadas", level=2)
+    tools_headers = ["Ferramenta", "Finalidade"]
+    tools_rows = [
+        ("Nmap", "Varredura de portas e detecção de serviços"),
+        ("HTTPx", "Probing HTTP/HTTPS e detecção de tecnologias"),
+        ("Katana", "Crawling e descoberta de endpoints"),
+        ("Feroxbuster", "Força bruta de diretórios e arquivos"),
+        ("Nuclei", "Detecção de vulnerabilidades por templates"),
+        ("JSFinder", "Análise de JavaScript e rotas ocultas"),
+        ("GF (GrepFuzzable)", "Classificação de padrões vulneráveis"),
+        ("Arjun", "Descoberta de parâmetros de entrada"),
+    ]
+    add_table(doc, tools_headers, tools_rows)
+
+    doc.add_heading("3.2 Fases da Avaliação", level=2)
+    doc.add_paragraph("{{ methodology.phases }}")
+
+    doc.add_page_break()
+
+    # ══════════════════════════════════════════════════════════════
+    #  4. DETAILED FINDINGS (per host)
+    # ══════════════════════════════════════════════════════════════
+    doc.add_heading("4. Análise Detalhada por Host", level=1)
+
+    doc.add_paragraph(
+        "Esta seção apresenta os achados detalhados para cada host que apresentou "
+        "vulnerabilidades ou superfície de ataque relevante."
+    )
+
+    # ── Per-host block (Jinja2 loop) ──
+    doc.add_paragraph("{% for host in hosts %}")
+
+    doc.add_heading("{{ host.name }}", level=2)
+
+    p = doc.add_paragraph()
+    run = p.add_run("IP: ")
+    run.bold = True
+    p.add_run("{{ host.ip }}")
+
+    p = doc.add_paragraph()
+    run = p.add_run("Tecnologias Detectadas: ")
+    run.bold = True
+    p.add_run("{{ host.tech_summary }}")
+
+    # ── Open Ports table ──
+    doc.add_heading("Portas Abertas", level=3)
+    doc.add_paragraph(
+        "{% if host.open_ports %}"
+    )
+    port_tbl = doc.add_table(rows=2, cols=4)
+    port_tbl.style = "Light Grid Accent 1"
+    for i, h in enumerate(["Porta", "Protocolo", "Serviço", "Versão"]):
+        cell = port_tbl.rows[0].cells[i]
+        cell.text = h
+        for p in cell.paragraphs:
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(9)
+    port_tbl.rows[1].cells[0].text = "{% for port in host.open_ports %}"
+    port_tbl.rows[1].cells[1].text = "{{ port.protocol }}"
+    port_tbl.rows[1].cells[2].text = "{{ port.service }}"
+    port_tbl.rows[1].cells[3].text = "{{ port.version }}{% endfor %}"
+    doc.add_paragraph(
+        "{% else %}"
+        "<i>Nenhuma porta aberta registrada.</i>"
+        "{% endif %}"
+    )
+
+    # ── Endpoints table ──
+    doc.add_heading("Endpoints Web", level=3)
+    doc.add_paragraph(
+        "{% if host.endpoints %}"
+    )
+    ep_tbl = doc.add_table(rows=2, cols=3)
+    ep_tbl.style = "Light Grid Accent 1"
+    for i, h in enumerate(["URL", "Status", "Servidor"]):
+        cell = ep_tbl.rows[0].cells[i]
+        cell.text = h
+        for p in cell.paragraphs:
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(9)
+    ep_tbl.rows[1].cells[0].text = "{% for ep in host.endpoints %}"
+    ep_tbl.rows[1].cells[1].text = "{{ ep.status_code }}"
+    ep_tbl.rows[1].cells[2].text = "{{ ep.web_server }}{% endfor %}"
+    doc.add_paragraph(
+        "{% else %}"
+        "<i>Nenhum endpoint web descoberto.</i>"
+        "{% endif %}"
+    )
+
+    # ── Vulnerabilities detail ──
+    doc.add_heading("Vulnerabilidades", level=3)
+    doc.add_paragraph(
+        "{% if host.vulnerabilities %}"
+    )
+
+    # Per-vuln Jinja2 block
+    doc.add_paragraph("{% for vuln in host.vulnerabilities %}")
+
     doc.add_heading("{{ vuln.severity_emoji }} {{ vuln.title }}", level=3)
 
-    # Vuln metadata table
-    t = doc.add_table(rows=4, cols=2)
-    t.style = "Light Grid Accent 1"
-    meta = [("Severidade", "{{ vuln.severity }}"),
-            ("CVSS", "{{ vuln.cvss_score }}"),
-            ("CVE", "{{ vuln.cve_id }}"),
-            ("CWE", "{{ vuln.cwe_id }}")]
-    for i, (k, v) in enumerate(meta):
-        t.rows[i].cells[0].text = k
-        t.rows[i].cells[1].text = v
+    # Severity + CVSS line
+    vuln_meta_tbl = doc.add_table(rows=1, cols=4)
+    vuln_meta_tbl.style = "Light Grid Accent 1"
+    meta_data = [
+        ("Severidade", "{{ vuln.severity }}"),
+        ("CVSS", "{{ vuln.cvss_score }}"),
+        ("CWE", "{{ vuln.cwe_id }}"),
+        ("CVE", "{{ vuln.cve_id }}"),
+    ]
+    for i, (label, val) in enumerate(meta_data):
+        cell = vuln_meta_tbl.rows[0].cells[i]
+        cell.text = f"{label}: {val}"
+        for p in cell.paragraphs:
+            for run in p.runs:
+                run.font.size = Pt(9)
+                run.bold = True
 
-    doc.add_paragraph()
-    p = doc.add_paragraph()
-    run = p.add_run("Descrição:")
-    run.bold = True
+    doc.add_paragraph("")
+
+    doc.add_heading("Descrição", level=4)
     doc.add_paragraph("{{ vuln.description }}")
 
-    p = doc.add_paragraph()
-    run = p.add_run("Impacto:")
-    run.bold = True
-    doc.add_paragraph("{{ vuln.impact }}")
-
-    p = doc.add_paragraph()
-    run = p.add_run("Recomendação:")
-    run.bold = True
-    doc.add_paragraph("{{ vuln.remediation }}")
-
-    if using curl_command:
-        p = doc.add_paragraph()
-        run = p.add_run("Comando de reprodução:")
-        run.bold = True
-        doc.add_paragraph("{{ vuln.curl_command }}")
-
-    # Evidence images
+    doc.add_heading("Evidência", level=4)
+    doc.add_paragraph(
+        "{% if vuln.matched_at %}"
+        "**Localização:** {{ vuln.matched_at }}"
+        "{% endif %}"
+    )
+    doc.add_paragraph(
+        "{% if vuln.curl_command %}"
+        "```bash\n{{ vuln.curl_command }}\n```"
+        "{% endif %}"
+    )
+    # Embed evidence images
     doc.add_paragraph(
         "{% for img in vuln.evidence_images %}"
     )
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("{{ img }}")
+    run = p.add_run()
+    run.add_picture("{{ img }}", width=Inches(5.5))
     doc.add_paragraph(
         "{% endfor %}"
     )
 
-    # References
+    doc.add_heading("Impacto", level=4)
+    doc.add_paragraph("{{ vuln.impact }}")
+
+    doc.add_heading("Recomendação", level=4)
+    doc.add_paragraph("{{ vuln.remediation }}")
+
+    doc.add_heading("Referências", level=4)
     doc.add_paragraph(
-        "{% if vuln.reference_urls %}"
+        "{% for ref in vuln.reference_urls %}"
+        "- {{ ref }}"
+        "{% endfor %}"
     )
-    p = doc.add_paragraph()
-    run = p.add_run("Referências:")
-    run.bold = True
-    doc.add_paragraph(
-        "{% for ref in vuln.reference_urls %}\n• {{ ref }}\n{% endfor %}"
-    )
-    doc.add_paragraph("{% endif %}")
+
+    doc.add_paragraph("{% endfor %}")  # end vuln loop
 
     doc.add_paragraph(
-        "{% endfor %}"  # end vulns loop
+        "{% else %}"
+        "<i>Nenhuma vulnerabilidade encontrada para este host.</i>"
+        "{% endif %}"
     )
+
+    doc.add_paragraph("{% endfor %}")  # end hosts loop
+
+    doc.add_page_break()
+
+    # ══════════════════════════════════════════════════════════════
+    #  5. APPENDIX A — Full Port Scan
+    # ══════════════════════════════════════════════════════════════
+    doc.add_heading("Apêndice A — Varredura Completa de Portas", level=1)
     doc.add_paragraph(
-        "{% endfor %}"  # end hosts loop
+        "{% for host in hosts %}"
+        "**{{ host.name }} ({{ host.ip }})**"
+    )
+
+    full_port_tbl = doc.add_table(rows=2, cols=5)
+    full_port_tbl.style = "Light Grid Accent 1"
+    for i, h in enumerate(["Porta", "Proto", "Estado", "Serviço", "Versão"]):
+        cell = full_port_tbl.rows[0].cells[i]
+        cell.text = h
+        for p in cell.paragraphs:
+            for run in p.runs:
+                run.bold = True
+                run.font.size = Pt(8)
+    full_port_tbl.rows[1].cells[0].text = "{% for port in host.all_ports %}"
+    full_port_tbl.rows[1].cells[1].text = "{{ port.protocol }}"
+    full_port_tbl.rows[1].cells[2].text = "{{ port.state }}"
+    full_port_tbl.rows[1].cells[3].text = "{{ port.service }}"
+    full_port_tbl.rows[1].cells[4].text = "{{ port.version }}{% endfor %}"
+    doc.add_paragraph("")
+    doc.add_paragraph(
+        "{% endfor %}"
     )
 
     doc.add_page_break()
 
-    # ── Appendix: Screenshots ─────────────────────────────────
-    doc.add_heading("Apêndice A: Capturas de Tela", level=1)
+    # ══════════════════════════════════════════════════════════════
+    #  6. APPENDIX B — Screenshots
+    # ══════════════════════════════════════════════════════════════
+    doc.add_heading("Apêndice B — Capturas de Tela", level=1)
     doc.add_paragraph(
         "{% for host in hosts %}"
-    )
-    doc.add_heading("{{ host.name }}", level=2)
-    doc.add_paragraph(
-        "{% for ss in host.screenshots %}"
-    )
-    doc.add_paragraph("{{ ss.title or ss.source_url or 'Screenshot' }}")
-    doc.add_paragraph(
-        "{% if ss.image %}{{ ss.image }}{% endif %}"
-    )
-    doc.add_paragraph(
+        "{% if host.screenshots %}"
+        "**{{ host.name }}**"
+        "{% for shot in host.screenshots %}"
+        "- {{ shot.title | default(shot.source_url, true) }}"
         "{% endfor %}"
-    )
-    doc.add_paragraph(
+        "{% endif %}"
         "{% endfor %}"
     )
 
-    # ── Save ──────────────────────────────────────────────────
-    doc.save(output_path)
-    console.print(f" [bold green]✔ Template padrão criado:[/bold green] {output_path}")
-    console.print(" [dim]Abra no Microsoft Word para personalizar layouts, logos e estilos.[/dim]")
-    return output_path
+    # ── Footer disclaimer ──
+    doc.add_paragraph("")
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(
+        "Este documento é confidencial e destinado exclusivamente ao cliente. "
+        "A reprodução ou distribuição não autorizada é proibida."
+    )
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+    run.italic = True
+
+    # ── Save ──────────────────────────────────────────────────────
+    doc.save(DEFAULT_TEMPLATE)
+    console.print(
+        f"\n [bold green]✔[/bold green] Template padrão criado em:\n"
+        f" [dim]{DEFAULT_TEMPLATE}[/dim]\n\n"
+        f" [dim]Abra no Word, adicione seu logo, ajuste fontes/cores,[/dim]\n"
+        f" [dim]e salve. Em seguida rode:[/dim]\n\n"
+        f" [bold cyan]openpipes-core report --template {DEFAULT_TEMPLATE}[/bold cyan]\n"
+    )
 
 
 # ── Main entry point ─────────────────────────────────────────────
