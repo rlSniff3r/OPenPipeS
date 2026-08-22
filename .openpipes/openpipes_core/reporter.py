@@ -100,6 +100,22 @@ def _build_host_context(conn, host_id: int, host_name: str,
     )
     open_ports = [dict(r) for r in cur.fetchall()]
 
+    # All ports (for Appendix A)
+    cur.execute(
+        "SELECT port, protocol, state, service, version "
+        "FROM ports WHERE host_id = ? ORDER BY port",
+        (host_id,),
+    )
+    all_ports = [dict(r) for r in cur.fetchall()]
+
+    # Endpoints
+    cur.execute(
+        "SELECT url, status_code, title, web_server, tech_stack, source_tool "
+        "FROM endpoints WHERE host_id = ? ORDER BY url",
+        (host_id,),
+    )
+    endpoints = [dict(r) for r in cur.fetchall()]
+
     # Vulnerabilities (open only)
     cur.execute("""
         SELECT id, title, severity, cvss_score, cvss_vector, cwe_id,
@@ -183,6 +199,8 @@ def _build_host_context(conn, host_id: int, host_name: str,
         "all_ips": host["ips"],
         "tech_summary": ", ".join(sorted(tech_set)) if tech_set else "N/D",
         "open_ports": open_ports,
+        "all_ports": all_ports,       # ← ADD
+        "endpoints": endpoints,       # ← ADD
         "vulnerabilities": vulns,
         "screenshots": screenshots,
         "narrative": host.get("narrative", "") or "",
@@ -435,7 +453,7 @@ def create_default_template():
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run()
-    run.add_picture("{{ severity_chart }}", width=Inches(4.0))
+    p.add_run("{{ severity_chart }}")
 
     doc.add_page_break()
 
@@ -469,7 +487,7 @@ def create_default_template():
                 run.bold = True
                 run.font.size = Pt(9)
     # Jinja2 tags in first cell, endfor in last cell
-    tbl.rows[1].cells[0].text = "{% for host in hosts %}"
+    tbl.rows[1].cells[0].text = "{{ host.name }}{% for host in hosts %}"
     tbl.rows[1].cells[1].text = "{{ host.ip }}"
     tbl.rows[1].cells[2].text = "{{ host.open_ports | length }}"
     tbl.rows[1].cells[3].text = "{{ host.endpoints | length }}"
@@ -545,7 +563,7 @@ def create_default_template():
             for run in p.runs:
                 run.bold = True
                 run.font.size = Pt(9)
-    port_tbl.rows[1].cells[0].text = "{% for port in host.open_ports %}"
+    port_tbl.rows[1].cells[0].text = "{{ port.port }}{% for port in host.open_ports %}"
     port_tbl.rows[1].cells[1].text = "{{ port.protocol }}"
     port_tbl.rows[1].cells[2].text = "{{ port.service }}"
     port_tbl.rows[1].cells[3].text = "{{ port.version }}{% endfor %}"
@@ -569,7 +587,7 @@ def create_default_template():
             for run in p.runs:
                 run.bold = True
                 run.font.size = Pt(9)
-    ep_tbl.rows[1].cells[0].text = "{% for ep in host.endpoints %}"
+    ep_tbl.rows[1].cells[0].text = "{{ ep.url }}{% for ep in host.endpoints %}"
     ep_tbl.rows[1].cells[1].text = "{{ ep.status_code }}"
     ep_tbl.rows[1].cells[2].text = "{{ ep.web_server }}{% endfor %}"
     doc.add_paragraph(
@@ -629,7 +647,7 @@ def create_default_template():
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run()
-    run.add_picture("{{ img }}", width=Inches(5.5))
+    p.add_run("{{ img }}")
     doc.add_paragraph(
         "{% endfor %}"
     )
@@ -677,7 +695,7 @@ def create_default_template():
             for run in p.runs:
                 run.bold = True
                 run.font.size = Pt(8)
-    full_port_tbl.rows[1].cells[0].text = "{% for port in host.all_ports %}"
+    full_port_tbl.rows[1].cells[0].text = "{{ port.port }}{% for port in host.all_ports %}"
     full_port_tbl.rows[1].cells[1].text = "{{ port.protocol }}"
     full_port_tbl.rows[1].cells[2].text = "{{ port.state }}"
     full_port_tbl.rows[1].cells[3].text = "{{ port.service }}"
@@ -692,17 +710,27 @@ def create_default_template():
     # ══════════════════════════════════════════════════════════════
     #  6. APPENDIX B — Screenshots
     # ══════════════════════════════════════════════════════════════
+    # ── 6. APPENDIX B — Screenshots ──
     doc.add_heading("Apêndice B — Capturas de Tela", level=1)
+
+    doc.add_paragraph("{% for host in hosts %}")
+    doc.add_paragraph("{% if host.screenshots %}")
+
+    p = doc.add_paragraph()
+    run = p.add_run("**{{ host.name }}**")
+    run.bold = True
+
     doc.add_paragraph(
-        "{% for host in hosts %}"
-        "{% if host.screenshots %}"
-        "**{{ host.name }}**"
         "{% for shot in host.screenshots %}"
-        "- {{ shot.title | default(shot.source_url, true) }}"
-        "{% endfor %}"
-        "{% endif %}"
+    )
+    doc.add_paragraph(
+        "- {{ shot.title if shot.title else shot.source_url }}"
+    )
+    doc.add_paragraph(
         "{% endfor %}"
     )
+    doc.add_paragraph("{% endif %}")
+    doc.add_paragraph("{% endfor %}")
 
     # ── Footer disclaimer ──
     doc.add_paragraph("")
@@ -771,7 +799,8 @@ def generate_report(proj_path: str, template: str = None,
 
     # Render
     try:
-        tpl.render(ctx, output)
+        tpl.render(ctx)
+        tpl.save(output)
         file_size = os.path.getsize(output) / 1024
         console.print(f"\n[bold green]✔ Relatório gerado![/bold green]")
         console.print(f" [dim]{output} ({file_size:.0f} KB)[/dim]")
