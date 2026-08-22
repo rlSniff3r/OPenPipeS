@@ -413,7 +413,8 @@ Framework de Reconhecimento v2.0
             "1": "recon", "2": "nwrapper", "3": "cria-alvos",
             "4": "httpx-runner", "5": "katana-runner", "6": "feroxbuster-runner",
             "7": "katana-buster", "8": "jsfinder-runner", "9": "screenshot-runner",
-            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "23": "arjun-runner"
+            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "22": "reporter",
+            "23": "arjun-runner"
         }
 
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]MÓDULOS DE PENTEST[/bold cyan]")
@@ -433,6 +434,7 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("[20]", "[bold green]Feed Tools from DB[/bold green]")
         menu_table.add_row("[21]", "[bold yellow]Cycle (Completo)[/bold yellow]")
         menu_table.add_row("[22]", "[bold green]Gerar Relatório DOCX[/bold green]")
+        menu_table.add_row("[23]", "[bold magenta]Arjun Runner[/bold magenta]")
 
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
@@ -491,12 +493,6 @@ Framework de Reconhecimento v2.0
         elif escolha == "24":
             # Chama o próprio script passando os argumentos
             subprocess.run([sys.executable, __file__, "dashboard", "--host", "0.0.0.0", "--port", "5000"])
-
-        elif escolha in opcoes:
-            run_bash_module(opcoes[escolha])
-        else:
-            console.print("[bold red]Opção inválida![/bold red]")
-            time.sleep(1)
         
         elif escolha == "22":
             from reporter import generate_report, create_default_template
@@ -516,6 +512,15 @@ Framework de Reconhecimento v2.0
             else:
                 console.print("[red]Projeto não configurado.[/red]")
 
+        elif escolha == "23":
+            run_bash_module("arjun-runner")
+
+        elif escolha in opcoes:
+            run_bash_module(opcoes[escolha])
+
+        else:
+            console.print("[bold red]Opção inválida![/bold red]")
+            time.sleep(1)
 
 
 def run_reparse_all():
