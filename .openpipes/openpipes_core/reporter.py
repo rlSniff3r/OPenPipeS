@@ -199,8 +199,8 @@ def _build_host_context(conn, host_id: int, host_name: str,
         "all_ips": host["ips"],
         "tech_summary": ", ".join(sorted(tech_set)) if tech_set else "N/D",
         "open_ports": open_ports,
-        "all_ports": all_ports,       # ← ADD
-        "endpoints": endpoints,       # ← ADD
+        "all_ports": all_ports,
+        "endpoints": endpoints,
         "vulnerabilities": vulns,
         "screenshots": screenshots,
         "narrative": host.get("narrative", "") or "",
@@ -270,6 +270,10 @@ def _build_report_context(proj_path: str, client_name: str = "",
                     "AND state = 'open'")
         total_ports = cur.fetchone()[0]
 
+        # ADD total_endpoints and total_ports to stats
+        stats["total_endpoints"] = total_endpoints
+        stats["total_ports"] = total_ports
+
     return {
         "project_name": os.path.basename(proj_path),
         "client_name": client_name or os.path.basename(proj_path),
@@ -282,12 +286,19 @@ def _build_report_context(proj_path: str, client_name: str = "",
             "total_ports": total_ports,
         },
         "hosts": hosts_ctx,
-        "methodology": (
-            "A metodologia de teste seguiu as diretrizes do OWASP Testing Guide v4, "
-            "combinada com técnicas de reconnaissance e exploração automatizadas e manuais. "
-            "As ferramentas utilizadas incluíram Nmap, HTTPx, Katana, Feroxbuster, Nuclei, "
-            "JSFinder e GF para cobertura abrangente de superfície de ataque e vulnerabilidades."
-        ),
+        "methodology": {                              # ← change to dict
+            "scope_summary": f"{len(scope_domains)} domínio(s), {len(host_rows)} host(s)",
+            "phases": (
+                "1. Reconhecimento (DNS, WHOIS, subdomínios)\n"
+                "2. Varredura de portas e serviços (Nmap)\n"
+                "3. Descoberta de endpoints web (HTTPx, Katana, Feroxbuster)\n"
+                "4. Análise de JavaScript (JSFinder)\n"
+                "5. Detecção de vulnerabilidades (Nuclei)\n"
+                "6. Descoberta de parâmetros (Arjun)\n"
+                "7. Análise de padrões (GF)\n"
+                "8. Documentação e relatório"
+            ),
+        },
     }
 
 
