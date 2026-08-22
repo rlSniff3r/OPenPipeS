@@ -413,8 +413,7 @@ Framework de Reconhecimento v2.0
             "1": "recon", "2": "nwrapper", "3": "cria-alvos",
             "4": "httpx-runner", "5": "katana-runner", "6": "feroxbuster-runner",
             "7": "katana-buster", "8": "jsfinder-runner", "9": "screenshot-runner",
-            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "22": "dalfox-runner",
-            "23": "arjun-runner"
+            "10": "gf-summary", "11": "whois-enricher", "12": "nuclei-runner", "23": "arjun-runner"
         }
 
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]MÓDULOS DE PENTEST[/bold cyan]")
@@ -433,6 +432,7 @@ Framework de Reconhecimento v2.0
         menu_table.add_row("[19]", "[bold cyan]Verifier (Valida Endpoints via HTTP)[/bold cyan]")
         menu_table.add_row("[20]", "[bold green]Feed Tools from DB[/bold green]")
         menu_table.add_row("[21]", "[bold yellow]Cycle (Completo)[/bold yellow]")
+        menu_table.add_row("[22]", "[bold green]Gerar Relatório DOCX[/bold green]")
 
         menu_table.add_row("", "")
         menu_table.add_row("[cyan]--[/cyan]", "[bold cyan]ORQUESTRAÇÃO E SISTEMA[/bold cyan]")
@@ -497,6 +497,25 @@ Framework de Reconhecimento v2.0
         else:
             console.print("[bold red]Opção inválida![/bold red]")
             time.sleep(1)
+        
+        elif escolha == "22":
+            from reporter import generate_report, create_default_template
+            proj_name, proj_path, _ = get_project_env()
+            if proj_path:
+                db.init_db(proj_path)
+                escolha_tpl = Prompt.ask(
+                    "[bold cyan]Template[/bold cyan]",
+                    choices=["padrão", "customizado"], default="padrão"
+                )
+                if escolha_tpl == "customizado":
+                    tpl_path = Prompt.ask("Caminho do .docx")
+                else:
+                    tpl_path = None
+                client = Prompt.ask("[bold cyan]Nome do cliente[/bold cyan]", default=proj_name)
+                generate_report(proj_path, template=tpl_path, client_name=client)
+            else:
+                console.print("[red]Projeto não configurado.[/red]")
+
 
 
 def run_reparse_all():
@@ -696,6 +715,16 @@ def main():
     dashboard_parser.add_argument("--host", default="127.0.0.1", help="Bind address (use 0.0.0.0 for LAN)")
     dashboard_parser.add_argument("--port", type=int, default=5000, help="Port")
 
+    # Report
+    report_parser = subparsers.add_parser("report", help="Gerar relatório DOCX")
+    report_parser.add_argument("--template", "-t", help="Template .docx customizado")
+    report_parser.add_argument("--output", "-o", help="Caminho de saída .docx")
+    report_parser.add_argument("--client", help="Nome do cliente (capa)")
+    report_parser.add_argument("--all-hosts", action="store_true",
+                               help="Incluir todos os hosts vivos")
+    report_parser.add_argument("--init-template", action="store_true",
+                               help="Gerar template padrão para customização")
+
     if len(sys.argv) == 1:
         interactive_menu()
     else:
@@ -844,6 +873,24 @@ def main():
         elif module_name == "arjun-runner":
             parse_arjun(proj_path, nmap_dir)
             _mark_scanned_by_url(proj_path, nmap_dir, "arjun")
+        
+        elif args.command == "report":
+            from reporter import generate_report, create_default_template
+            if args.init_template:
+                create_default_template()
+            else:
+                proj_name, proj_path, _ = get_project_env()
+                if proj_path:
+                    db.init_db(proj_path)
+                    generate_report(
+                        proj_path,
+                        template=args.template,
+                        output=args.output,
+                        client_name=args.client or "",
+                        all_hosts=args.all_hosts,
+                    )
+                else:
+                    console.print("[red]Erro: Projeto não configurado.[/red]")
 
 
 if __name__ == "__main__":
