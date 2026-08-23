@@ -503,7 +503,7 @@ Framework de Reconhecimento v2.0
             subprocess.run([sys.executable, __file__, "dashboard", "--host", "0.0.0.0", "--port", "5000"])
         
         elif escolha == "25":
-            from reporter import generate_report, create_default_template
+            from reporter import generate_report
             proj_name, proj_path, _ = get_project_env()
             if proj_path:
                 db.init_db(proj_path)
@@ -890,9 +890,10 @@ def main():
             parsers.parse_dalfox(proj_path, nmap_dir)
         
         elif args.command == "report":
-            from reporter import generate_report, create_default_template
+            from reporter import generate_report
             if args.init_template:
-                create_default_template()
+                console.print("[yellow]⚠ A criação automática via código foi descontinuada na v2.0.[/yellow]")
+                console.print("[dim]Use o script gera_template.py ou crie seu template DOCX nativo manualmente em ~/.openpipes/.templates/pentest_report.docx[/dim]")
             else:
                 proj_name, proj_path, _ = get_project_env()
                 if proj_path:

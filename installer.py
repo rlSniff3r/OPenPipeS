@@ -137,7 +137,7 @@ def setup_framework_files():
 def install_apt_deps():
     deps = ("nmap curl wget git jq fzf yq exiftool python3 python3-pip "
             "python3-venv python3-setuptools golang-go build-essential whois "
-            "dnsutils libpcap-dev libssl-dev pkg-config unzip")
+            "dnsutils libpcap-dev libssl-dev pkg-config unzip nodejs npm")
     run_cmd("apt-get update -qq", sudo=True)
     run_cmd(f"apt-get install -y -qq {deps}", sudo=True)
 
@@ -275,6 +275,17 @@ def setup_isolated_venvs():
                 shutil.rmtree(os.path.join(root, d), ignore_errors=True)
 
 
+def setup_node_env():
+    """Instala os pacotes NPM necessários para o novo motor de relatórios DOCX."""
+    report_engine_dir = f"{OPENPIPES_DIR}/openpipes_core"
+    
+    # Executa o npm install silencioso (--silent) na pasta do core (--prefix)
+    run_cmd(
+        f"npm install pizzip docxtemplater docxtemplater-image-module-free "
+        f"image-size angular-expressions --prefix {report_engine_dir} --silent"
+    )
+
+
 def install_wordlists():
     seclists = "/usr/share/wordlists/seclists"
     if not os.path.exists(seclists):
@@ -369,6 +380,7 @@ def main():
         ("VENVs...", setup_isolated_venvs),
         ("Dnsrecon...", install_dnsrecon),
         ("Wordlists...", install_wordlists),
+        ("Node.js Reporter Engine...", setup_node_env)
         ("Configurando ambiente...", configure_environment),
     ]
 
