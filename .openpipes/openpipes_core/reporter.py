@@ -138,19 +138,14 @@ def _build_host_context(conn, host_id: int, host_name: str,
             if cwe_match else ""
         )
 
+        # Como deve ficar:
         evidence_images = []
-        if tpl_doc:
-            cur.execute("SELECT stored_name FROM user_evidences WHERE vuln_id = ?",
-                        (v["id"],))
-            for er in cur.fetchall():
-                img_path = os.path.join(evidence_dir, er["stored_name"])
-                if os.path.exists(img_path):
-                    try:
-                        evidence_images.append(
-                            InlineImage(tpl_doc, img_path, width=Inches(5.5))
-                        )
-                    except Exception:
-                        pass
+        cur.execute("SELECT stored_name FROM user_evidences WHERE vuln_id = ?", (v["id"],))
+        for er in cur.fetchall():
+            img_path = os.path.join(evidence_dir, er["stored_name"])
+            if os.path.exists(img_path):
+                # Mandamos um dicionário para facilitar o loop no Word!
+                evidence_images.append({"img_path": img_path})
         v["evidence_images"] = evidence_images
         vulns.append(v)
 
@@ -158,19 +153,14 @@ def _build_host_context(conn, host_id: int, host_name: str,
         "SELECT file_path, source_url, title FROM screenshots WHERE host_id = ?",
         (host_id,),
     )
+
     screenshots = []
-    ss_dir = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Screenshots")
-    for r in cur.fetchall():
-        s = dict(r)
-        full_path = os.path.join(ss_dir, s["file_path"])
-        if tpl_doc and os.path.exists(full_path):
-            try:
-                s["image"] = InlineImage(tpl_doc, full_path, width=Inches(5))
-            except Exception:
-                s["image"] = None
-        else:
-            s["image"] = None
-        screenshots.append(s)
+    full_path = os.path.join(ss_dir, s["file_path"])
+    if os.path.exists(full_path):
+        s["image"] = full_path
+    else:
+        s["image"] = ""
+    screenshots.append(s)
 
     tech_set = set()
     cur.execute("SELECT tech_stack FROM endpoints WHERE host_id = ?", (host_id,))
@@ -307,15 +297,24 @@ def generate_report(proj_path: str, template: str = None,
 
     console.print(f"\n[bold cyan]▶ Preparando dados (Python) e Gerando DOCX (Node.js)...[/bold cyan]")
     
-    # 1. Python extrai os dados
+    # 1. Python extrai os dados da base PRIMEIRO
     ctx = _build_report_context(proj_path, client_name, all_hosts)
     
-    # 2. Salva o contexto num JSON temporário
+    # 2. Gera o gráfico e insere o caminho em string no contexto
+    chart_path = os.path.join(tempfile.gettempdir(), "openpipes_severity_chart.png")
+    chart_file = _generate_severity_chart(ctx["stats"], chart_path)
+
+    if chart_file:
+        ctx["severity_chart"] = chart_file
+    else:
+        ctx["severity_chart"] = ""
+
+    # 3. Salva o contexto num JSON temporário
     temp_json = os.path.join(tempfile.gettempdir(), "openpipes_context.json")
     with open(temp_json, "w", encoding="utf-8") as f:
         json.dump(ctx, f, ensure_ascii=False)
 
-    # 3. Passa a bola pro Node.js
+    # 4. Passa a bola pro Node.js
     generator_script = os.path.join(os.path.dirname(__file__), "generator.js")
     
     try:
@@ -329,5 +328,6 @@ def generate_report(proj_path: str, template: str = None,
             console.print(f" [dim]{output} ({file_size:.0f} KB)[/dim]")
         else:
             console.print(f"[bold red]✖ Erro no Node.js:[/bold red] {result.stderr}")
+
     except subprocess.CalledProcessError as e:
         console.print(f"[bold red]✖ Falha ao executar o gerador JS:[/bold red] {e.stderr}")
