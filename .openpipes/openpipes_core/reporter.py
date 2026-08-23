@@ -149,18 +149,27 @@ def _build_host_context(conn, host_id: int, host_name: str,
         v["evidence_images"] = evidence_images
         vulns.append(v)
 
+    # ── Screenshots (Adaptado para o Node.js) ──
     cur.execute(
         "SELECT file_path, source_url, title FROM screenshots WHERE host_id = ?",
         (host_id,),
     )
-
     screenshots = []
-    full_path = os.path.join(ss_dir, s["file_path"])
-    if os.path.exists(full_path):
-        s["image"] = full_path
-    else:
-        s["image"] = ""
-    screenshots.append(s)
+    
+    # Olha a nossa variável ss_dir de volta aqui!
+    ss_dir = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Screenshots")
+    
+    for r in cur.fetchall():
+        s = dict(r)
+        full_path = os.path.join(ss_dir, s["file_path"])
+        
+        # Se a imagem existir no disco, mandamos a string absoluta pro Node.js
+        if os.path.exists(full_path):
+            s["image"] = full_path
+        else:
+            s["image"] = ""
+            
+        screenshots.append(s)
 
     tech_set = set()
     cur.execute("SELECT tech_stack FROM endpoints WHERE host_id = ?", (host_id,))

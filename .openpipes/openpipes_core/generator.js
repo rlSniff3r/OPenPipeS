@@ -29,7 +29,7 @@ function angularParser(tag) {
     };
 }
 
-// ── 2. Módulo de Imagem Avançado (Auto-Resize) ──
+// ── 2. Módulo de Imagem (Tamanho Original / Full Quality) ──
 const imageOpts = {
     centered: false,
     fileType: "docx",
@@ -39,22 +39,18 @@ const imageOpts = {
             return fs.readFileSync(imgPath);
         }
         console.warn(`[Aviso] Imagem não encontrada: ${imgPath}`);
-        // Retorna um pixel transparente se a imagem falhar, evitando quebra do DOCX
         return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
     },
     getSize: function(img, tagValue, tagName) {
         try {
+            // Lemos a imagem com o image-size
             const dimensions = sizeOf(img);
-            const maxWidthPixels = 600; // Largura máxima segura para A4
             
-            if (dimensions.width > maxWidthPixels) {
-                const ratio = maxWidthPixels / dimensions.width;
-                return [maxWidthPixels, Math.round(dimensions.height * ratio)];
-            }
+            // Retornamos exatamente a largura e altura originais! Sem cortes.
             return [dimensions.width, dimensions.height];
         } catch (e) {
             console.warn(`[Aviso] Falha ao ler dimensões da imagem. Usando fallback.`);
-            return [400, 300]; 
+            return [600, 400]; 
         }
     }
 };

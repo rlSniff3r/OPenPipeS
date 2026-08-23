@@ -728,6 +728,10 @@ def main():
     backup_sub.add_parser("create", help="Criar backup manual")
     backup_sub.add_parser("list", help="Listar backups")
     backup_sub.add_parser("restore", help="Restaurar backup")
+    restore_parser = backup_sub.add_parser("restore", help="Restore a backup")
+    restore_parser.add_argument("backup_file", nargs="?", default=None,
+                            help="Backup filename (optional, uses fzf if omitted)")
+
 
     # Web Dashboard subcommand
     dashboard_parser = subparsers.add_parser("dashboard", help="Start web dashboard")
@@ -845,12 +849,18 @@ def main():
             elif args.backup_cmd == "restore":
                 proj_name, proj_path, nmap_dir = get_project_env()
                 if proj_path:
-                    backups = bk.list_backups()
-                    if backups:
-                        from db_viewer import _fzf_select
-                        selected = _fzf_select(backups, "Select backup:")
-                        if selected:
-                            bk.restore(selected[0], proj_path, nmap_dir)
+                    # Check if a specific backup file was provided
+                    backup_file = getattr(args, 'backup_file', None)
+                    if backup_file:
+                        bk.restore(backup_file, proj_path, nmap_dir)
+                    else:
+                        backups = bk.list_backups()
+                        if backups:
+                            from db_viewer import _fzf_select
+                            selected = _fzf_select(backups, "Select backup:")
+                            if selected:
+                                bk.restore(selected[0], proj_path, nmap_dir)
+
 
         elif args.command == "dashboard":            
             # Resolve proj_path inline para passar para o backend
