@@ -498,7 +498,7 @@ def create_default_template():
                 run.bold = True
                 run.font.size = Pt(9)
     # Jinja2 tags in first cell, endfor in last cell
-    tbl.rows[1].cells[0].text = "{{ host.name }}{% for host in hosts %}"
+    tbl.rows[1].cells[0].text = "{% for host in hosts %}{{ host.name }}"
     tbl.rows[1].cells[1].text = "{{ host.ip }}"
     tbl.rows[1].cells[2].text = "{{ host.open_ports | length }}"
     tbl.rows[1].cells[3].text = "{{ host.endpoints | length }}"
@@ -574,7 +574,7 @@ def create_default_template():
             for run in p.runs:
                 run.bold = True
                 run.font.size = Pt(9)
-    port_tbl.rows[1].cells[0].text = "{{ port.port }}{% for port in host.open_ports %}"
+    port_tbl.rows[1].cells[0].text = "{% for port in host.open_ports %}{{ port.port }}"
     port_tbl.rows[1].cells[1].text = "{{ port.protocol }}"
     port_tbl.rows[1].cells[2].text = "{{ port.service }}"
     port_tbl.rows[1].cells[3].text = "{{ port.version }}{% endfor %}"
@@ -598,7 +598,7 @@ def create_default_template():
             for run in p.runs:
                 run.bold = True
                 run.font.size = Pt(9)
-    ep_tbl.rows[1].cells[0].text = "{{ ep.url }}{% for ep in host.endpoints %}"
+    ep_tbl.rows[1].cells[0].text = "{% for ep in host.endpoints %}{{ ep.url }}"
     ep_tbl.rows[1].cells[1].text = "{{ ep.status_code }}"
     ep_tbl.rows[1].cells[2].text = "{{ ep.web_server }}{% endfor %}"
     doc.add_paragraph(
@@ -706,7 +706,7 @@ def create_default_template():
             for run in p.runs:
                 run.bold = True
                 run.font.size = Pt(8)
-    full_port_tbl.rows[1].cells[0].text = "{{ port.port }}{% for port in host.all_ports %}"
+    full_port_tbl.rows[1].cells[0].text = "{% for port in host.all_ports %}{{ port.port }}"
     full_port_tbl.rows[1].cells[1].text = "{{ port.protocol }}"
     full_port_tbl.rows[1].cells[2].text = "{{ port.state }}"
     full_port_tbl.rows[1].cells[3].text = "{{ port.service }}"
