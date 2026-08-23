@@ -380,7 +380,7 @@ def main():
         ("VENVs...", setup_isolated_venvs),
         ("Dnsrecon...", install_dnsrecon),
         ("Wordlists...", install_wordlists),
-        ("Node.js Reporter Engine...", setup_node_env)
+        ("Node.js Reporter Engine...", setup_node_env),
         ("Configurando ambiente...", configure_environment),
     ]
 
