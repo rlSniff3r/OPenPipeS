@@ -727,7 +727,6 @@ def main():
     backup_sub = backup_parser.add_subparsers(dest="backup_cmd")
     backup_sub.add_parser("create", help="Criar backup manual")
     backup_sub.add_parser("list", help="Listar backups")
-    backup_sub.add_parser("restore", help="Restaurar backup")
     restore_parser = backup_sub.add_parser("restore", help="Restore a backup")
     restore_parser.add_argument("backup_file", nargs="?", default=None,
                             help="Backup filename (optional, uses fzf if omitted)")

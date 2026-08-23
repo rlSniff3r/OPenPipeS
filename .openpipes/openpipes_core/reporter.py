@@ -76,6 +76,23 @@ def _generate_severity_chart(stats: dict, output_path: str) -> Optional[str]:
     return output_path
 
 
+def _generate_cwe_chart(cwe_counts, output_path):
+    import matplotlib.pyplot as plt
+    if not cwe_counts: 
+        return ""
+    
+    labels, sizes = zip(*cwe_counts.items())
+    fig, ax = plt.subplots(figsize=(7, 4))
+    
+    # wedgeprops cria o estilo "Rosca" (Donut Chart)
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, wedgeprops=dict(width=0.4))
+    plt.title("Distribuição de Vulnerabilidades por Categoria (CWE)")
+    
+    plt.savefig(output_path, bbox_inches='tight', dpi=300)
+    plt.close()
+    return output_path
+
+
 # ── Context builders ─────────────────────────────────────────────
 def _build_host_context(conn, host_id: int, host_name: str,
                         proj_path: str, tpl_doc=None) -> Optional[dict]:
@@ -200,6 +217,10 @@ def _build_host_context(conn, host_id: int, host_name: str,
 def _build_report_context(proj_path: str, client_name: str = "",
                           all_hosts: bool = False, tpl_doc=None) -> dict:
     """Build the complete Jinja2 context for the report template."""
+    import os
+    import re
+    from datetime import datetime
+    
     scope_domains = []
     domains_file = os.path.join(proj_path, "domains.txt")
     if os.path.exists(domains_file):
@@ -215,6 +236,8 @@ def _build_report_context(proj_path: str, client_name: str = "",
     }
 
     hosts_ctx = []
+    vuln_matrix = []
+    cwe_metrics = {}
 
     with db.get_connection(proj_path) as conn:
         cur = conn.cursor()
@@ -252,6 +275,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
         cur.execute("SELECT COUNT(*) FROM endpoints WHERE host_id IN "
                     "(SELECT id FROM hosts WHERE is_alive = 1 AND in_scope = 1)")
         total_endpoints = cur.fetchone()[0]
+        
         cur.execute("SELECT COUNT(*) FROM ports WHERE host_id IN "
                     "(SELECT id FROM hosts WHERE is_alive = 1 AND in_scope = 1) "
                     "AND state = 'open'")
@@ -259,7 +283,29 @@ def _build_report_context(proj_path: str, client_name: str = "",
 
         stats["total_endpoints"] = total_endpoints
         stats["total_ports"] = total_ports
+    
+        # 1. Matriz de Vulnerabilidades (Agrupada por falha e não por host)
+        cur.execute("""
+            SELECT v.title, v.severity, v.cvss_score, v.cve_id, 
+                   GROUP_CONCAT(h.host, ', ') as affected_hosts,
+                   COUNT(h.id) as host_count
+            FROM user_vulnerabilities v
+            JOIN hosts h ON v.host_id = h.id
+            GROUP BY v.title, v.severity
+            ORDER BY v.cvss_score DESC
+        """)
+        vuln_matrix = [dict(row) for row in cur.fetchall()]
 
+        # 2. Agrupamento para o Gráfico de CWE
+        cur.execute("""
+            SELECT cwe_id, COUNT(*) as qtd 
+            FROM user_vulnerabilities 
+            WHERE cwe_id IS NOT NULL AND cwe_id != '' 
+            GROUP BY cwe_id
+        """)
+        cwe_metrics = {row["cwe_id"]: row["qtd"] for row in cur.fetchall()}
+
+    # O retorno master consolidando tudo!
     return {
         "project_name": os.path.basename(proj_path),
         "client_name": client_name or os.path.basename(proj_path),
@@ -272,6 +318,8 @@ def _build_report_context(proj_path: str, client_name: str = "",
             "total_ports": total_ports,
         },
         "hosts": hosts_ctx,
+        "vulnerability_matrix": vuln_matrix,       # <-- NOVA CHAVE AQUI
+        "cwe_metrics": cwe_metrics,                # <-- NOVA CHAVE AQUI
         "methodology": {
             "scope_summary": f"{len(scope_domains)} domínio(s), {len(host_rows)} host(s)",
             "phases": (
@@ -286,7 +334,6 @@ def _build_report_context(proj_path: str, client_name: str = "",
             ),
         },
     }
-
 
 # ── Main entry point ─────────────────────────────────────────────
 def generate_report(proj_path: str, template: str = None,
@@ -317,6 +364,15 @@ def generate_report(proj_path: str, template: str = None,
         ctx["severity_chart"] = chart_file
     else:
         ctx["severity_chart"] = ""
+
+    # Novo bloco a ser inserido em generate_report()
+    cwe_path = os.path.join(tempfile.gettempdir(), "openpipes_cwe_chart.png")
+    cwe_file = _generate_cwe_chart(ctx.get("cwe_metrics", {}), cwe_path)
+    
+    if cwe_file:
+        ctx["cwe_chart"] = cwe_file
+    else:
+        ctx["cwe_chart"] = ""
 
     # 3. Salva o contexto num JSON temporário
     temp_json = os.path.join(tempfile.gettempdir(), "openpipes_context.json")
