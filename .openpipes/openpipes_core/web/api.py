@@ -6,12 +6,15 @@ import subprocess
 import base64
 import renderer
 import asyncio
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+import shutil
+import reporter
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, File, UploadFile
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Any
 from cvss import CVSS3
+from datetime import datetime
 
 # Adiciona o diretório raiz 'openpipes_core' ao sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -67,6 +70,27 @@ def _get_nmap_dir(proj_path: str) -> str:
         return nmap_dir if nmap_dir else os.path.join(proj_path, "Varreduras")
     except Exception:
         return os.path.join(proj_path, "Varreduras")
+
+
+def get_next_report_filename(proj_path: str, base_name: str) -> str:
+    """
+    Verifica se o arquivo existe. Se existir, adiciona _v1, _v2, etc.
+    Ex: Relatorio_BusinessCorp_20260824.docx -> Relatorio_BusinessCorp_20260824_v1.docx
+    """
+    output_dir = os.path.join(proj_path, "Relatorios") # Recomendo criar uma pasta Relatorios
+    os.makedirs(output_dir, exist_ok=True)
+    
+    base_path = os.path.join(output_dir, f"{base_name}.docx")
+    
+    if not os.path.exists(base_path):
+        return base_path
+
+    version = 1
+    while True:
+        versioned_path = os.path.join(output_dir, f"{base_name}_v{version}.docx")
+        if not os.path.exists(versioned_path):
+            return versioned_path
+        version += 1
 
 # =====================================================================
 # ROTAS DA API
@@ -901,3 +925,92 @@ def execute_bulk_action(table: str, payload: BulkActionPayload, background_tasks
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/reports/templates")
+def list_templates(username: str = Depends(verificar_autenticacao)):
+    """Lista os templates DOCX disponíveis na pasta .templates"""
+    template_dir = os.path.expanduser("~/.openpipes/.templates")
+    os.makedirs(template_dir, exist_ok=True)
+    
+    templates = []
+    for file in os.listdir(template_dir):
+        if file.endswith(".docx") and not file.startswith("~$"): # Ignora arquivos temporários do Word
+            templates.append(file)
+            
+    return {"templates": templates}
+
+@app.post("/api/reports/templates/upload")
+async def upload_template(file: UploadFile = File(...), username: str = Depends(verificar_autenticacao)):
+    """Faz o upload de um novo template DOCX"""
+    if not file.filename.endswith('.docx'):
+        raise HTTPException(status_code=400, detail="Apenas arquivos .docx são permitidos")
+        
+    template_dir = os.path.expanduser("~/.openpipes/.templates")
+    file_path = os.path.join(template_dir, file.filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        return {"status": "success", "message": f"Template {file.filename} salvo com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ReportRequest(BaseModel):
+    client_name: str
+    template_name: str
+    all_hosts: bool
+
+@app.post("/api/reports/generate")
+def api_generate_report(data: ReportRequest, username: str = Depends(verificar_autenticacao)):
+    """Aciona a geração do Relatório com versionamento automático"""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    template_dir = os.path.expanduser("~/.openpipes/.templates")
+    template_path = os.path.join(template_dir, data.template_name)
+    
+    if not os.path.exists(template_path):
+        raise HTTPException(status_code=404, detail="Template selecionado não existe")
+
+    # Lógica de versionamento do arquivo
+    proj_name = os.path.basename(proj_path)
+    date_str = datetime.now().strftime('%Y%m%d')
+    base_name = f"Relatorio_{proj_name}_{date_str}"
+    
+    # Função declarada acima
+    output_path = get_next_report_filename(proj_path, base_name)
+    
+    try:
+        # Garante que o banco está pronto
+        import db
+        db.init_db(proj_path)
+        
+        # Chama a função que já existe no seu reporter.py
+        reporter.generate_report(
+            proj_path=proj_path,
+            template=template_path,
+            output=output_path,
+            client_name=data.client_name,
+            all_hosts=data.all_hosts
+        )
+        
+        if os.path.exists(output_path):
+            return {
+                "status": "success", 
+                "message": f"Relatório gerado!", 
+                "file_path": output_path,
+                "file_name": os.path.basename(output_path)
+            }
+        else:
+             raise HTTPException(status_code=500, detail="Erro interno: Arquivo não foi criado pelo Node.js")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/reports/download")
+def download_report(file_path: str, username: str = Depends(verificar_autenticacao)):
+    """Faz o download do relatório recém gerado"""
+    if not os.path.exists(file_path) or not file_path.endswith('.docx'):
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado ou inválido")
+    return FileResponse(file_path, filename=os.path.basename(file_path), media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
