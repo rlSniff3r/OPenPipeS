@@ -288,23 +288,32 @@ def _generate_severity_chart(stats, output_path):
         stats.get('critical', 0), stats.get('high', 0), 
         stats.get('medium', 0), stats.get('low', 0), stats.get('info', 0)
     ]
-    colors = ['#8b0000', '#ff4500', '#ff8c00', '#2e8b57', '#4682b4'] # Paleta Executiva
     
-    # Filtra categorias zeradas para o gráfico não ficar feio
+    # Nova paleta de cores exata solicitada (com azul para Info)
+    colors = ['#FF0000', '#FF6600', '#FFEB3B', '#4CAF50', '#2196F3'] 
+    
+    # Filtra categorias zeradas
     dados = [(l, s, c) for l, s, c in zip(labels, sizes, colors) if s > 0]
     if not dados:
         return ""
     
     l, s, c = zip(*dados)
     
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.pie(s, labels=l, colors=c, autopct='%1.1f%%', startangle=140, 
-           textprops={'color':"black", 'weight':'bold'},
-           wedgeprops={'edgecolor': 'white', 'linewidth': 2}) # Bordas brancas
+    # Largura: 8.27cm / Altura: 7cm (convertido para polegadas)
+    fig, ax = plt.subplots(figsize=(8.27 / 2.54, 7.0 / 2.54))
+
+    # Note que removemos o parâmetro 'labels=l' para limpar a pizza!
+    wedges, texts, autotexts = ax.pie(
+        s, colors=c, autopct='%1.1f%%', startangle=140, 
+        textprops={'color': "black", 'weight': 'bold', 'fontsize': 10},
+        wedgeprops={'edgecolor': 'white', 'linewidth': 2}
+    )
     
-    plt.title("Severidade das Vulnerabilidades", weight='bold')
+    plt.title("Severidade das Vulnerabilidades", weight='bold', pad=20)
     
-    # dpi=300 garante qualidade de revista!
+    # Adicionamos a legenda elegantemente alinhada à direita
+    ax.legend(wedges, l, title="Severidades", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+    
     plt.savefig(output_path, bbox_inches='tight', dpi=300, transparent=True)
     plt.close()
     return output_path
@@ -316,14 +325,21 @@ def _generate_cwe_chart(cwe_counts, output_path):
         return ""
     
     labels, sizes = zip(*cwe_counts.items())
-    fig, ax = plt.subplots(figsize=(6, 4))
     
-    # width=0.4 cria o buraco no meio (Gráfico de Rosca)
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, 
-           wedgeprops=dict(width=0.4, edgecolor='white', linewidth=2),
-           textprops={'weight':'bold'})
+    # Largura: 10cm / Altura: 7cm (convertido para polegadas)
+    fig, ax = plt.subplots(figsize=(10.0 / 2.54, 7.0 / 2.54))    
+    
+    # Sem 'labels=labels', deixando só as porcentagens na rosca
+    wedges, texts, autotexts = ax.pie(
+        sizes, autopct='%1.1f%%', startangle=140, 
+        wedgeprops=dict(width=0.4, edgecolor='white', linewidth=2),
+        textprops={'color': "black", 'weight': 'bold', 'fontsize': 9}
+    )
            
-    plt.title("Distribuição por Categoria (CWE)", weight='bold')
+    plt.title("Distribuição por Categoria (CWE)", weight='bold', pad=20)
+    
+    # Legenda lateral para as CWEs
+    ax.legend(wedges, labels, title="Categorias CWE", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
     
     plt.savefig(output_path, bbox_inches='tight', dpi=300, transparent=True)
     plt.close()

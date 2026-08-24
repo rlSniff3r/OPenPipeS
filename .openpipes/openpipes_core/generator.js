@@ -41,23 +41,35 @@ const imageOpts = {
         console.warn(`[Aviso] Imagem não encontrada: ${imgPath}`);
         return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
     },
+
     getSize: function(img, tagValue, tagName) {
         try {
-            const dimensions = sizeOf(img);
-            const maxWidth = 600; // Largura máxima segura para a margem do Word (A4)
+            // 1 cm = 37.8 pixels (Padrão de impressão do Word)
             
-            // Se a imagem for maior que a folha, calculamos a proporção exata!
+            // Trava exata para o Gráfico de Severidade (8.27 cm x 7.0 cm)
+            if (tagName === "severity_chart") {
+                return [Math.round(8.27 * 37.8), Math.round(7.0 * 37.8)];
+            }
+            
+            // Trava exata para o Gráfico de CWE (10.0 cm x 7.0 cm)
+            if (tagName === "cwe_chart") {
+                return [Math.round(10.0 * 37.8), Math.round(7.0 * 37.8)];
+            }
+
+            // Para as outras imagens (evidências e screenshots), mantém o redimensionamento dinâmico
+            const dimensions = sizeOf(img);
+            const maxWidth = 600; 
+            
             if (dimensions.width > maxWidth) {
                 const ratio = dimensions.height / dimensions.width;
                 const newHeight = Math.round(maxWidth * ratio);
                 return [maxWidth, newHeight];
             }
-            
-            // Se já for pequena, retorna o tamanho normal
             return [dimensions.width, dimensions.height];
+            
         } catch (e) {
-            console.warn(`[Aviso] Falha ao ler dimensões. Usando fallback 16:9.`);
-            return [600, 337]; // 337 é exatamente 16:9 para uma largura de 600!
+            console.warn(`[Aviso] Falha ao ler dimensões da imagem.`);
+            return [600, 337];
         }
     }
 };
