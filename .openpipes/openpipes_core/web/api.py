@@ -535,16 +535,16 @@ class BulkActionPayload(BaseModel):
     filters: List[DBFilter] = []
 
 class ProjectDetailsUpdate(BaseModel):
-    client_first_name: str
-    client_last_name: str
-    client_email: str
-    client_phone: str
-    date_start: str
-    date_end: str
-    date_report: str
+    client_first_name: Optional[str] = ""
+    client_last_name: Optional[str] = ""
+    client_email: Optional[str] = ""
+    client_phone: Optional[str] = ""
+    date_start: Optional[str] = ""
+    date_end: Optional[str] = ""
+    date_report: Optional[str] = ""
 
 class ProjectLogoUpdate(BaseModel):
-    client_logo_b64: str
+    client_logo_b64: Optional[str] = ""
 
 # =====================================================================
 # ROTAS DA FASE 8 (DEEP EDIT CVSS)
@@ -1039,14 +1039,13 @@ def get_project_details(username: str = Depends(verificar_autenticacao)):
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
     try:
+        db.init_db(proj_path) # <--- GATILHO DA MIGRAÇÃO AQUI!
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
-            # Como assumimos 1 projeto por arquivo .openpipes.db, pegamos o primeiro (ou baseado no nome)
             cursor.execute("SELECT * FROM projects LIMIT 1")
             row = cursor.fetchone()
             if not row:
-                return {} # Retorna vazio se não achar, frontend lida com isso
-            
+                return {} 
             return dict(row)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1059,10 +1058,10 @@ def update_project_details(data: ProjectDetailsUpdate, username: str = Depends(v
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
     try:
+        db.init_db(proj_path) # <--- E AQUI TAMBÉM!
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
             
-            # Garante que pelo menos o registro do projeto exista
             proj_name = os.path.basename(proj_path)
             cursor.execute("INSERT OR IGNORE INTO projects (name) VALUES (?)", (proj_name,))
             
@@ -1073,9 +1072,9 @@ def update_project_details(data: ProjectDetailsUpdate, username: str = Depends(v
                     date_start = ?, date_end = ?, date_report = ?
                 WHERE name = ? OR id = (SELECT id FROM projects LIMIT 1)
             """, (
-                data.client_first_name, data.client_last_name, 
-                data.client_email, data.client_phone,
-                data.date_start, data.date_end, data.date_report,
+                data.client_first_name or "", data.client_last_name or "", 
+                data.client_email or "", data.client_phone or "",
+                data.date_start or "", data.date_end or "", data.date_report or "",
                 proj_name
             ))
             conn.commit()
@@ -1092,6 +1091,7 @@ def update_project_logo(data: ProjectLogoUpdate, username: str = Depends(verific
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
     try:
+        db.init_db(proj_path) # <--- E AQUI SÓ POR GARANTIA!
         with db.get_connection(proj_path) as conn:
             cursor = conn.cursor()
             proj_name = os.path.basename(proj_path)
@@ -1100,7 +1100,7 @@ def update_project_logo(data: ProjectLogoUpdate, username: str = Depends(verific
             cursor.execute("""
                 UPDATE projects SET client_logo_b64 = ? 
                 WHERE name = ? OR id = (SELECT id FROM projects LIMIT 1)
-            """, (data.client_logo_b64, proj_name))
+            """, (data.client_logo_b64 or "", proj_name))
             conn.commit()
             
             return {"status": "success", "message": "Logo atualizada com sucesso!"}
