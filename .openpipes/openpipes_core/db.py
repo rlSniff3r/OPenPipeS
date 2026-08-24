@@ -71,15 +71,27 @@ def init_db(proj_path):
 
         # ── Projects ────────────────────────────────────────────────────
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS projects (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                name        TEXT UNIQUE NOT NULL,
-                root_domain TEXT,
-                client      TEXT,
-                status      TEXT DEFAULT 'active',
-                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            root_domain TEXT,
+            client TEXT,
+            status TEXT DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
         """)
+        
+        # Faz a migração automática adicionando as novas colunas caso não existam
+        _add_missing_columns(conn, "projects", {
+            "date_start": "date_start TEXT DEFAULT ''",
+            "date_end": "date_end TEXT DEFAULT ''",
+            "date_report": "date_report TEXT DEFAULT ''",
+            "client_logo_b64": "client_logo_b64 TEXT DEFAULT ''",
+            "client_first_name": "client_first_name TEXT DEFAULT ''",
+            "client_last_name": "client_last_name TEXT DEFAULT ''",
+            "client_phone": "client_phone TEXT DEFAULT ''",
+            "client_email": "client_email TEXT DEFAULT ''"
+        })
 
         # ── Hosts ───────────────────────────────────────────────────────
         cursor.execute("""

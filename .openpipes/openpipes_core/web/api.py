@@ -534,6 +534,18 @@ class BulkActionPayload(BaseModel):
     value: Optional[Any] = None
     filters: List[DBFilter] = []
 
+class ProjectDetailsUpdate(BaseModel):
+    client_first_name: str
+    client_last_name: str
+    client_email: str
+    client_phone: str
+    date_start: str
+    date_end: str
+    date_report: str
+
+class ProjectLogoUpdate(BaseModel):
+    client_logo_b64: str
+
 # =====================================================================
 # ROTAS DA FASE 8 (DEEP EDIT CVSS)
 # =====================================================================
@@ -1014,3 +1026,83 @@ def download_report(file_path: str, username: str = Depends(verificar_autenticac
     if not os.path.exists(file_path) or not file_path.endswith('.docx'):
         raise HTTPException(status_code=404, detail="Arquivo não encontrado ou inválido")
     return FileResponse(file_path, filename=os.path.basename(file_path), media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+# =====================================================================
+# FASE 12: GESTÃO DO PROJETO E CLIENTE
+# =====================================================================
+
+@app.get("/api/project/details")
+def get_project_details(username: str = Depends(verificar_autenticacao)):
+    """Busca os metadados do projeto ativo."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            # Como assumimos 1 projeto por arquivo .openpipes.db, pegamos o primeiro (ou baseado no nome)
+            cursor.execute("SELECT * FROM projects LIMIT 1")
+            row = cursor.fetchone()
+            if not row:
+                return {} # Retorna vazio se não achar, frontend lida com isso
+            
+            return dict(row)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/project/details")
+def update_project_details(data: ProjectDetailsUpdate, username: str = Depends(verificar_autenticacao)):
+    """Atualiza as informações administrativas do cliente e datas."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            
+            # Garante que pelo menos o registro do projeto exista
+            proj_name = os.path.basename(proj_path)
+            cursor.execute("INSERT OR IGNORE INTO projects (name) VALUES (?)", (proj_name,))
+            
+            cursor.execute("""
+                UPDATE projects SET 
+                    client_first_name = ?, client_last_name = ?, 
+                    client_email = ?, client_phone = ?,
+                    date_start = ?, date_end = ?, date_report = ?
+                WHERE name = ? OR id = (SELECT id FROM projects LIMIT 1)
+            """, (
+                data.client_first_name, data.client_last_name, 
+                data.client_email, data.client_phone,
+                data.date_start, data.date_end, data.date_report,
+                proj_name
+            ))
+            conn.commit()
+            
+            return {"status": "success", "message": "Dados do projeto atualizados!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/project/logo")
+def update_project_logo(data: ProjectLogoUpdate, username: str = Depends(verificar_autenticacao)):
+    """Atualiza a logo do cliente em base64."""
+    proj_path = os.environ.get("OPENPIPES_PROJ_PATH")
+    if not proj_path:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+
+    try:
+        with db.get_connection(proj_path) as conn:
+            cursor = conn.cursor()
+            proj_name = os.path.basename(proj_path)
+            cursor.execute("INSERT OR IGNORE INTO projects (name) VALUES (?)", (proj_name,))
+            
+            cursor.execute("""
+                UPDATE projects SET client_logo_b64 = ? 
+                WHERE name = ? OR id = (SELECT id FROM projects LIMIT 1)
+            """, (data.client_logo_b64, proj_name))
+            conn.commit()
+            
+            return {"status": "success", "message": "Logo atualizada com sucesso!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
