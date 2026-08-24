@@ -180,6 +180,40 @@ def _build_report_context(proj_path: str, client_name: str = "",
         "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0,
     }
 
+    # Puxa os detalhes administrativos do Projeto
+    cur.execute("SELECT * FROM projects LIMIT 1")
+    proj_row = cur.fetchone()
+    proj_data = dict(proj_row) if proj_row else {}
+
+    # Lida com a conversão da Logo de Base64 para Arquivo Físico Temporário
+    logo_path = ""
+    logo_b64 = proj_data.get("client_logo_b64", "")
+    if logo_b64 and "," in logo_b64:
+        import base64
+        import tempfile
+        try:
+            # Separa o header (data:image/png;base64,) do conteúdo real
+            header, encoded = logo_b64.split(",", 1)
+            img_data = base64.b64decode(encoded)
+            logo_path = os.path.join(tempfile.gettempdir(), "openpipes_client_logo.png")
+            with open(logo_path, "wb") as f:
+                f.write(img_data)
+        except Exception as e:
+            console.print(f" [yellow]⚠ Erro ao decodificar a logo: {e}[/yellow]")
+
+    # Formatando a data do relatório (fallback para o dia de hoje)
+    report_date = proj_data.get("date_report")
+    if not report_date:
+        report_date = datetime.now().strftime("%d/%m/%Y")
+    else:
+        # Se vier no formato yyyy-mm-dd (do input date HTML), converte pra BR
+        if "-" in report_date:
+            try:
+                dt_obj = datetime.strptime(report_date, "%Y-%m-%d")
+                report_date = dt_obj.strftime("%d/%m/%Y")
+            except:
+                pass
+
     hosts_ctx = []
     vuln_matrix = []
     cwe_metrics = {}
@@ -253,8 +287,18 @@ def _build_report_context(proj_path: str, client_name: str = "",
     # O retorno master consolidando tudo!
     return {
         "project_name": os.path.basename(proj_path),
-        "client_name": client_name or os.path.basename(proj_path),
-        "report_date": datetime.now().strftime("%d/%m/%Y"),
+        "client_name": client_name or proj_data.get("client_first_name", os.path.basename(proj_path)),
+        
+        # NOVOS DADOS INJETADOS PRO DOCX
+        "client_first_name": proj_data.get("client_first_name", ""),
+        "client_last_name": proj_data.get("client_last_name", ""),
+        "client_email": proj_data.get("client_email", ""),
+        "client_phone": proj_data.get("client_phone", ""),
+        "date_start": proj_data.get("date_start", ""),
+        "date_end": proj_data.get("date_end", ""),
+        "report_date": report_date,
+        "client_logo": logo_path,  # No Word, você usará a tag {%client_logo} para a imagem
+        
         "classification": "CONFIDENCIAL",
         "stats": stats,
         "scope": {

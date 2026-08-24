@@ -534,6 +534,66 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
+                    <!-- Bloco de Dados do Projeto e Cliente -->
+                    <div class="bg-cardbg border border-slate-700 rounded-xl p-6 shadow-lg md:col-span-2">
+                        <h3 class="text-lg font-bold text-white mb-4 flex items-center justify-between">
+                            <span class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
+                                Dados do Projeto e Cliente
+                            </span>
+                            <button @click="saveProjectDetails" class="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/50 text-blue-400 rounded text-xs font-bold transition-colors shadow-lg flex items-center gap-2">
+                                Salvar Dados
+                            </button>
+                        </h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <!-- Coluna da Logo -->
+                            <div class="flex flex-col items-center justify-center border-2 border-dashed border-slate-600 rounded-xl p-4 bg-slate-800/50 relative group">
+                                <input type="file" ref="logoFileInput" @change="handleLogoUpload" accept="image/png, image/jpeg" class="hidden">
+                                <img v-if="projectDetails.client_logo_b64" :src="projectDetails.client_logo_b64" class="max-h-32 object-contain mb-2 rounded shadow-md">
+                                <svg v-else class="w-12 h-12 text-slate-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L28 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                <button @click="$refs.logoFileInput.click()" class="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold transition-colors absolute bottom-2 opacity-0 group-hover:opacity-100">Atualizar Logo</button>
+                                <span v-if="!projectDetails.client_logo_b64" class="text-xs text-slate-400 text-center">Clique para enviar a logo do cliente</span>
+                            </div>
+
+                            <!-- Campos de Contato -->
+                            <div class="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-[10px] text-slate-500 font-bold uppercase block mb-1">Nome do Cliente / Empresa</label>
+                                    <input v-model="projectDetails.client_first_name" type="text" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-slate-500 font-bold uppercase block mb-1">Sobrenome / Responsável</label>
+                                    <input v-model="projectDetails.client_last_name" type="text" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-slate-500 font-bold uppercase block mb-1">Email</label>
+                                    <input v-model="projectDetails.client_email" type="email" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-slate-500 font-bold uppercase block mb-1">Telefone</label>
+                                    <input v-model="projectDetails.client_phone" type="text" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                                </div>
+                                
+                                <!-- Linha de Datas -->
+                                <div class="md:col-span-2 grid grid-cols-3 gap-4 pt-2 border-t border-slate-700">
+                                    <div>
+                                        <label class="text-[10px] text-slate-500 font-bold uppercase block mb-1">Data Início</label>
+                                        <input v-model="projectDetails.date_start" type="date" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-blue-500 cursor-pointer">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-slate-500 font-bold uppercase block mb-1">Data Fim</label>
+                                        <input v-model="projectDetails.date_end" type="date" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-blue-500 cursor-pointer">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-slate-500 font-bold uppercase block mb-1">Data do Relatório</label>
+                                        <input v-model="projectDetails.date_report" type="date" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-amber-400 font-bold focus:outline-none focus:border-amber-500 cursor-pointer">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Bloco de Geração -->
                     <div class="bg-cardbg border border-slate-700 rounded-xl p-6 shadow-lg">
                         <h3 class="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2">
@@ -1225,13 +1285,65 @@
                 } catch (e) {}
             };
 
+            // ... [No bloco onde declaramos as vars do Report Center]
+            const projectDetails = ref({
+                client_first_name: '', client_last_name: '', client_email: '', client_phone: '',
+                date_start: '', date_end: '', date_report: '', client_logo_b64: ''
+            });
+            const logoFileInput = ref(null);
+
+            const fetchProjectDetails = async () => {
+                try {
+                    const res = await fetch('/api/project/details');
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && Object.keys(data).length > 0) {
+                            // Atualiza o estado apenas com chaves que existirem
+                            Object.assign(projectDetails.value, data);
+                        }
+                    }
+                } catch (e) {}
+            };
+
+            const saveProjectDetails = async () => {
+                try {
+                    const res = await fetch('/api/project/details', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(projectDetails.value)
+                    });
+                    if (res.ok) addToast("Dados do projeto salvos com sucesso!", "success");
+                    else addToast("Erro ao salvar dados do projeto.", "error");
+                } catch (e) { addToast("Erro de comunicação", "error"); }
+            };
+
+            const handleLogoUpload = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const b64 = e.target.result; // Já vem no formato data:image/png;base64,...
+                    projectDetails.value.client_logo_b64 = b64;
+                    
+                    try {
+                        await fetch('/api/project/logo', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ client_logo_b64: b64 })
+                        });
+                        addToast("Logo salva com sucesso!", "success");
+                    } catch (err) { addToast("Erro ao salvar logo.", "error"); }
+                };
+                reader.readAsDataURL(file);
+            };
+
+            // Não esqueça de chamar o fetchProjectDetails() dentro de openReportCenter():
             const openReportCenter = () => {
                 changeView('reports');
                 fetchTemplates();
-                if (!reportForm.value.client_name && stats.value.projeto) {
-                    reportForm.value.client_name = stats.value.projeto;
-                }
-                generatedReportPath.value = null; // reseta view de download
+                fetchProjectDetails(); // <--- CHAMA AQUI
+                generatedReportPath.value = null; 
             };
 
             const handleTemplateUpload = async (event) => {
@@ -1423,7 +1535,10 @@
 
                 // REPORT CENTER
                 reportTemplates, reportForm, isGeneratingReport, generatedReportPath, generatedReportName,
-                templateFileInput, openReportCenter, handleTemplateUpload, generateReport
+                templateFileInput, openReportCenter, handleTemplateUpload, generateReport,
+                
+                // PROJECT DETAILS
+                projectDetails, logoFileInput, fetchProjectDetails, saveProjectDetails, handleLogoUpload
 
             }
         }
