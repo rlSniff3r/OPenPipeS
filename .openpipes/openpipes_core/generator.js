@@ -29,7 +29,7 @@ function angularParser(tag) {
     };
 }
 
-// ── 2. Módulo de Imagem (Tamanho Original / Full Quality) ──
+// ── 2. Módulo de Imagem (Aspect Ratio Perfeito) ──
 const imageOpts = {
     centered: false,
     fileType: "docx",
@@ -43,14 +43,21 @@ const imageOpts = {
     },
     getSize: function(img, tagValue, tagName) {
         try {
-            // Lemos a imagem com o image-size
             const dimensions = sizeOf(img);
+            const maxWidth = 600; // Largura máxima segura para a margem do Word (A4)
             
-            // Retornamos exatamente a largura e altura originais! Sem cortes.
+            // Se a imagem for maior que a folha, calculamos a proporção exata!
+            if (dimensions.width > maxWidth) {
+                const ratio = dimensions.height / dimensions.width;
+                const newHeight = Math.round(maxWidth * ratio);
+                return [maxWidth, newHeight];
+            }
+            
+            // Se já for pequena, retorna o tamanho normal
             return [dimensions.width, dimensions.height];
         } catch (e) {
-            console.warn(`[Aviso] Falha ao ler dimensões da imagem. Usando fallback.`);
-            return [600, 400]; 
+            console.warn(`[Aviso] Falha ao ler dimensões. Usando fallback 16:9.`);
+            return [600, 337]; // 337 é exatamente 16:9 para uma largura de 600!
         }
     }
 };

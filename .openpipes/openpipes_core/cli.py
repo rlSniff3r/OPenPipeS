@@ -108,14 +108,16 @@ def run_bash_module(module_name, extra_args=None):
 
     elif module_name == "dalfox":
         subprocess.run(
-            ["bash", os.path.join(TOOLS_DIR, "dalfox-runner.sh")],
+            ["bash", os.path.join(BIN_DIR, "dalfox-runner.sh")],
             cwd=proj_path,
         )
-        parsers.parse_dalfox(proj_path, nmap_dir)
 
     elif module_name == "arjun-runner":
-        parse_arjun(proj_path, nmap_dir)
-        _mark_scanned_by_url(proj_path, nmap_dir, "arjun")
+        subprocess.run(
+            ["bash", os.path.join(BIN_DIR, "arjun-runner.sh")],
+            cwd=proj_path,
+        )
+
 
     # Append extra CLI arguments (e.g.: -f targets_retry.txt)
     if extra_args:

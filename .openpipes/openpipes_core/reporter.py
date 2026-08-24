@@ -38,61 +38,6 @@ SEVERITY_COLORS = {
 SEVERITY_ORDER = ["Crítica", "Alta", "Média", "Baixa", "Info"]
 
 
-# ── Chart generation ─────────────────────────────────────────────
-def _generate_severity_chart(stats: dict, output_path: str) -> Optional[str]:
-    """Render a severity pie chart as PNG. Returns path or None."""
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-    except ImportError:
-        console.print(" [yellow]⚠ matplotlib not installed — skipping severity chart.[/yellow]")
-        return None
-
-    labels, sizes, colors = [], [], []
-    for sev in SEVERITY_ORDER:
-        key = sev.lower().replace("á", "a").replace("í", "i")
-        mapping = {"crítica": "critical", "alta": "high", "média": "medium",
-                   "baixa": "low", "info": "info"}
-        count = stats.get(mapping.get(sev.lower(), sev.lower()), 0) or stats.get(sev, 0)
-        if count > 0:
-            labels.append(sev)
-            sizes.append(count)
-            colors.append(SEVERITY_COLORS[sev])
-
-    if not sizes:
-        return None
-
-    fig, ax = plt.subplots(figsize=(5, 4))
-    wedges, texts, autotexts = ax.pie(
-        sizes, labels=labels, colors=colors, autopct="%1.0f%%",
-        startangle=90, textprops={"fontsize": 10},
-    )
-    for t in autotexts:
-        t.set_fontweight("bold")
-    ax.set_title("Vulnerabilidades por Severidade", fontsize=13, fontweight="bold", pad=15)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    return output_path
-
-
-def _generate_cwe_chart(cwe_counts, output_path):
-    import matplotlib.pyplot as plt
-    if not cwe_counts: 
-        return ""
-    
-    labels, sizes = zip(*cwe_counts.items())
-    fig, ax = plt.subplots(figsize=(7, 4))
-    
-    # wedgeprops cria o estilo "Rosca" (Donut Chart)
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, wedgeprops=dict(width=0.4))
-    plt.title("Distribuição de Vulnerabilidades por Categoria (CWE)")
-    
-    plt.savefig(output_path, bbox_inches='tight', dpi=300)
-    plt.close()
-    return output_path
-
-
 # ── Context builders ─────────────────────────────────────────────
 def _build_host_context(conn, host_id: int, host_name: str,
                         proj_path: str, tpl_doc=None) -> Optional[dict]:
@@ -289,7 +234,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
             SELECT v.title, v.severity, v.cvss_score, v.cve_id, 
                    GROUP_CONCAT(h.host, ', ') as affected_hosts,
                    COUNT(h.id) as host_count
-            FROM user_vulnerabilities v
+            FROM vulnerabilities v
             JOIN hosts h ON v.host_id = h.id
             GROUP BY v.title, v.severity
             ORDER BY v.cvss_score DESC
@@ -299,7 +244,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
         # 2. Agrupamento para o Gráfico de CWE
         cur.execute("""
             SELECT cwe_id, COUNT(*) as qtd 
-            FROM user_vulnerabilities 
+            FROM vulnerabilities 
             WHERE cwe_id IS NOT NULL AND cwe_id != '' 
             GROUP BY cwe_id
         """)
@@ -335,6 +280,56 @@ def _build_report_context(proj_path: str, client_name: str = "",
         },
     }
 
+
+def _generate_severity_chart(stats, output_path):
+    import matplotlib.pyplot as plt
+    labels = ['Crítica', 'Alta', 'Média', 'Baixa', 'Info']
+    sizes = [
+        stats.get('critical', 0), stats.get('high', 0), 
+        stats.get('medium', 0), stats.get('low', 0), stats.get('info', 0)
+    ]
+    colors = ['#8b0000', '#ff4500', '#ff8c00', '#2e8b57', '#4682b4'] # Paleta Executiva
+    
+    # Filtra categorias zeradas para o gráfico não ficar feio
+    dados = [(l, s, c) for l, s, c in zip(labels, sizes, colors) if s > 0]
+    if not dados:
+        return ""
+    
+    l, s, c = zip(*dados)
+    
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.pie(s, labels=l, colors=c, autopct='%1.1f%%', startangle=140, 
+           textprops={'color':"black", 'weight':'bold'},
+           wedgeprops={'edgecolor': 'white', 'linewidth': 2}) # Bordas brancas
+    
+    plt.title("Severidade das Vulnerabilidades", weight='bold')
+    
+    # dpi=300 garante qualidade de revista!
+    plt.savefig(output_path, bbox_inches='tight', dpi=300, transparent=True)
+    plt.close()
+    return output_path
+
+
+def _generate_cwe_chart(cwe_counts, output_path):
+    import matplotlib.pyplot as plt
+    if not cwe_counts: 
+        return ""
+    
+    labels, sizes = zip(*cwe_counts.items())
+    fig, ax = plt.subplots(figsize=(6, 4))
+    
+    # width=0.4 cria o buraco no meio (Gráfico de Rosca)
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, 
+           wedgeprops=dict(width=0.4, edgecolor='white', linewidth=2),
+           textprops={'weight':'bold'})
+           
+    plt.title("Distribuição por Categoria (CWE)", weight='bold')
+    
+    plt.savefig(output_path, bbox_inches='tight', dpi=300, transparent=True)
+    plt.close()
+    return output_path
+
+
 # ── Main entry point ─────────────────────────────────────────────
 def generate_report(proj_path: str, template: str = None,
                     output: str = None, client_name: str = "",
@@ -355,24 +350,13 @@ def generate_report(proj_path: str, template: str = None,
     
     # 1. Python extrai os dados da base PRIMEIRO
     ctx = _build_report_context(proj_path, client_name, all_hosts)
-    
-    # 2. Gera o gráfico e insere o caminho em string no contexto
+
+    # 2. Gera os gráficos e injeta os caminhos no contexto
     chart_path = os.path.join(tempfile.gettempdir(), "openpipes_severity_chart.png")
-    chart_file = _generate_severity_chart(ctx["stats"], chart_path)
+    ctx["severity_chart"] = _generate_severity_chart(ctx["stats"], chart_path)
 
-    if chart_file:
-        ctx["severity_chart"] = chart_file
-    else:
-        ctx["severity_chart"] = ""
-
-    # Novo bloco a ser inserido em generate_report()
     cwe_path = os.path.join(tempfile.gettempdir(), "openpipes_cwe_chart.png")
-    cwe_file = _generate_cwe_chart(ctx.get("cwe_metrics", {}), cwe_path)
-    
-    if cwe_file:
-        ctx["cwe_chart"] = cwe_file
-    else:
-        ctx["cwe_chart"] = ""
+    ctx["cwe_chart"] = _generate_cwe_chart(ctx.get("cwe_metrics", {}), cwe_path)    
 
     # 3. Salva o contexto num JSON temporário
     temp_json = os.path.join(tempfile.gettempdir(), "openpipes_context.json")
@@ -388,11 +372,13 @@ def generate_report(proj_path: str, template: str = None,
             capture_output=True, text=True, check=True
         )
         if "SUCCESS" in result.stdout:
+            
             file_size = os.path.getsize(output) / 1024
-            console.print(f"\n[bold green]✔ Relatório gerado com sucesso![/bold green]")
+            console.print(f"\n[bold green]✔ Relatório Enterprise gerado com sucesso![/bold green]")
             console.print(f" [dim]{output} ({file_size:.0f} KB)[/dim]")
         else:
             console.print(f"[bold red]✖ Erro no Node.js:[/bold red] {result.stderr}")
 
     except subprocess.CalledProcessError as e:
         console.print(f"[bold red]✖ Falha ao executar o gerador JS:[/bold red] {e.stderr}")
+

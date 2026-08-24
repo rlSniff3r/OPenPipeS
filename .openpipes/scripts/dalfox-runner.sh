@@ -28,17 +28,16 @@ for d in "$NMAP_DIR"/nmap-*/; do
     fi
 
     POST_FILE="${d}dalfox_post_targets.txt"
+    OUT_POST_FILE="${d}dalfox_post_output_${TIMESTAMP}.json"
     if [ -s "$POST_FILE" ]; then
+        target_name=$(basename "$d" | sed 's/nmap-//')
         echo "  → (POST) $target_name..."
-        while IFS='|' read -r url data; do
-            [ -z "$url" ] && continue
-            dalfox url "$url" \
-                --data "$data" \
-                --workers 30 \
-                --remote-payloads portswigger,payloadbox \
-                --format json \
-                >> "$OUT_FILE"
-        done < "$POST_FILE"
+        dalfox scan "$url" \
+            --data "$data" \
+            --workers 30 \
+            --remote-payloads portswigger,payloadbox \
+            --format json \
+            -o "$OUT_POST_FILE"
     fi
 done
 
