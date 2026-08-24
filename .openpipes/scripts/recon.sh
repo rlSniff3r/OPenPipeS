@@ -89,7 +89,7 @@ for domain in $(grep -v '^#' "$DOMAIN_FILE" | grep -v '^$'); do
   host -t txt $domain >> DNS-txt-all_domains; echo "" >> DNS-txt-all_domains
   host -t txt _dmarc.$domain >> DMARC-all_domains; echo "" >> DMARC-all_domains
   dnsrecon -d $domain -ak --threads 16 | tee $domain/$domain-dnsrecon
-  dnsrecon -d $domain -D $wordlist --threads 16 -t brt | tee $domain/$domain-subbrute
+  dnsrecon -d $domain -D $wordlist --threads 48 -t brt | tee $domain/$domain-subbrute
   cat $domain/$domain-subbrute | grep "A " | cut -d " " -f4 > $domain/$domain-subbrute.txt
   curl "https://api.securitytrails.com/v1/domain/$domain/subdomains" -H "apikey: $securitytrailskey" | jq | tail -n +8 | head -n -2 | cut -d "\"" -f2 | sed "s/$/.$domain/g" > $domain/$domain-securitytrails
   amass enum --passive -d $domain -o $domain/$domain-amass
@@ -98,8 +98,10 @@ for domain in $(grep -v '^#' "$DOMAIN_FILE" | grep -v '^$'); do
     host $sub | tee -a $domain/hosts-allsubs
     host -t cname $sub | tee -a $domain/cname-allsubs
   done
-  httpx -l $domain/allsubs -p 80,443,4443,8080,8000,10443,8443 -title -tech-detect -status-code -probe -ip -json -o $domain/allsubs.httpx.json
-  httpx -l $domain/allsubs -p 80,443,4443,8080,8000,10443,8443 -title -tech-detect -status-code -probe -ip -o $domain/allsubs.httpx
+  #httpx -l $domain/allsubs -p 80,443,4443,8080,8000,10443,8443 -title -tech-detect -status-code -probe -ip -json -o $domain/allsubs.httpx.json
+  #httpx -l $domain/allsubs -p 80,443,4443,8080,8000,10443,8443 -title -tech-detect -status-code -probe -ip -o $domain/allsubs.httpx
+  httpx -l $domain/allsubs -p 80,443 -title -tech-detect -status-code -probe -ip -json -o $domain/allsubs.httpx.json
+  httpx -l $domain/allsubs -p 80,443 -title -tech-detect -status-code -probe -ip -o $domain/allsubs.httpx
   cat $domain/hosts-allsubs | egrep "has address" | grep "$domain" | cut -d " " -f4 | sort -u > valid-subs.txt
   for ip in $(cat valid-subs.txt); do
     rdap $ip > $ip.rdap
@@ -110,4 +112,6 @@ for domain in $(grep -v '^#' "$DOMAIN_FILE" | grep -v '^$'); do
 done
 
 mkdir -p Varreduras
-cat Recon/*/hosts-allsubs | grep "has address" | cut -d " " -f1,4 | egrep "$(cat $DOMAIN_FILE | sed -z 's/\n/|/g' | sed 's/.$//g')" | sed -z 's/ /\n/g' | sort -u > Varreduras/targets.txt
+# cat Recon/*/hosts-allsubs | grep "has address" | cut -d " " -f1,4 | egrep "$(cat $DOMAIN_FILE | sed -z 's/\n/|/g' | sed 's/.$//g')" | sed -z 's/ /\n/g' | sort -u > Varreduras/targets.txt
+
+cat $RECON_DIR/*/allsubs | sort -u > Varreduras/targets.txt

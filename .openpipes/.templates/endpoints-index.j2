@@ -1,0 +1,17 @@
+---
+tipo: endpoint-index
+target: {{ target.name }}
+total: {{ total_endpoints }}
+routes: {{ group_names | length }}
+---
+
+# 🔗 Endpoints — {{ target.name }}
+
+**Total:** {{ total_endpoints }} endpoints agrupados em {{ group_names | length }} rota(s)
+
+| Rota | Quantidade |
+|------|-----------|
+{%- for group_name in group_names %}
+{%- set count = groups[group_name] | length %}
+| [[{{ group_name }}.md\|/{{ group_name }}/]] | {{ count }} |
+{%- endfor %}

@@ -1,54 +1,68 @@
 #!/bin/bash
-
-# Configs
 source $HOME/.openpipes/config.sh
 
-base_dir="$PWD"
-templates_dir="$HOME/nuclei.openpipes/.templates"  # Var declarada mas não utilizada
-output_dir="nuclei-output"
+echo -e "\n\e[34m[+]\e[0m Iniciando varredura Nuclei (tech/port-aware)..."
 
-mkdir -p "$output_dir"
+for dir in "$NMAP_DIR"/nmap-*; do
+    [[ ! -d "$dir" ]] && continue
+    target_name="${dir##*/nmap-}"
+    input_file="$dir/nuclei_urls.txt"
 
-# Verifica dependências
-command -v nuclei >/dev/null 2>&1 || { echo >&2 "[!] nuclei não encontrado no PATH."; exit 1; }
-command -v jq >/dev/null 2>&1 || { echo >&2 "[!] jq não instalado."; exit 1; }
+    if [[ ! -s "$input_file" ]]; then
+        echo "[SKIP] $target_name: nuclei_urls.txt vazio ou ausente."
+        continue
+    fi
 
-# Itera sobre os diretórios nmap-*
-for dir in "$base_dir"/nmap-*; do
-  [[ ! -d "$dir" ]] && continue
-  target_name="${dir##*/nmap-}"
+    echo "[*] Processando: $target_name"
 
-  echo "[*] Processando alvo: $target_name"
+    # ── PASS 1: genérico (base + tech, sem CVE) ──
+    TAGS=$(cat "$dir/nuclei_tags.txt" 2>/dev/null || \
+           echo "misconfig,exposure,default-login,takeover,panel,auth-bypass")
+    if nuclei -l "$input_file" \
+        -tags "$TAGS" \
+        -pt http \
+        -severity low,medium,high,critical \
+        -et "fuzz" \
+        -max-host-error 5 \
+        -timeout 5 -retries 1 \
+        -je "$dir/nuclei_pass1.json"; then
+        echo "  [✔] pass 1 OK ($(wc -c < "$dir/nuclei_pass1.json" 2>/dev/null || echo 0) bytes)"
+    else
+        echo "  [✖] pass 1 FALHOU (exit $?)"
+    fi
 
-  # Arquivo com endpoints já processados
-  endpoints_file="$obsdir/Pentest/Alvos/$target_name/endpoints.md"
-  [[ ! -f "$endpoints_file" ]] && echo "[!] endpoints.md ausente para $target_name. Pulando..." && continue
+    # ── PASS 2: CVEs apenas para techs detectadas (AND via -tc) ──
+    if [[ -s "$dir/nuclei_techs.txt" ]]; then
+        TECHS=$(cat "$dir/nuclei_techs.txt")
+        IFS=',' read -ra TECH_ARRAY <<< "$TECHS"
 
-  cat "$endpoints_file" | sort -u > urls_file
+        # Build: contains(tags,"a") || contains(tags,"b") || ...
+        TECH_COND=""
+        for tech in "${TECH_ARRAY[@]}"; do
+            [[ -z "$tech" ]] && continue
+            if [[ -n "$TECH_COND" ]]; then
+                TECH_COND+=" || "
+            fi
+            TECH_COND+="contains(tags,\"$tech\")"
+        done
 
-  # Executa nuclei
-  nuclei_json="$output_dir/$target_name-nuclei.json"
-  nuclei -l urls_file -severity low,medium,high,critical -je "$nuclei_json"
-
-  # Gera nuclei.md no Obsidian
-  obs_nuclei_file="$obsdir/Pentest/Alvos/$target_name/nuclei.md"
-  mkdir -p "$(dirname "$obs_nuclei_file")"
-
-  echo "---" > "$obs_nuclei_file"
-  echo "tipo: nuclei" >> "$obs_nuclei_file"
-  echo "targetName: $target_name" >> "$obs_nuclei_file"
-  echo "data: $(date +%Y-%m-%d)" >> "$obs_nuclei_file"
-  echo "---" >> "$obs_nuclei_file"
-  echo -e "\n# 📦 Resultados do Nuclei\n" >> "$obs_nuclei_file"
-  echo "| Nome | Severidade | URL | Dados Extraídos | Descrição |" >> "$obs_nuclei_file"
-  echo "|------|------------|-----|------------------|------------|" >> "$obs_nuclei_file"
-
-  jq -r '
-    .[] |
-    "| \(.info.name // "-") | \(.info.severity // "-") | \(.["matched-at"] // "-") | \((.["extracted-results"] // ["-"]) | join(", ")) | \(.info.description // "-" | gsub("\n"; " ")) |"
-  ' "$nuclei_json" >> "$obs_nuclei_file"
-
-  echo "[✔] nuclei.md gerado para $target_name"
+        if [[ -n "$TECH_COND" ]]; then
+            echo "  [*] pass 2 (CVE): contains(tags,\"cve\") && ($TECH_COND)"
+            if nuclei -l "$input_file" \
+                -tc "contains(tags,\"cve\") && ($TECH_COND)" \
+                -pt http \
+                -severity low,medium,high,critical \
+                -max-host-error 5 \
+                -timeout 5 -retries 1 \
+                -je "$dir/nuclei_pass2.json"; then
+                echo "  [✔] pass 2 OK ($(wc -c < "$dir/nuclei_pass2.json" 2>/dev/null || echo 0) bytes)"
+            else
+                echo "  [✖] pass 2 FALHOU (exit $?)"
+            fi
+        fi
+    else
+        echo "  [*] pass 2 pulado (sem techs detectadas)"
+    fi
 done
 
-echo "[✓] Execução do nuclei-runner.sh finalizada com sucesso!"
+echo -e "\e[32m[✔]\e[0m nuclei-runner concluído."

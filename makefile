@@ -1,4 +1,4 @@
-.PHONY: help install uninstall clean update test config status
+.PHONY: help install uninstall clean update test config status backup restore reinstall reinstall-clean dev docs run
 
 # Cores
 CYAN := \033[0;36m
@@ -11,6 +11,7 @@ NC := \033[0m
 OPENPIPES_HOME := $(HOME)/.openpipes
 OPENPIPES_BIN := $(OPENPIPES_HOME)/bin
 OPENPIPES_CONFIG := $(OPENPIPES_HOME)/config.sh
+BACKUP_PY := .openpipes/openpipes_core/backup.py
 
 help: ## Mostra esta ajuda
 	@echo "$(CYAN)"
@@ -107,21 +108,38 @@ test: ## Testa a instalação
 	fi
 	@echo ""
 
-backup: ## Cria backup da configuração
-	@echo "$(CYAN)[*] Criando backup...$(NC)"
-	@mkdir -p ./backups
-	@tar -czf ./backups/openpipes-backup-$(shell date +%Y%m%d-%H%M).tar.gz \
-		$(OPENPIPES_HOME) $(HOME)/.openpipes_cache 2>/dev/null || true
-	@echo "$(GREEN)[+] Backup criado em: ./backups/$(NC)"
+backup: ## Cria backup da configuração (framework + cache)
+	@python3 $(BACKUP_PY) backup
 
-restore: ## Restaura backup (use: make restore BACKUP=arquivo.tar.gz)
-	@if [ -z "$(BACKUP)" ]; then \
-		echo "$(RED)[-] Use: make restore BACKUP=arquivo.tar.gz$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(CYAN)[*] Restaurando backup: $(BACKUP)$(NC)"
-	@tar -xzf $(BACKUP) -C $(HOME)
-	@echo "$(GREEN)[+] Backup restaurado!$(NC)"
+restore: ## Restaura backup (use: make restore [BACKUP=arquivo.tar.gz])
+	@python3 $(BACKUP_PY) restore $(BACKUP)
+
+reinstall: ## Reinstala preservando configurações (backup → wipe → install → restore)
+	@echo "$(CYAN)[*] Preparando reinstalação...$(NC)"; \
+	BACKUP=$$(python3 $(BACKUP_PY) backup_silent); \
+	if [ -z "$$BACKUP" ]; then echo "$(RED)[-] Erro ao criar backup!$(NC)"; exit 1; fi; \
+	echo "$(CYAN)[*] Removendo instalação antiga...$(NC)"; \
+	rm -rf $(OPENPIPES_HOME) $(HOME)/.openpipes_cache $(HOME)/.venv-jsfinder; \
+	echo "$(CYAN)[*] Instalando...$(NC)"; \
+	chmod +x bootstrap.sh && \
+	./bootstrap.sh || { echo "$(RED)[-] Falha na instalação! Restaurando...$(NC)"; python3 $(BACKUP_PY) restore "$$BACKUP"; exit 1; }; \
+	echo "$(CYAN)[*] Restaurando configurações...$(NC)"; \
+	python3 $(BACKUP_PY) restore "$$BACKUP"; \
+	echo "$(GREEN)[+] Reinstalação concluída! Backup salvo em: $$BACKUP$(NC)"
+
+reinstall-clean: ## Reinstala e remove o backup desta execução
+	@echo "$(CYAN)[*] Preparando reinstalação (com limpeza)...$(NC)"; \
+	BACKUP=$$(python3 $(BACKUP_PY) backup_silent); \
+	if [ -z "$$BACKUP" ]; then echo "$(RED)[-] Erro ao criar backup!$(NC)"; exit 1; fi; \
+	echo "$(CYAN)[*] Removendo instalação antiga...$(NC)"; \
+	rm -rf $(OPENPIPES_HOME) $(HOME)/.openpipes_cache $(HOME)/.venv-jsfinder; \
+	echo "$(CYAN)[*] Instalando...$(NC)"; \
+	chmod +x bootstrap.sh && \
+	./bootstrap.sh || { echo "$(RED)[-] Falha na instalação! Restaurando...$(NC)"; python3 $(BACKUP_PY) restore "$$BACKUP"; exit 1; }; \
+	echo "$(CYAN)[*] Restaurando configurações...$(NC)"; \
+	python3 $(BACKUP_PY) restore "$$BACKUP"; \
+	rm -f "$$BACKUP"; \
+	echo "$(GREEN)[+] Reinstalação concluída! Backup temporário removido.$(NC)"
 
 dev: ## Modo desenvolvedor (link simbólico para scripts locais)
 	@echo "$(CYAN)[*] Configurando modo desenvolvedor...$(NC)"

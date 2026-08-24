@@ -1,0 +1,16 @@
+---
+tipo: endpoint-group
+target: {{ target.name }}
+route: {{ group_name }}
+count: {{ count }}
+---
+
+# ⛓️ /{{ group_name }}/ — {{ target.name }}
+
+**{{ count }} endpoints** | [[../{{ target.name }}.md|← Voltar para {{ target.name }}]]
+
+| URL | Status | Título | Padrões GF | Tecnologias |
+|-----|--------|--------|------------|-------------|
+{%- for ep in endpoints %}
+| [{{ ep.url }}]({{ ep.url }}) | {{ ep.status_code }} | {{ ep.title or "-" }} | {{ ep.vulnerability_patterns | join(", ") if ep.vulnerability_patterns else "-" }} | {{ ep.tech_stack | join(", ") if ep.tech_stack else "-" }} |
+{%- endfor %}

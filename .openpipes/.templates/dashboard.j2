@@ -1,0 +1,106 @@
+---
+tipo: dashboard
+projeto: {{ project_name }}
+gerado_em: {{ generated_at }}
+---
+
+# 📊 Dashboard — {{ project_name }}
+
+## 🎯 Resumo do Projeto
+
+| Métrica | Valor |
+|---------|-------|
+| 🖥️ Hosts em escopo | {{ summary.total_hosts }} |
+| 🔌 Portas abertas | {{ summary.total_ports }} |
+| 🌐 Endpoints verificados | {{ summary.total_endpoints }} |
+| 🐞 Vulnerabilidades | {{ summary.total_vulns }} |
+| 📸 Screenshots | {{ summary.total_screenshots }} |
+| 🪡 Rotas em JS | {{ summary.total_js_routes }} |
+| Última atualização | {{ summary.last_updated }} |
+
+---
+
+## 🛡️ Vulnerabilidades
+
+{%- if all_vulnerabilities %}
+| Severidade | Título | CVSS | CWE | Alvo |
+|------------|--------|------|-----|------|
+{%- for vuln in all_vulnerabilities | sort(attribute='cvss_score', reverse=true) %}
+| {{ vuln.severity_emoji }} {{ vuln.severity }} | [[{{ vuln.target }}/Vulnerabilidades/{{ vuln.filename }}\|{{ vuln.title }}]] | {{ vuln.cvss_score or "N/A" }} | {{ vuln.cwe_id }} | [[{{ vuln.target }}.md\|{{ vuln.target }}]] |
+{%- endfor %}
+{%- else %}
+*Nenhuma vulnerabilidade registrada.*
+{%- endif %}
+
+---
+
+## 🔴 Vulnerabilidades por Severidade
+
+{%- set total = summary.severity_breakdown.Crítica + summary.severity_breakdown.Alta + summary.severity_breakdown.Média + summary.severity_breakdown.Baixa + summary.severity_breakdown.Info %}
+{%- if total > 0 %}
+
+{%- set active_vulns = [] %}
+{%- if summary.severity_breakdown.Crítica > 0 %}{%- set _ = active_vulns.append(('Crítica', summary.severity_breakdown.Crítica, '#ff4d4d')) %}{%- endif %}
+{%- if summary.severity_breakdown.Alta > 0 %}{%- set _ = active_vulns.append(('Alta', summary.severity_breakdown.Alta, '#ff944d')) %}{%- endif %}
+{%- if summary.severity_breakdown.Média > 0 %}{%- set _ = active_vulns.append(('Média', summary.severity_breakdown.Média, '#ffeb3b')) %}{%- endif %}
+{%- if summary.severity_breakdown.Baixa > 0 %}{%- set _ = active_vulns.append(('Baixa', summary.severity_breakdown.Baixa, '#4caf50')) %}{%- endif %}
+{%- if summary.severity_breakdown.Info > 0 %}{%- set _ = active_vulns.append(('Info', summary.severity_breakdown.Info, '#2196f3')) %}{%- endif %}
+
+```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    {%- for vuln in active_vulns %}
+    'pie{{ loop.index }}': '{{ vuln[2] }}',
+    {%- endfor %}
+    'pieStrokeWidth': '1px',
+    'pieStrokeColor': '#ffffff',
+    'pieOpacity': '0.95'
+  }
+}}%%
+pie title
+    {%- for vuln in active_vulns %}
+    "{{ vuln[0] }}" : {{ vuln[1] }}
+    {%- endfor %}
+```
+
+| Severidade | Quantidade | % |
+|------------|-----------|----|
+| 🔴 Crítica | {{ summary.severity_breakdown.Crítica }} | {{ "%.1f"|format(summary.severity_breakdown.Crítica / total * 100) }}% |
+| 🟠 Alta | {{ summary.severity_breakdown.Alta }} | {{ "%.1f"|format(summary.severity_breakdown.Alta / total * 100) }}% |
+| 🟡 Média | {{ summary.severity_breakdown.Média }} | {{ "%.1f"|format(summary.severity_breakdown.Média / total * 100) }}% |
+| 🟢 Baixa | {{ summary.severity_breakdown.Baixa }} | {{ "%.1f"|format(summary.severity_breakdown.Baixa / total * 100) }}% |
+| 🔵 Info | {{ summary.severity_breakdown.Info }} | {{ "%.1f"|format(summary.severity_breakdown.Info / total * 100) }}% |
+{%- else %}
+*Nenhuma vulnerabilidade registrada.*
+{%- endif %}
+
+---
+
+## 🖥️ Alvos
+
+| Alvo | IPs | Portas | Serviços | Vulns |
+|------|-----|--------|----------|-------|
+{%- for t in targets %}
+| [[{{ t.name }}.md\|{{ t.name }}]] | `{{ t.all_ips_str }}` | `{{ t.ports_str }}` | {{ t.services_str }} | {{ t.vuln_count }} |
+{%- else %}
+| *Nenhum alvo configurado* | | | | |
+{%- endfor %}
+
+---
+
+## 🌐 Endpoints Relevantes
+
+{%- if all_endpoints %}
+| URL | Status | Título | Servidor | Alvo |
+|-----|--------|--------|----------|------|
+{%- for ep in all_endpoints %}
+| [{{ ep.url }}]({{ ep.url }}) | {{ ep.status }} | {{ ep.title }} | {{ ep.server }} | {{ ep.target }} |
+{%- endfor %}
+{%- else %}
+*Nenhum endpoint relevante encontrado.*
+{%- endif %}
+
+---
+
+*Última sincronização: {{ generated_at }}*

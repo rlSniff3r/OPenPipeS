@@ -1,0 +1,17 @@
+---
+tipo: js-discoveries
+target: {{ target.name }}
+total: {{ target.js_endpoint_count }}
+---
+
+# ⚙️ JS Discoveries — {{ target.name }}
+
+**{{ target.js_endpoint_count }} rota(s) descoberta(s) em arquivos JavaScript**
+
+| Arquivo JS de Origem | Rota Descoberta |
+|----------------------|-----------------|
+{%- for js in target.js_discoveries %}
+| [{{ js.source_js_url }}]({{ js.source_js_url }}) | `{{ js.discovered_route }}` |
+{%- else %}
+*Nenhuma rota descoberta em JS.*
+{%- endfor %}

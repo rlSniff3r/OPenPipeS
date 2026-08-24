@@ -1,0 +1,129 @@
+---
+tipo: target
+targetName: {{ target.name }}
+t_IP: "{{ target.ip }}"
+t_openPorts: {{ target.ports | map(attribute='port') | list }}
+t_services: {{ target.ports | map(attribute='service') | list }}
+tags: [alvo, host]
+pipeline_status: {{ target.pipeline_status }}
+vuln_count: {{ target.vuln_count }}
+endpoint_count: {{ target.endpoint_count }}
+last_updated: {{ target.last_updated }}
+{%- if target.screenshots %}
+cover: "[[Screenshots/{{ target.screenshots[0].file_path }}]]"
+{%- endif %}
+---
+
+{%- if target.whois %}
+{%- set whois = target.whois | from_json %}
+
+| 🌐 Whois | {{ target.name }} |
+|-------|-------|
+{%- for key, value in whois.items() %}
+| {{ key }} | `{{ value }}` |
+{%- endfor %}
+{%- endif %}
+
+{%- if target.is_alive %}
+
+_Status_: 🟢 Ativo
+_IPs_: {{ target.all_ips | join(", ") }}
+_Última atualização_: {{ target.last_updated }}
+{%- endif %}
+
+---
+
+## 💥 Vulnerabilidades
+{%- if target.vulnerabilities %}
+
+| Severidade | Título | CVSS | CVE |
+|------------|--------|------|-----|
+{%- for vuln in target.vulnerabilities %}
+| {{ vuln.severity_emoji }} {{ vuln.severity }} | [[Vulnerabilidades/{{ vuln.filename }}\|{{ vuln.title }}]] | {{ vuln.cvss_score or "N/A" }} | {{ vuln.cve_id or "—" }} |
+{%- endfor %}
+{%- else %}
+*Nenhuma vulnerabilidade encontrada ainda.*
+{%- endif %}
+
+---
+
+## 📸 Screenshots
+{%- if target.screenshots %}
+{%- for shot in target.screenshots %}
+![[Screenshots/{{ shot.file_path }}|500]]
+{%- if shot.source_url %}**URL:** [{{ shot.source_url }}]({{ shot.source_url }}){% endif %}
+{%- if shot.title %} *{{ shot.title }}*{% endif %}
+
+{%- endfor %}
+{%- if target.screenshot_count > 3 %}
+[[screenshots.md|📷 Ver todas as {{ target.screenshot_count }} screenshots]]
+{%- endif %}
+{%- else %}
+*Nenhum screenshot disponível.*
+{%- endif %}
+
+---
+
+## 📘 Narrativa Técnica
+
+{{ target.narrative or ("_Gerado automaticamente:_ " ~ target.tech_summary) }}
+
+---
+
+## 🔢 Navegação
+
+🧹 - [[nmap.md|Nmap Scan]]
+⚙️ - [[js-discoveries.md|JS Discoveries ({{ target.js_endpoint_count }})]]
+🌐 - [[httpx-results.md|HTTPX Results ({{ target.httpx_count }})]]
+📸 - [[screenshots.md|Screenshots ({{ target.screenshot_count }})]]
+
+---
+
+## 🔗 Endpoints por Rota
+{%- if group_names %}
+| Rota | Quantidade |
+|------|-----------|
+{%- for group_name in group_names %}
+{%- set count = groups[group_name] | length %}
+| [[Endpoints/{{ group_name }}.md\|{%- if group_name == '_agrupadas' %}🔀 Outras Rotas{% else %}/{{ group_name }}/{% endif %}]] | {{ count }} |
+{%- endfor %}
+{%- else %}
+*Nenhum endpoint encontrado.*
+{%- endif %}
+
+---
+
+## 📊 Serviços Identificados
+
+| Porta | Protocolo | Serviço | Versão | Estado |
+|-------|-----------|---------|--------|--------|
+{%- for port in target.all_ports %}
+| {{ port.port }} | {{ port.protocol }} | {{ port.service }} | {{ port.version or "-" }} | {{ port.state }} |
+{%- else %}
+| *Nenhuma porta identificada* | | | | |
+{%- endfor %}
+{%- if target.tech_stack %}
+
+---
+
+### 🛠️ Stack de Tecnologias
+{%- for tech in target.tech_stack %}
+- {{ tech }}
+{%- endfor %}
+{%- endif %}
+
+---
+
+## 🚩 Progresso
+
+{%- if target.tasks %}
+{%- for task in target.tasks %}
+- [{{ 'x' if task.done else ' ' }}] {{ task.label }} <!-- id:{{ task.key }} -->
+{%- endfor %}
+{%- else %}
+- [x] Todas as tarefas concluídas
+{%- endif %}
+
+---
+
+*Gerado pelo OPenPipeS Sync em {{ target.last_updated }}*

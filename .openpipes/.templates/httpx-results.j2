@@ -1,0 +1,19 @@
+---
+tipo: httpx-results
+target: {{ target.name }}
+total: {{ target.httpx_count }}
+---
+
+# 🌐 HTTPX Results — {{ target.name }}
+
+**{{ target.httpx_count }} URL(s) descoberta(s)**
+
+| URL | Status | Título | Servidor | Tecnologias |
+|-----|--------|--------|----------|-------------|
+{%- for ep in target.endpoints %}
+{%- if ep.source_tool in ("httpx", "recon_httpx") %}
+| [{{ ep.url }}]({{ ep.url }}) | {{ ep.status_code }} | {{ ep.title or "-" }} | {{ ep.web_server or "-" }} | {{ ep.tech_stack | join(", ") if ep.tech_stack else "-" }} |
+{%- endif %}
+{%- else %}
+*Nenhum resultado HTTPX.*
+{%- endfor %}

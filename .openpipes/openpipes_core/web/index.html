@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPenPipeS | Aurora Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: { darkbg: '#0f172a', cardbg: '#1e293b', brand: '#0ea5e9', brandhover: '#0284c7' }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .terminal-scroll::-webkit-scrollbar { width: 8px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: #000; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-darkbg text-slate-300 font-sans antialiased overflow-y-scroll" :class="lightboxOpen || evLightboxOpen ? 'overflow-hidden' : ''">
+
+<div id="app" class="min-h-screen flex flex-col relative">
+    
+    <!-- Navbar -->
+    <header class="bg-cardbg border-b border-slate-700 shadow-md p-4 flex justify-between items-center sticky top-0 z-40">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-brand flex items-center justify-center font-bold text-white shadow-lg shadow-brand/20 cursor-pointer" @click="changeView('hosts')">OP</div>
+            <h1 class="text-xl font-bold text-white tracking-wide cursor-pointer" @click="changeView('hosts')">Aurora <span class="text-brand">Dashboard</span></h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <button @click="triggerCycle" :disabled="isCycling || isSyncing" class="text-sm px-4 py-1.5 bg-indigo-900/50 hover:bg-indigo-600/30 border border-indigo-700/50 hover:border-indigo-500 text-indigo-300 hover:text-white rounded-lg transition-colors flex items-center gap-2">
+                <svg :class="{'animate-spin text-indigo-400': isCycling}" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <span v-if="isCycling">Rodando Cycle...</span>
+                <span v-else>Run Cycle</span>
+            </button>
+            <button @click="triggerSync" :disabled="isSyncing || isCycling" class="text-sm px-4 py-1.5 bg-slate-800 hover:bg-brand/20 border border-slate-600 hover:border-brand text-slate-300 hover:text-white rounded-lg transition-colors flex items-center gap-2">
+                <svg :class="{'animate-spin text-brand': isSyncing}" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <span v-if="isSyncing">Sincronizando...</span>
+                <span v-else>Sync Vault</span>
+            </button>
+            <div class="text-sm px-3 py-1 bg-slate-700 rounded-full text-brand font-mono border border-slate-600 shadow-inner">
+                {{ stats.projeto || 'Carregando...' }}
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow p-6 w-full max-w-[95rem] mx-auto relative">
+        
+        <!-- Cards Globais -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <div @click="changeView('hosts')" :class="currentView === 'hosts' ? 'ring-2 ring-blue-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-blue-500/20 rounded-lg text-blue-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Hosts</div><div class="text-2xl font-bold text-white">{{ stats.hosts }}</div></div>
+            </div>
+            <div @click="changeView('global-vulns')" :class="currentView === 'global-vulns' ? 'ring-2 ring-red-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-red-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-red-500/20 rounded-lg text-red-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Vulns</div><div class="text-2xl font-bold text-white">{{ stats.vulns }}</div></div>
+            </div>
+            <div @click="changeView('global-endpoints')" :class="currentView === 'global-endpoints' ? 'ring-2 ring-green-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-green-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-green-500/20 rounded-lg text-green-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Endpoints</div><div class="text-2xl font-bold text-white">{{ stats.endpoints }}</div></div>
+            </div>
+            <div @click="openCommandCenter()" :class="currentView === 'command-center' ? 'ring-2 ring-purple-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-purple-500/20 rounded-lg text-purple-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Centro C2</div><div class="text-xl font-bold text-white">Live Logs</div></div>
+            </div>
+            <div @click="openDbManager()" :class="currentView === 'db-manager' ? 'ring-2 ring-amber-500' : 'hover:border-slate-500'" class="bg-cardbg border border-slate-700 rounded-xl p-4 shadow-lg flex items-center gap-3 relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]">
+                <div class="absolute -right-4 -top-4 w-20 h-20 bg-amber-500/10 rounded-full blur-2xl"></div>
+                <div class="p-2.5 bg-amber-500/20 rounded-lg text-amber-400 z-10"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg></div>
+                <div class="z-10"><div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Database</div><div class="text-xl font-bold text-white">Manager</div></div>
+            </div>
+        </div>
+
+        <transition name="fade" mode="out-in">
+            
+            <!-- ========================================== -->
+            <!-- VIEW: DB MANAGER (STAGING & BULK)          -->
+            <!-- ========================================== -->
+            <div v-if="currentView === 'db-manager'" key="view-db-manager" class="w-full">
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+                    <div class="flex items-center gap-4">
+                        <button @click="changeView('hosts')" class="w-12 h-12 flex-shrink-0 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg></button>
+                        <div><h2 class="text-2xl font-bold text-white">Database Manager</h2><p class="text-sm text-slate-400">Edição e Consulta Dinâmica no SQLite do Projeto.</p></div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-bold text-slate-400 uppercase tracking-wider">Tabela:</label>
+                        <select v-model="dbCurrentTable" @change="onTableChange" class="bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500 cursor-pointer shadow-inner">
+                            <option value="" disabled>Selecione...</option>
+                            <option v-for="t in dbTables" :key="t" :value="t">{{ t }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bg-cardbg border border-slate-700 rounded-xl p-4 md:p-5 shadow-lg flex flex-col min-h-[calc(100vh-18rem)] relative">
+                    
+                    <div v-if="loadingDb" class="absolute inset-0 bg-cardbg/80 z-20 flex justify-center items-center backdrop-blur-sm rounded-xl">
+                        <svg class="animate-spin h-10 w-10 text-amber-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    </div>
+
+                    <div v-if="!dbCurrentTable" class="flex-1 flex flex-col justify-center items-center border-2 border-dashed border-slate-700 rounded-xl bg-slate-800/20 text-slate-500 p-10">
+                        <svg class="w-16 h-16 mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                        <span>Selecione uma tabela no menu acima.</span>
+                    </div>
+
+                    <template v-else>
+                        <!-- QUERY BUILDER -->
+                        <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 mb-4 shadow-inner">
+                            <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+                                <div class="flex items-center gap-3">
+                                    <button @click="addDbFilter" class="px-3 py-1.5 bg-brand/10 text-brand border border-brand/50 rounded text-xs font-bold hover:bg-brand/20 flex items-center gap-1 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Novo Filtro</button>
+                                    <button v-if="dbQuery.filters.length > 0" @click="loadTableData(true)" class="px-3 py-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/50 rounded text-xs font-bold hover:bg-amber-500/30 transition-colors shadow-lg">▶ Aplicar Filtros</button>
+                                </div>
+                                <span class="text-[10px] text-slate-500 italic hidden sm:block"><span class="font-bold text-amber-400">Duplo-clique</span> na célula edita. <span class="font-bold text-white">Clique no título</span> ordena.</span>
+                            </div>
+
+                            <transition-group name="fade" tag="div" class="space-y-2">
+                                <div v-for="(f, idx) in dbQuery.filters" :key="idx" class="flex flex-wrap gap-2 items-center bg-slate-950 p-2 rounded border border-slate-800">
+                                    <select v-model="f.column" class="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none cursor-pointer">
+                                        <option v-for="col in dbColumns" :key="col" :value="col">{{ col }}</option>
+                                    </select>
+                                    <select v-model="f.operator" class="bg-slate-900 border border-slate-700 rounded text-xs text-amber-400 font-bold p-1.5 outline-none cursor-pointer">
+                                        <option value="=">=</option>
+                                        <option value="!=">!= (Dif)</option>
+                                        <option value="LIKE">LIKE (Contém)</option>
+                                        <option value="NOT LIKE">NOT LIKE (Não Contém)</option>
+                                    </select>
+                                    <input v-model="f.value" @keyup.enter="loadTableData(true)" placeholder="Valor da busca..." class="flex-1 min-w-[150px] bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none focus:border-amber-500">
+                                    <button @click="removeDbFilter(idx)" class="text-red-500 hover:bg-red-500/20 p-1.5 rounded transition-colors" title="Remover Filtro"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                                </div>
+                            </transition-group>
+
+                            <!-- BULK ACTIONS CONTROL (Aparece se houver filtro ativo) -->
+                            <div v-if="dbQuery.filters.length > 0" class="mt-3 pt-3 border-t border-slate-700/50 flex flex-wrap gap-2">
+                                <div v-if="!bulkMode" class="flex gap-2 w-full">
+                                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest self-center mr-2">Ações em Massa:</span>
+                                    <button @click="startBulkAction('UPDATE')" class="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 rounded text-xs font-bold transition-colors flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar (UPDATE)</button>
+                                    <button @click="startBulkAction('DELETE')" class="px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 rounded text-xs font-bold transition-colors flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Apagar (DELETE)</button>
+                                </div>
+                                
+                                <div v-if="bulkMode && !previewActive" class="flex flex-wrap items-center gap-3 w-full bg-slate-950 p-2 rounded border border-slate-700">
+                                    <span class="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">Ação: <span :class="bulkMode === 'DELETE' ? 'text-red-400' : 'text-blue-400'">{{ bulkMode }}</span></span>
+                                    
+                                    <template v-if="bulkMode === 'UPDATE'">
+                                        <span class="text-xs text-slate-500 font-bold">SET</span>
+                                        <select v-model="bulkColumn" class="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none cursor-pointer">
+                                            <option v-for="col in dbColumns" :key="col" :value="col">{{ col }}</option>
+                                        </select>
+                                        <span class="text-xs text-slate-500 font-bold">=</span>
+                                        <input v-model="bulkValue" placeholder="Novo valor..." class="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1.5 outline-none focus:border-amber-500 w-48">
+                                    </template>
+                                    
+                                    <div class="ml-auto flex gap-2">
+                                        <button @click="togglePreview" class="px-4 py-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/50 hover:bg-amber-500/30 rounded text-xs font-bold transition-colors shadow-lg flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Preview</button>
+                                        <button @click="cancelBulkAction" class="px-3 py-1.5 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 rounded text-xs font-bold transition-colors">Cancelar</button>
+                                    </div>
+                                </div>
+
+                                <div v-if="previewActive" class="flex items-center justify-between w-full bg-red-900/20 border border-red-500/50 p-3 rounded animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.15)]">
+                                    <span class="text-xs font-bold text-red-400 uppercase flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> MODO PREVIEW: {{ dbTotalRows }} linha(s) afetadas. Confirme a alteração abaixo.</span>
+                                    <div class="flex gap-2">
+                                        <button @click="commitBulkAction" class="px-5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-bold transition-colors shadow-[0_0_15px_rgba(220,38,38,0.5)] flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> COMMIT (Atirar)</button>
+                                        <button @click="cancelBulkAction" class="px-3 py-1.5 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 rounded text-xs font-bold transition-colors">Abortar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DATA TABLE -->
+                        <div class="flex-1 overflow-auto custom-scrollbar relative border border-slate-700 rounded-lg bg-slate-900 shadow-inner">
+                            <table class="w-full text-left text-xs whitespace-nowrap">
+                                <thead class="bg-slate-950 text-slate-400 sticky top-0 z-10 shadow-md">
+                                    <tr>
+                                        <th v-for="col in dbColumns" :key="col" @click="setDbSort(col)" class="px-4 py-3 font-semibold border-r border-slate-800 tracking-wider cursor-pointer hover:bg-slate-800 hover:text-white select-none group transition-colors">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <span>{{ col }}</span>
+                                                <span v-if="dbQuery.sort_by === col" class="text-amber-400 font-bold">{{ dbQuery.sort_desc ? '↓' : '↑' }}</span>
+                                                <span v-else class="text-slate-600 opacity-0 group-hover:opacity-100">↕</span>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800">
+                                    <tr v-for="row in dbRows" :key="row.id" :class="[previewActive && bulkMode === 'DELETE' ? 'bg-red-900/20 border-y border-dashed border-red-500/50 opacity-80' : 'hover:bg-slate-800/80']" class="transition-colors group">
+                                        <td v-for="col in dbColumns" :key="col" class="px-4 py-2 border-r border-slate-800/50 group-hover:border-slate-700/50" @dblclick="startDbEdit(row.id, col, row[col])">
+                                            <!-- MODO INLINE EDIT NORMAL -->
+                                            <input v-if="dbEdit.id === row.id && dbEdit.col === col && !previewActive" v-model="dbEdit.value" @blur="saveDbEdit(row)" @keyup.enter="saveDbEdit(row)" class="w-full min-w-[120px] bg-black border border-amber-500 text-amber-400 font-bold px-2 py-1 rounded outline-none shadow-[0_0_10px_rgba(245,158,11,0.2)]" autofocus>
+                                            
+                                            <!-- MODO PREVIEW UPDATE (AMARELO) -->
+                                            <span v-else-if="previewActive && bulkMode === 'UPDATE' && bulkColumn === col" class="text-amber-400 font-bold bg-amber-900/30 px-2 py-0.5 rounded border border-amber-500/50 inline-block">{{ bulkValue === '' ? 'NULL' : bulkValue }}</span>
+                                            
+                                            <!-- TEXTO NORMAL -->
+                                            <span v-else class="truncate max-w-[250px] inline-block cursor-pointer hover:text-amber-400 transition-colors font-mono" :title="row[col]">{{ row[col] === null ? 'NULL' : row[col] }}</span>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="dbRows.length === 0"><td :colspan="dbColumns.length" class="text-center py-10 text-slate-500 italic bg-slate-900/50">Nenhum registro encontrado para esta consulta.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- PAGINAÇÃO -->
+                        <div class="flex flex-wrap justify-between items-center mt-4 bg-slate-900 border border-slate-700 rounded-lg p-2 gap-4">
+                            <div class="flex items-center gap-2 text-xs text-slate-400">
+                                <span>Linhas por pág:</span>
+                                <select v-model="dbQuery.limit" @change="loadTableData(true)" class="bg-slate-950 border border-slate-700 rounded p-1 text-white outline-none cursor-pointer">
+                                    <option :value="20">20</option>
+                                    <option :value="50">50</option>
+                                    <option :value="100">100</option>
+                                    <option :value="500">500</option>
+                                </select>
+                            </div>
+                            
+                            <div class="flex items-center gap-4">
+                                <span class="text-xs text-slate-400 hidden md:inline">Mostrando <span class="font-bold text-white">{{ dbTotalRows > 0 ? (dbQuery.page - 1) * dbQuery.limit + 1 : 0 }}</span> - <span class="font-bold text-white">{{ Math.min(dbQuery.page * dbQuery.limit, dbTotalRows) }}</span> de <span class="font-bold text-white">{{ dbTotalRows }}</span></span>
+                                
+                                <div class="flex items-center gap-1">
+                                    <button @click="prevDbPage" :disabled="dbQuery.page === 1" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs border border-slate-700 transition-colors">&lt; Ant</button>
+                                    <span class="text-xs px-3 py-1 bg-slate-950 border border-slate-700 rounded text-amber-400 font-bold font-mono">Pág {{ dbQuery.page }} / {{ dbTotalPages }}</span>
+                                    <button @click="nextDbPage" :disabled="dbQuery.page >= dbTotalPages || dbTotalRows === 0" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs border border-slate-700 transition-colors">Próx &gt;</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: CENTRO DE COMANDOS (TERMINAL)        -->
+            <!-- ========================================== -->
+            <div v-else-if="currentView === 'command-center'" key="view-command-center" class="w-full flex flex-col lg:flex-row gap-6 h-[calc(100vh-16rem)]">
+                <!-- Sidebar Tools -->
+                <div class="w-full lg:w-64 bg-cardbg border border-slate-700 rounded-xl p-4 flex flex-col gap-2 shadow-lg overflow-y-auto custom-scrollbar flex-shrink-0">
+                    <h3 class="font-bold text-white mb-4 flex items-center gap-2"><svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg> Módulos (Logs)</h3>
+                    
+                    <button @click="switchLog('main')" :class="activeLog === 'main' ? 'bg-purple-500/20 text-purple-300 border-purple-500/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm font-semibold transition-all">Orquestrador (Cycle)</button>
+                    <div class="my-2 border-t border-slate-700"></div>
+                    <button @click="switchLog('httpx-runner')" :class="activeLog === 'httpx-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">HTTPx</button>
+                    <button @click="switchLog('katana-runner')" :class="activeLog === 'katana-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">Katana</button>
+                    <button @click="switchLog('feroxbuster-runner')" :class="activeLog === 'feroxbuster-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">Feroxbuster</button>
+                    <button @click="switchLog('jsfinder-runner')" :class="activeLog === 'jsfinder-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">JS Finder</button>
+                    <button @click="switchLog('nuclei-runner')" :class="activeLog === 'nuclei-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">Nuclei</button>
+                    <button @click="switchLog('screenshot-runner')" :class="activeLog === 'screenshot-runner' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'" class="px-4 py-2 rounded-lg border text-left text-sm transition-all">Screenshots</button>
+                </div>
+
+                <!-- Painel Preto de Terminal -->
+                <div class="flex-1 bg-[#0a0a0a] border border-slate-700 rounded-xl p-4 shadow-2xl flex flex-col relative overflow-hidden font-mono">
+                    <div class="flex justify-between items-center mb-3 pb-3 border-b border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <span class="flex gap-1.5"><span class="w-3 h-3 rounded-full bg-red-500"></span><span class="w-3 h-3 rounded-full bg-yellow-500"></span><span class="w-3 h-3 rounded-full bg-green-500"></span></span>
+                            <span class="text-green-500 text-sm font-bold tracking-wider">Terminal [{{ activeLog }}.log] <span v-if="wsStatus === 'connecting'" class="text-yellow-500 text-xs">(Conectando...)</span><span v-else-if="wsStatus === 'connected'" class="text-green-400 text-xs animate-pulse">(Live)</span><span v-else class="text-red-500 text-xs">(Desconectado)</span></span>
+                        </div>
+                        <button @click="clearLogs" class="text-xs px-3 py-1 border border-slate-700 rounded text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">Limpar Tela</button>
+                    </div>
+                    
+                    <div id="terminal-container" class="flex-1 overflow-y-auto terminal-scroll text-[11px] md:text-xs text-green-400/90 whitespace-pre-wrap break-all pb-4">
+                        <div v-for="(line, idx) in terminalLines" :key="idx" class="leading-snug" :class="getTerminalColor(line)">{{ line }}</div>
+                        <div v-if="terminalLines.length === 0" class="text-slate-600 italic">Aguardando saída da ferramenta... (se o log estiver vazio, o módulo pode ainda não ter sido executado).</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: GRADE DE HOSTS                       -->
+            <!-- ========================================== -->
+            <div v-else-if="currentView === 'hosts'" key="view-hosts">
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-6 gap-4 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                    <div>
+                        <h2 class="text-xl font-semibold text-white">Superfície de Ataque</h2>
+                        <p class="text-sm text-slate-400">Navegue pelos alvos mapeados no escopo.</p>
+                    </div>
+                    <div class="flex flex-col md:flex-row w-full lg:w-auto gap-3">
+                        <div class="relative w-full md:w-56">
+                            <select v-model="sortBy" class="appearance-none w-full bg-slate-900 border border-slate-600 rounded-lg pl-4 pr-10 py-2.5 text-sm text-slate-300 focus:outline-none focus:border-brand cursor-pointer">
+                                <option value="name">Alfabético (Nome)</option>
+                                <option value="endpoints">Maior nº de Endpoints</option>
+                                <option value="vulns">Maior nº de Vulnerabilidades</option>
+                                <option value="ports">Maior nº de Portas Abertas</option>
+                                <option value="screenshots">Maior nº de Screenshots</option>
+                                <option value="js">Maior nº de Rotas JS</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-80 relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
+                            <input v-model="searchQuery" type="text" placeholder="Buscar por domínio ou IP..." class="w-full bg-slate-900 border border-slate-600 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand">
+                        </div>
+                    </div>
+                </div>
+                
+                <div v-if="loadingHosts" class="flex justify-center py-20 text-slate-500"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
+                <div v-else-if="filteredAndSortedHosts.length === 0" class="text-center py-20 bg-cardbg border border-slate-700 rounded-xl"><p class="text-slate-400 text-lg">Nenhum alvo encontrado.</p></div>
+                <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+                    <host-card v-for="host in filteredAndSortedHosts" :key="host.id" :host="host" :image-tick="imageTick" @click="changeView('dossier', host)"></host-card>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: GLOBAL VULNERABILIDADES              -->
+            <!-- ========================================== -->
+            <div v-else-if="currentView === 'global-vulns'" key="view-global-vulns" class="w-full">
+                <div class="flex items-center gap-4 mb-6">
+                    <button @click="changeView('hosts')" class="w-12 h-12 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </button>
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">Dashboard Global de Vulnerabilidades</h2>
+                        <p class="text-sm text-slate-400">Análise horizontal da superfície de ataque do projeto.</p>
+                    </div>
+                </div>
+
+                <div v-if="loadingGlobal" class="flex justify-center py-20"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
+                
+                <div v-else class="space-y-6">
+                    <!-- Gráficos -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col">
+                            <h3 class="font-bold text-white mb-4 text-center">Distribuição por Severidade</h3>
+                            <div class="relative flex-1 w-full min-h-0"><canvas id="vulnSeverityCanvas"></canvas></div>
+                        </div>
+                        <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col">
+                            <h3 class="font-bold text-white mb-4 text-center">Top 5 Hosts Vulneráveis</h3>
+                            <div class="relative flex-1 w-full min-h-0"><canvas id="vulnHostCanvas"></canvas></div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela Mestra (Acordeão) -->
+                    <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                        <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white">Todas as Vulnerabilidades ({{ globalVulns.length }})</h3></div>
+                        <div class="p-4 space-y-3 max-h-[800px] overflow-y-auto custom-scrollbar">
+                            <div v-for="vuln in globalVulns" :key="vuln.id" class="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden hover:border-slate-500 transition-colors">
+                                <div @click="toggleVuln(vuln.id)" class="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer select-none">
+                                    <div>
+                                        <h4 class="font-bold text-white text-sm flex items-center gap-2">{{ vuln.title }}<svg :class="expandedVuln === vuln.id ? 'rotate-180' : ''" class="w-4 h-4 text-slate-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></h4>
+                                        <div class="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400 mt-2">
+                                            <span class="text-brand flex items-center gap-1 cursor-pointer hover:underline" @click.stop="changeView('dossier', {id: vuln.host_id})" title="Ir para o Host"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg> {{ vuln.host }}</span>
+                                            <span v-if="vuln.cwe_id" class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{{ vuln.cwe_id }}</span>
+                                            <span v-if="vuln.cvss_score" class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">CVSS: {{ vuln.cvss_score }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="px-3 py-1 rounded text-[11px] font-bold uppercase shadow-sm flex-shrink-0" :class="getVulnClass(vuln.severity)">{{ vuln.severity }}</div>
+                                </div>
+                                <div v-if="expandedVuln === vuln.id" class="p-4 border-t border-slate-700 bg-slate-800/40 text-sm text-slate-300">
+                                    
+                                    <!-- ===================== MODO DE EDIÇÃO ===================== -->
+                                    <div v-if="editingVulnId === vuln.id" class="space-y-4 animate-fade-in pb-2">
+                                        <div>
+                                            <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Título da Vulnerabilidade</label>
+                                            <input v-model="editForm.title" class="w-full bg-slate-950 border border-slate-600 rounded px-3 py-2 text-white font-bold text-sm outline-none focus:border-brand">
+                                        </div>
+                                        
+                                        <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700 shadow-inner">
+                                            <div class="flex items-center justify-between mb-3">
+                                                <span class="text-xs font-bold uppercase text-slate-400">Calculadora CVSS v3.1</span>
+                                                <span class="text-xs font-mono px-2 py-0.5 rounded shadow-sm border" :class="currentVector ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'">{{ currentVector || 'Preencha todas as métricas' }}</span>
+                                            </div>
+                                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                <div v-for="(opts, metric) in cvssOptions" :key="metric">
+                                                    <label class="text-[10px] text-slate-500 font-bold block mb-1">{{ metric }}</label>
+                                                    <select v-model="editCvss[metric]" class="w-full bg-slate-950 border border-slate-700 rounded text-xs px-2 py-1.5 text-slate-300 outline-none focus:border-brand cursor-pointer">
+                                                        <option value="">Selecione</option>
+                                                        <option v-for="opt in opts" :value="opt.val">{{ opt.label }}</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">CWE ID (ex: CWE-79)</label>
+                                                <input v-model="editForm.cwe_id" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand font-mono">
+                                            </div>
+                                            <div class="md:col-span-2">
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Descrição</label>
+                                                <textarea v-model="editForm.description" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                            </div>
+                                            <div>
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Impacto / Observações</label>
+                                                <textarea v-model="editForm.impact" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                            </div>
+                                            <div>
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Remediação</label>
+                                                <textarea v-model="editForm.remediation" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                            </div>
+                                            <div class="md:col-span-2">
+                                                <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Referências (uma URL por linha)</label>
+                                                <textarea v-model="editForm.references" rows="2" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-brand font-mono text-xs outline-none focus:border-brand custom-scrollbar placeholder-slate-700" placeholder="https://..."></textarea>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="flex gap-3 pt-4 border-t border-slate-700/50">
+                                            <button @click="saveEdit(vuln.id)" class="px-4 py-2 bg-green-600/20 hover:bg-green-600/40 border border-green-500/50 text-green-400 rounded text-xs font-bold transition-colors shadow-lg flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Salvar Alterações</button>
+                                            <button @click="cancelEdit()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded text-xs font-bold transition-colors flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Cancelar</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- ===================== MODO DE LEITURA ===================== -->
+                                    <div v-else class="space-y-4">
+                                        <div v-if="vuln.description"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Descrição</h5><p class="whitespace-pre-wrap font-sans text-slate-300 leading-relaxed">{{ vuln.description }}</p></div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div v-if="vuln.impact"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Impacto</h5><p class="whitespace-pre-wrap">{{ vuln.impact }}</p></div>
+                                            <div v-if="vuln.remediation"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Remediação</h5><p class="whitespace-pre-wrap">{{ vuln.remediation }}</p></div>
+                                        </div>
+                                        
+                                        <!-- 🔥 INÍCIO: GALERIA DE EVIDÊNCIAS 🔥 -->
+                                        <div v-if="vuln.evidences && vuln.evidences.length > 0" class="mt-4 pt-4 border-t border-slate-700/50">
+                                            <h5 class="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-2">
+                                                <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L28 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                                Evidências Visuais
+                                            </h5>
+                                            <div class="flex flex-wrap gap-4">
+                                                <div v-for="(ev, idx) in vuln.evidences" :key="idx" 
+                                                     @click.stop="openEvLightbox(vuln.host_id, vuln.evidences, idx)"
+                                                     class="w-40 h-24 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden cursor-pointer shadow-md hover:border-brand hover:shadow-brand/20 transition-all">
+                                                    <img :src="`/api/image/${vuln.host_id}/${encodeURIComponent(ev)}`" class="w-full h-full object-cover object-top opacity-80 hover:opacity-100 transition-opacity">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- 🔥 FIM: GALERIA DE EVIDÊNCIAS 🔥 -->
+
+                                        <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
+                                        <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
+                                            <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
+                                            
+                                            <div class="flex gap-2 ml-auto">
+                                                <button @click.stop="startEdit(vuln)" class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded text-xs font-semibold text-blue-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar</button>
+                                                <button @click.stop="markVulnFP(vuln.id, vuln.severity)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-semibold text-red-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Falso Positivo</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW: GLOBAL ENDPOINTS                     -->
+            <!-- ========================================== -->
+            <div v-else-if="currentView === 'global-endpoints'" key="view-global-endpoints" class="w-full">
+                <div class="flex items-center gap-4 mb-6">
+                    <button @click="changeView('hosts')" class="w-12 h-12 bg-cardbg border border-slate-700 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </button>
+                    <div><h2 class="text-2xl font-bold text-white">Dashboard Global de Endpoints</h2><p class="text-sm text-slate-400">Análise de exposição e status de todas as rotas mapeadas. <span class="text-amber-400 italic font-normal text-xs ml-2">(Duplo-clique no Status ou Título para edição rápida)</span></p></div>
+                </div>
+
+                <div v-if="loadingGlobal" class="flex justify-center py-20"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
+                
+                <div v-else class="space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col"><h3 class="font-bold text-white mb-4 text-center">Distribuição de Status HTTP</h3><div class="relative flex-1 w-full min-h-0"><canvas id="epStatusCanvas"></canvas></div></div>
+                        <div class="bg-cardbg border border-slate-700 rounded-xl p-5 shadow-lg h-80 flex flex-col"><h3 class="font-bold text-white mb-4 text-center">Top 10 Hosts com mais Endpoints</h3><div class="relative flex-1 w-full min-h-0"><canvas id="epHostCanvas"></canvas></div></div>
+                    </div>
+
+                    <!-- Tabela Mestra Endpoints com INLINE EDIT -->
+                    <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                        <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white">Todos os Endpoints Mapeados ({{ globalEndpoints.length }})</h3></div>
+                        <div class="overflow-x-auto max-h-[800px] overflow-y-auto custom-scrollbar relative">
+                            <table class="w-full text-left text-sm whitespace-nowrap">
+                                <thead class="bg-slate-900 text-slate-400 sticky top-0 shadow z-10">
+                                    <tr>
+                                        <th class="px-4 py-3 font-semibold">Host</th>
+                                        <th @click="toggleGlobalEpSort('status_code')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Status <span v-if="globalEpSortKey === 'status_code'">{{ globalEpSortAsc ? '↑' : '↓' }}</span></th>
+                                        <th @click="toggleGlobalEpSort('url')" class="px-4 py-3 font-semibold w-full cursor-pointer hover:text-white select-none">URL <span v-if="globalEpSortKey === 'url'">{{ globalEpSortAsc ? '↑' : '↓' }}</span></th>
+                                        <th @click="toggleGlobalEpSort('content_length')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Tamanho <span v-if="globalEpSortKey === 'content_length'">{{ globalEpSortAsc ? '↑' : '↓' }}</span></th>
+                                        <th @click="toggleGlobalEpSort('title')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Título <span v-if="globalEpSortKey === 'title'">{{ globalEpSortAsc ? '↑' : '↓' }}</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-700/50">
+                                    <tr v-for="ep in sortedGlobalEndpoints" :key="ep.url" class="hover:bg-slate-800/50 transition-colors group">
+                                        <td class="px-4 py-3"><span class="text-[10px] font-mono text-slate-400 cursor-pointer hover:text-brand" @click="changeView('dossier', {id: ep.host_id})" title="Ir para o Host">{{ ep.host }}</span></td>
+                                        
+                                        <!-- INLINE EDIT: STATUS CODE -->
+                                        <td class="px-4 py-3" @dblclick="startInlineEdit(ep.id, 'status_code', ep.status_code)">
+                                            <input v-if="epInlineEdit.id === ep.id && epInlineEdit.field === 'status_code'" v-model="epInlineEdit.value" @blur="saveInlineEdit(ep)" @keyup.enter="saveInlineEdit(ep)" class="w-16 bg-slate-900 border border-amber-500 text-amber-400 font-bold px-1 py-0.5 rounded outline-none text-xs text-center" autofocus>
+                                            <span v-else :class="getStatusClass(ep.status_code)" class="px-2 py-1 rounded text-[10px] font-mono font-bold cursor-pointer hover:ring-1 hover:ring-amber-500 transition-all">{{ ep.status_code || '---' }}</span>
+                                        </td>
+                                        
+                                        <td class="px-4 py-3 text-brand hover:underline font-mono text-xs max-w-sm truncate" :title="ep.url"><a :href="ep.url" target="_blank">{{ ep.url }}</a></td>
+                                        <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ ep.content_length || '0' }}b</td>
+                                        
+                                        <!-- INLINE EDIT: TITLE -->
+                                        <td class="px-4 py-3 text-xs text-slate-300 max-w-[200px] flex justify-between items-center group" @dblclick="startInlineEdit(ep.id, 'title', ep.title)">
+                                            <input v-if="epInlineEdit.id === ep.id && epInlineEdit.field === 'title'" v-model="epInlineEdit.value" @blur="saveInlineEdit(ep)" @keyup.enter="saveInlineEdit(ep)" class="w-full bg-slate-900 border border-amber-500 text-amber-400 px-2 py-1 rounded outline-none text-xs" autofocus>
+                                            <span v-else class="truncate cursor-pointer hover:text-amber-400 transition-colors" :title="ep.title">{{ ep.title || '-' }}</span>
+                                            
+                                            <button v-if="!(epInlineEdit.id === ep.id && epInlineEdit.field === 'title')" @click.stop="markEndpointFP(ep.url, ep.host_id, true)" class="opacity-0 group-hover:opacity-100 p-1 text-red-500/50 hover:text-red-400 hover:bg-red-500/10 rounded transition-all ml-2" title="Ocultar (Falso Positivo)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- FASE 4: DOSSIÊ DO ALVO (PANORÂMICA)        -->
+            <!-- ========================================== -->
+            <div v-else-if="currentView === 'dossier'" key="view-dossier" class="w-full">
+                <!-- Layout Fixo + Carrossel Lateral -->
+                <div class="flex flex-col xl:flex-row items-stretch gap-4 mb-8">
+                    <div class="flex gap-4 flex-shrink-0">
+                        <button @click="changeView('hosts')" class="w-16 bg-cardbg border border-slate-700 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-white hover:border-brand hover:bg-slate-800 transition-colors">
+                            <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                            <span class="text-[10px] font-bold uppercase tracking-wider">Voltar</span>
+                        </button>
+                        <div class="w-80 ring-2 ring-brand rounded-xl shadow-[0_0_15px_rgba(14,165,233,0.3)]">
+                            <host-card v-if="activeHost" :host="activeHost" :image-tick="imageTick"></host-card>
+                        </div>
+                    </div>
+                    <div class="hidden xl:block w-px bg-slate-700 mx-2"></div>
+                    <div class="flex-1 min-w-0 flex items-stretch gap-4 overflow-x-auto pb-2 snap-x custom-scrollbar">
+                        <div v-for="h in otherHosts" :key="h.id" @click="changeView('dossier', h)" class="flex-shrink-0 w-80 snap-start opacity-40 hover:opacity-100 cursor-pointer hover:-translate-y-1 transition-all duration-300">
+                            <host-card :host="h" :image-tick="imageTick"></host-card>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="loadingDetails" class="flex justify-center py-20 text-slate-500"><svg class="animate-spin h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
+                <div v-else class="space-y-6">
+                    <div class="bg-cardbg p-5 rounded-xl border border-slate-700 flex flex-col md:flex-row items-center justify-between shadow-lg">
+                        <div class="flex items-center gap-3 mb-4 md:mb-0">
+                            <svg class="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                            <div><h3 class="text-lg font-bold text-white">Isolamento por Porta</h3><p class="text-xs text-slate-400">Filtre os endpoints e tecnologias atrelados a uma porta.</p></div>
+                        </div>
+                        <div class="flex flex-wrap gap-2 justify-end">
+                            <button @click="selectedPort = null" :class="!selectedPort ? 'bg-brand text-white shadow-[0_0_10px_rgba(14,165,233,0.5)]' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all">Visão Global</button>
+                            <button v-for="p in hostDetails.ports" :key="p.port" @click="selectedPort = p.port" :class="selectedPort === p.port ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.5)]' : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'" class="px-4 py-1.5 rounded-lg text-sm font-mono font-semibold transition-all flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-400"></span>{{ p.port }}/{{ p.protocol }}</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 space-y-6">
+                            
+                            <!-- Endpoints Host com INLINE EDIT -->
+                            <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                                <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white flex items-center gap-2"><svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg> Endpoints Mapeados ({{ sortedFilteredEndpoints.length }}) <span class="text-amber-400 italic font-normal text-xs ml-2 opacity-80">(Duplo-clique para editar)</span></h3></div>
+                                <div class="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar relative">
+                                    <table class="w-full text-left text-sm whitespace-nowrap">
+                                        <thead class="bg-slate-900 text-slate-400 sticky top-0 shadow z-10">
+                                            <tr>
+                                                <th @click="toggleEpSort('status_code')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Status <span v-if="epSortKey === 'status_code'">{{ epSortAsc ? '↑' : '↓' }}</span></th>
+                                                <th @click="toggleEpSort('url')" class="px-4 py-3 font-semibold w-full cursor-pointer hover:text-white select-none">URL <span v-if="epSortKey === 'url'">{{ epSortAsc ? '↑' : '↓' }}</span></th>
+                                                <th @click="toggleEpSort('content_length')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Tamanho <span v-if="epSortKey === 'content_length'">{{ epSortAsc ? '↑' : '↓' }}</span></th>
+                                                <th @click="toggleEpSort('title')" class="px-4 py-3 font-semibold cursor-pointer hover:text-white select-none">Título <span v-if="epSortKey === 'title'">{{ epSortAsc ? '↑' : '↓' }}</span></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-700/50">
+                                            <tr v-for="ep in sortedFilteredEndpoints" :key="ep.url" class="hover:bg-slate-800/50 transition-colors group">
+                                                
+                                                <!-- INLINE EDIT: STATUS CODE -->
+                                                <td class="px-4 py-3" @dblclick="startInlineEdit(ep.id, 'status_code', ep.status_code)">
+                                                    <input v-if="epInlineEdit.id === ep.id && epInlineEdit.field === 'status_code'" v-model="epInlineEdit.value" @blur="saveInlineEdit(ep)" @keyup.enter="saveInlineEdit(ep)" class="w-16 bg-slate-900 border border-amber-500 text-amber-400 font-bold px-1 py-0.5 rounded outline-none text-xs text-center" autofocus>
+                                                    <span v-else :class="getStatusClass(ep.status_code)" class="px-2 py-1 rounded text-xs font-mono font-bold cursor-pointer hover:ring-1 hover:ring-amber-500 transition-all">{{ ep.status_code || '---' }}</span>
+                                                </td>
+
+                                                <td class="px-4 py-3 text-brand hover:underline font-mono text-xs max-w-xs truncate" :title="ep.url"><a :href="ep.url" target="_blank">{{ ep.url }}</a></td>
+                                                <td class="px-4 py-3 font-mono text-xs text-slate-400">{{ ep.content_length || '0' }}b</td>
+                                                
+                                                <!-- INLINE EDIT: TITLE -->
+                                                <td class="px-4 py-3 text-xs text-slate-300 max-w-[200px] flex justify-between items-center group" @dblclick="startInlineEdit(ep.id, 'title', ep.title)">
+                                                    <input v-if="epInlineEdit.id === ep.id && epInlineEdit.field === 'title'" v-model="epInlineEdit.value" @blur="saveInlineEdit(ep)" @keyup.enter="saveInlineEdit(ep)" class="w-full bg-slate-900 border border-amber-500 text-amber-400 px-2 py-1 rounded outline-none text-xs" autofocus>
+                                                    <span v-else class="truncate cursor-pointer hover:text-amber-400 transition-colors" :title="ep.title">{{ ep.title || '-' }}</span>
+                                                    
+                                                    <button v-if="!(epInlineEdit.id === ep.id && epInlineEdit.field === 'title')" @click="markEndpointFP(ep.url, activeHost.id)" class="opacity-0 group-hover:opacity-100 p-1 text-red-500/50 hover:text-red-400 hover:bg-red-500/10 rounded transition-all ml-2" title="Ocultar (Falso Positivo)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="sortedFilteredEndpoints.length === 0"><td colspan="4" class="px-4 py-8 text-center text-slate-500">Nenhum endpoint detectado.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Vulns Host (Acordeão) -->
+                            <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                                <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white flex items-center gap-2"><svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> Vulnerabilidades Ativas ({{ hostDetails.vulnerabilities.length }})</h3></div>
+                                <div class="p-4 space-y-3">
+                                    <div v-for="vuln in hostDetails.vulnerabilities" :key="vuln.id" class="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden hover:border-slate-500 transition-colors">
+                                        <div @click="toggleVuln(vuln.id)" class="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 cursor-pointer select-none">
+                                            <div>
+                                                <h4 class="font-bold text-white text-sm flex items-center gap-2">{{ vuln.title }}<svg :class="expandedVuln === vuln.id ? 'rotate-180' : ''" class="w-4 h-4 text-slate-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></h4>
+                                                <div class="flex flex-wrap gap-2 text-[10px] font-mono text-slate-400 mt-2"><span v-if="vuln.cwe_id" class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{{ vuln.cwe_id }}</span><span v-if="vuln.cve_id" class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{{ vuln.cve_id }}</span><span v-if="vuln.cvss_score" class="bg-slate-800 px-2 py-0.5 rounded border border-slate-700">CVSS: {{ vuln.cvss_score }}</span></div>
+                                            </div>
+                                            <div class="px-3 py-1 rounded text-[11px] font-bold uppercase shadow-sm flex-shrink-0" :class="getVulnClass(vuln.severity)">{{ vuln.severity }}</div>
+                                        </div>
+                                        <div v-if="expandedVuln === vuln.id" class="p-4 border-t border-slate-700 bg-slate-800/40 text-sm text-slate-300">
+                                            
+                                            <!-- ===================== MODO DE EDIÇÃO ===================== -->
+                                            <div v-if="editingVulnId === vuln.id" class="space-y-4 animate-fade-in pb-2">
+                                                <div>
+                                                    <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Título da Vulnerabilidade</label>
+                                                    <input v-model="editForm.title" class="w-full bg-slate-950 border border-slate-600 rounded px-3 py-2 text-white font-bold text-sm outline-none focus:border-brand">
+                                                </div>
+                                                
+                                                <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700 shadow-inner">
+                                                    <div class="flex items-center justify-between mb-3">
+                                                        <span class="text-xs font-bold uppercase text-slate-400">Calculadora CVSS v3.1</span>
+                                                        <span class="text-xs font-mono px-2 py-0.5 rounded shadow-sm border" :class="currentVector ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'">{{ currentVector || 'Preencha todas as métricas' }}</span>
+                                                    </div>
+                                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                        <div v-for="(opts, metric) in cvssOptions" :key="metric">
+                                                            <label class="text-[10px] text-slate-500 font-bold block mb-1">{{ metric }}</label>
+                                                            <select v-model="editCvss[metric]" class="w-full bg-slate-950 border border-slate-700 rounded text-xs px-2 py-1.5 text-slate-300 outline-none focus:border-brand cursor-pointer">
+                                                                <option value="">Selecione</option>
+                                                                <option v-for="opt in opts" :value="opt.val">{{ opt.label }}</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">CWE ID (ex: CWE-79)</label>
+                                                        <input v-model="editForm.cwe_id" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand font-mono">
+                                                    </div>
+                                                    <div class="md:col-span-2">
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Descrição</label>
+                                                        <textarea v-model="editForm.description" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                                    </div>
+                                                    <div>
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Impacto / Observações</label>
+                                                        <textarea v-model="editForm.impact" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                                    </div>
+                                                    <div>
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Remediação</label>
+                                                        <textarea v-model="editForm.remediation" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-300 text-xs outline-none focus:border-brand custom-scrollbar"></textarea>
+                                                    </div>
+                                                    <div class="md:col-span-2">
+                                                        <label class="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Referências (uma URL por linha)</label>
+                                                        <textarea v-model="editForm.references" rows="2" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-brand font-mono text-xs outline-none focus:border-brand custom-scrollbar placeholder-slate-700" placeholder="https://..."></textarea>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="flex gap-3 pt-4 border-t border-slate-700/50">
+                                                    <button @click="saveEdit(vuln.id)" class="px-4 py-2 bg-green-600/20 hover:bg-green-600/40 border border-green-500/50 text-green-400 rounded text-xs font-bold transition-colors shadow-lg flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Salvar Alterações</button>
+                                                    <button @click="cancelEdit()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded text-xs font-bold transition-colors flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Cancelar</button>
+                                                </div>
+                                            </div>
+
+                                            <!-- ===================== MODO DE LEITURA ===================== -->
+                                            <div v-else class="space-y-4">
+                                                <div v-if="vuln.description"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Descrição</h5><p class="whitespace-pre-wrap font-sans text-slate-300 leading-relaxed">{{ vuln.description }}</p></div>
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div v-if="vuln.impact"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Impacto</h5><p class="whitespace-pre-wrap">{{ vuln.impact }}</p></div>
+                                                    <div v-if="vuln.remediation"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">Remediação</h5><p class="whitespace-pre-wrap">{{ vuln.remediation }}</p></div>
+                                                </div>
+                                                
+                                                <!-- 🔥 INÍCIO: GALERIA DE EVIDÊNCIAS 🔥 -->
+                                                <div v-if="vuln.evidences && vuln.evidences.length > 0" class="mt-4 pt-4 border-t border-slate-700/50">
+                                                    <h5 class="text-[10px] font-bold uppercase text-slate-500 mb-2 flex items-center gap-2">
+                                                        <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L28 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                                        Evidências Visuais
+                                                    </h5>
+                                                    <div class="flex flex-wrap gap-4">
+                                                        <div v-for="(ev, idx) in vuln.evidences" :key="idx" 
+                                                             @click.stop="openEvLightbox(vuln.host_id, vuln.evidences, idx)"
+                                                             class="w-40 h-24 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden cursor-pointer shadow-md hover:border-brand hover:shadow-brand/20 transition-all">
+                                                            <img :src="`/api/image/${vuln.host_id}/${encodeURIComponent(ev)}`" class="w-full h-full object-cover object-top opacity-80 hover:opacity-100 transition-opacity">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <!-- 🔥 FIM: GALERIA DE EVIDÊNCIAS 🔥 -->
+
+                                                <div v-if="vuln.curl_command"><h5 class="text-[10px] font-bold uppercase text-slate-500 mb-1">PoC (Curl Command)</h5><div class="bg-slate-950 p-3 rounded border border-slate-700 overflow-x-auto custom-scrollbar font-mono text-xs text-brand"><code>{{ vuln.curl_command }}</code></div></div>
+                                                <div class="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-700/50">
+                                                    <button v-if="vuln.curl_command" @click.stop="copyPoC(vuln.curl_command)" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-semibold text-slate-300 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg> Copiar PoC</button>
+                                                    
+                                                    <div class="flex gap-2 ml-auto">
+                                                        <button @click.stop="startEdit(vuln)" class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded text-xs font-semibold text-blue-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg> Editar</button>
+                                                        <button @click.stop="markVulnFP(vuln.id, vuln.severity)" class="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-xs font-semibold text-red-400 shadow-sm transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Falso Positivo</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="hostDetails.vulnerabilities.length === 0" class="text-center py-6 text-slate-500">Sistema seguro</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Coluna Menor -->
+                        <div class="space-y-6">
+                            <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                                <div class="bg-slate-800/80 p-4 border-b border-slate-700"><h3 class="font-bold text-white flex items-center gap-2"><svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg> Stack</h3></div>
+                                <div class="p-5 flex flex-wrap gap-2"><span v-for="tech in hostDetails.technologies" :key="tech" class="px-3 py-1 bg-slate-900 border border-slate-700 rounded-full text-xs font-semibold text-slate-300">{{ tech }}</span></div>
+                            </div>
+                            <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                                <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white flex items-center gap-2"><svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg> Rotas JS</h3><span class="text-xs bg-slate-900 px-2 py-1 rounded text-slate-400 font-mono">{{ hostDetails.js_discoveries?.length || 0 }}</span></div>
+                                <div class="p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+                                    <div v-for="(routes, sourceUrl) in groupedJS" :key="sourceUrl" class="bg-slate-900 border border-slate-700 p-3 rounded-lg mb-4">
+                                        <a :href="sourceUrl" target="_blank" class="block text-xs text-brand hover:underline truncate font-mono mb-2 pb-2 border-b border-slate-800">📄 {{ sourceUrl.split('/').pop() || sourceUrl }}</a>
+                                        <ul class="space-y-1"><li v-for="route in routes" :key="route" class="text-[11px] font-mono text-slate-400 truncate pl-2 border-l-2 border-slate-700 hover:text-slate-300">{{ route }}</li></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Galeria de Screenshots -->
+                    <div class="bg-cardbg border border-slate-700 rounded-xl overflow-hidden shadow-lg mt-6">
+                        <div class="bg-slate-800/80 p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white flex items-center gap-2"><svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L28 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> Visual Recon ({{ hostDetails.screenshots?.length || 0 }})</h3></div>
+                        <div class="p-5">
+                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                <div v-for="(shot, index) in hostDetails.screenshots" :key="shot.file_path" @click="openLightbox(index)" class="aspect-video bg-slate-900 border border-slate-700 rounded-lg overflow-hidden cursor-pointer group relative shadow-md hover:border-brand transition-colors">
+                                    <img :src="`/api/image/${activeHost.id}/${encodeURIComponent(shot.file_path)}`" class="w-full h-full object-cover object-top opacity-80 group-hover:opacity-100 transition-opacity">
+                                    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-end">
+                                        <span class="text-[10px] font-mono text-white truncate max-w-[70%]">{{ shot.title || shot.file_path }}</span>
+                                        <span :class="getStatusClass(shot.status_code)" class="px-1.5 py-0.5 rounded text-[9px] font-bold">{{ shot.status_code || '-' }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </transition>
+    </main>
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div class="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
+        <transition-group name="fade">
+            <div v-for="toast in toasts" :key="toast.id" :class="toast.type === 'success' ? 'bg-green-900/90 border-green-500 text-green-200' : 'bg-red-900/90 border-red-500 text-red-200'" class="px-4 py-3 rounded-lg border shadow-xl flex items-center gap-3 min-w-[250px] backdrop-blur pointer-events-auto">
+                <svg v-if="toast.type === 'success'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span class="text-sm font-medium">{{ toast.message }}</span>
+            </div>
+        </transition-group>
+    </div>
+
+    <!-- LIGHTBOX -->
+    <transition name="fade">
+        <div v-if="lightboxOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm">
+            <button @click="closeLightbox" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 hover:bg-red-500/20 p-2 rounded-full z-50"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            <button @click.stop="prevImage" class="absolute left-4 top-1/2 -translate-y-1/2 text-white bg-slate-800/50 hover:bg-brand/50 p-3 rounded-full z-50"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+            <button @click.stop="nextImage" class="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-slate-800/50 hover:bg-brand/50 p-3 rounded-full z-50"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+            <div class="relative w-full max-w-6xl max-h-[90vh] flex flex-col items-center p-4">
+                <img :src="`/api/image/${activeHost.id}/${encodeURIComponent(currentLightboxImage.file_path)}`" class="max-w-full max-h-[80vh] object-contain rounded shadow-2xl border border-slate-700" @click.stop>
+                <div class="mt-4 bg-slate-900 border border-slate-700 px-6 py-3 rounded-xl flex flex-wrap items-center justify-center gap-4 text-sm shadow-xl w-full max-w-3xl" @click.stop>
+                    <span :class="getStatusClass(currentLightboxImage.status_code)" class="px-2 py-1 rounded font-mono font-bold">{{ currentLightboxImage.status_code || '---' }}</span>
+                    <a :href="currentLightboxImage.final_url || currentLightboxImage.source_url" target="_blank" class="text-brand hover:underline font-mono truncate max-w-md">{{ currentLightboxImage.final_url || currentLightboxImage.source_url || 'URL Indisponível' }}</a>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <!-- LIGHTBOX DE EVIDÊNCIAS -->
+    <transition name="fade">
+        <div v-if="evLightboxOpen" class="fixed inset-0 z-[105] flex items-center justify-center bg-black/95 backdrop-blur-sm">
+            <button @click="closeEvLightbox" class="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 hover:bg-red-500/20 p-2 rounded-full z-50"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            <button @click.stop="prevEvImage" class="absolute left-4 top-1/2 -translate-y-1/2 text-white bg-slate-800/50 hover:bg-brand/50 p-3 rounded-full z-50"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+            <button @click.stop="nextEvImage" class="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-slate-800/50 hover:bg-brand/50 p-3 rounded-full z-50"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+            <div class="relative w-full max-w-6xl max-h-[90vh] flex flex-col items-center p-4">
+                <img :src="`/api/image/${evLightboxHostId}/${encodeURIComponent(evLightboxImages[evLightboxIndex])}`" class="max-w-full max-h-[85vh] object-contain rounded shadow-2xl border border-slate-700" @click.stop>
+                <div class="mt-4 bg-slate-900 border border-slate-700 px-6 py-2 rounded-xl text-sm shadow-xl font-mono text-slate-400">
+                    {{ evLightboxIndex + 1 }} / {{ evLightboxImages.length }}
+                </div>
+            </div>
+        </div>
+    </transition>
+
+</div>
+
+<!-- ========================================== -->
+<!-- TEMPLATE DO COMPONENTE DO CARD             -->
+<!-- ========================================== -->
+<template id="host-card-template">
+    <div class="bg-cardbg border border-slate-700 rounded-xl shadow-lg hover:shadow-brand/10 hover:border-slate-500 transition-all duration-300 flex flex-col h-full w-full overflow-hidden group">
+        <div v-if="host.screenshots.length > 0" class="h-44 w-full bg-slate-900 relative border-b border-slate-700 overflow-hidden">
+            <transition name="fade" mode="out-in"><img :key="host.screenshots[imageTick % host.screenshots.length]" :src="`/api/image/${host.id}/${encodeURIComponent(host.screenshots[imageTick % host.screenshots.length])}`" class="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity duration-300 object-top"></transition>
+        </div>
+        <div v-else class="h-20 w-full bg-slate-800/50 flex items-center justify-center border-b border-slate-700">
+            <span class="text-slate-600 text-sm font-mono flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L28 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>Sem visualização</span>
+        </div>
+        <div class="p-5 flex flex-col flex-grow">
+            <div class="mb-5"><h3 class="text-lg font-bold text-white truncate">{{ host.host }}</h3><div class="mt-1"><span class="px-2 py-0.5 rounded text-xs font-mono bg-slate-900 text-slate-400 border">{{ host.ip }}</span></div></div>
+            <div class="grid grid-cols-3 gap-2 mb-4 flex-grow">
+                <div class="bg-slate-900/80 rounded border p-2 flex flex-col items-center"><span class="text-[10px] text-slate-500 font-bold uppercase mb-1">Endpoints</span><span class="text-lg font-bold text-green-400">{{ host.endpoints_count }}</span></div>
+                <div class="bg-slate-900/80 rounded border p-2 flex flex-col items-center"><span class="text-[10px] text-slate-500 font-bold uppercase mb-1">Portas</span><span class="text-lg font-bold text-blue-400">{{ host.open_ports.length }}</span></div>
+                <div class="bg-slate-900/80 rounded border p-2 flex flex-col items-center"><span class="text-[10px] text-slate-500 font-bold uppercase mb-1">Rotas JS</span><span class="text-lg font-bold text-yellow-500">{{ host.js_count }}</span></div>
+            </div>
+            <div class="pt-3 border-t border-slate-700 flex flex-col gap-3 mt-auto">
+                <div class="flex flex-wrap gap-2">
+                    <template v-if="host.vulns_total > 0">
+                        <span v-if="host.vulns_severity['Crítica'] > 0" class="flex items-center gap-1 text-[11px] font-bold text-red-500 bg-red-500/10 px-2 py-1 rounded border border-red-500/20"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> {{ host.vulns_severity['Crítica'] }}</span>
+                        <span v-if="host.vulns_severity['Alta'] > 0" class="flex items-center gap-1 text-[11px] font-bold text-orange-400 bg-orange-400/10 px-2 py-1 rounded border border-orange-400/20"><span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span> {{ host.vulns_severity['Alta'] }}</span>
+                        <span v-if="host.vulns_severity['Média'] > 0" class="flex items-center gap-1 text-[11px] font-bold text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded border border-yellow-400/20"><span class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span> {{ host.vulns_severity['Média'] }}</span>
+                        <span v-if="host.vulns_severity['Baixa'] > 0" class="flex items-center gap-1 text-[11px] font-bold text-green-400 bg-green-400/10 px-2 py-1 rounded border border-green-400/20"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> {{ host.vulns_severity['Baixa'] }}</span>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<script>
+    const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue
+    const HostCard = { template: '#host-card-template', props: ['host', 'imageTick'] }
+    let chartInstances = {};
+
+    const app = createApp({
+        setup() {
+            const stats = ref({ hosts: 0, vulns: 0, endpoints: 0, projeto: '', error: null })
+            const hosts = ref([])
+            const searchQuery = ref('')
+            const sortBy = ref('name')
+            const loadingHosts = ref(true)
+            const imageTick = ref(0)
+            let intervalId = null
+
+            const currentView = ref('hosts'); 
+            const globalVulns = ref([]);
+            const globalEndpoints = ref([]);
+            const loadingGlobal = ref(false);
+
+            const activeHost = ref(null)
+            const hostDetails = ref({ ports: [], endpoints: [], technologies: [], vulnerabilities: [], js_discoveries: [], screenshots: [] })
+            const loadingDetails = ref(false)
+            const selectedPort = ref(null)
+
+            const epSortKey = ref('url'); const epSortAsc = ref(true)
+            const globalEpSortKey = ref('url'); const globalEpSortAsc = ref(true)
+            
+            const expandedVuln = ref(null)
+            const lightboxOpen = ref(false); const lightboxIndex = ref(0)
+            const isSyncing = ref(false); const isCycling = ref(false); let cycleInterval = null
+            const toasts = ref([])
+
+            // ================= FASE 8: DEEP EDIT CVSS =================
+            const editingVulnId = ref(null)
+            const editForm = ref({ title: '', description: '', impact: '', remediation: '', cwe_id: '', references: '' })
+            const editCvss = ref({ AV: '', AC: '', PR: '', UI: '', S: '', C: '', I: '', A: '' })
+            const cvssOptions = {
+                AV: [{label: 'Network (N)', val: 'N'}, {label: 'Adjacent (A)', val: 'A'}, {label: 'Local (L)', val: 'L'}, {label: 'Physical (P)', val: 'P'}],
+                AC: [{label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+                PR: [{label: 'None (N)', val: 'N'}, {label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+                UI: [{label: 'None (N)', val: 'N'}, {label: 'Required (R)', val: 'R'}],
+                S:  [{label: 'Unchanged (U)', val: 'U'}, {label: 'Changed (C)', val: 'C'}],
+                C:  [{label: 'None (N)', val: 'N'}, {label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+                I:  [{label: 'None (N)', val: 'N'}, {label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+                A:  [{label: 'None (N)', val: 'N'}, {label: 'Low (L)', val: 'L'}, {label: 'High (H)', val: 'H'}],
+            };
+
+            const currentVector = computed(() => {
+                const m = editCvss.value;
+                if(m.AV && m.AC && m.PR && m.UI && m.S && m.C && m.I && m.A) { return `CVSS:3.1/AV:${m.AV}/AC:${m.AC}/PR:${m.PR}/UI:${m.UI}/S:${m.S}/C:${m.C}/I:${m.I}/A:${m.A}`; }
+                return "";
+            });
+
+            const startEdit = (vuln) => {
+                editingVulnId.value = vuln.id;
+                
+                // Preenche os campos de texto
+                editForm.value = { 
+                    title: vuln.title || '', 
+                    description: vuln.description || '', 
+                    impact: vuln.impact || '', 
+                    remediation: vuln.remediation || '', 
+                    cwe_id: vuln.cwe_id || '', 
+                    references: (vuln.reference_urls || []).join('\n') 
+                };
+                
+                // Reseta o CVSS de forma reativa segura
+                editCvss.value = { AV: '', AC: '', PR: '', UI: '', S: '', C: '', I: '', A: '' };
+                
+                // Disseca o vetor e preenche os dropdowns diretamente
+                if (vuln.cvss_vector && vuln.cvss_vector.trim().startsWith('CVSS:3')) {
+                    const parts = vuln.cvss_vector.trim().split('/');
+                    parts.forEach(part => {
+                        if (part.includes(':')) {
+                            const [key, val] = part.split(':');
+                            if (editCvss.value[key] !== undefined) {
+                                editCvss.value[key] = val; // Vue reage na hora!
+                            }
+                        }
+                    });
+                }
+            };
+
+            const cancelEdit = () => { editingVulnId.value = null; }
+
+            const saveEdit = async (vulnId) => {
+                if (!currentVector.value) { addToast("Preencha todas as métricas do CVSS!", "error"); return; }
+                const payload = { title: editForm.value.title, description: editForm.value.description, impact: editForm.value.impact, remediation: editForm.value.remediation, cvss_vector: currentVector.value, reference_urls: editForm.value.references.split('\n').map(l => l.trim()).filter(l => l), cwe_id: editForm.value.cwe_id };
+                try {
+                    const res = await fetch(`/api/vulns/${vulnId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    const data = await res.json();
+                    if (res.ok) {
+                        addToast("Vulnerabilidade atualizada e sincronizada com o Obsidian!", "success");
+                        editingVulnId.value = null;
+                        const updateLocal = (v) => {
+                            if (v.id === vulnId) {
+                                v.title = payload.title; v.description = payload.description; v.impact = payload.impact; v.remediation = payload.remediation; v.cvss_vector = payload.cvss_vector; v.reference_urls = payload.reference_urls; v.cwe_id = payload.cwe_id; 
+                                if (activeHost.value && v.severity !== data.new_severity && currentView.value === 'dossier') {
+                                    if (activeHost.value.vulns_severity[v.severity] > 0) activeHost.value.vulns_severity[v.severity]--;
+                                    activeHost.value.vulns_severity[data.new_severity] = (activeHost.value.vulns_severity[data.new_severity] || 0) + 1;
+                                }
+                                v.cvss_score = data.new_score; v.severity = data.new_severity;
+                            }
+                        };
+                        hostDetails.value.vulnerabilities.forEach(updateLocal);
+                        globalVulns.value.forEach(updateLocal);
+                        if (currentView.value === 'global-vulns') nextTick(() => renderVulnCharts());
+                    } else { addToast("Erro: " + data.detail, "error"); }
+                } catch (e) { addToast("Erro ao contatar API.", "error"); }
+            }
+
+            // ================= FASE 8.4: EVIDÊNCIAS =================
+            const evLightboxOpen = ref(false);
+            const evLightboxImages = ref([]);
+            const evLightboxIndex = ref(0);
+            const evLightboxHostId = ref(null);
+
+            const openEvLightbox = (hostId, images, index) => { evLightboxHostId.value = hostId; evLightboxImages.value = images; evLightboxIndex.value = index; evLightboxOpen.value = true; };
+            const closeEvLightbox = () => { evLightboxOpen.value = false; };
+            const nextEvImage = () => { const t = evLightboxImages.value.length; if (t > 0) evLightboxIndex.value = (evLightboxIndex.value + 1) % t; };
+            const prevEvImage = () => { const t = evLightboxImages.value.length; if (t > 0) evLightboxIndex.value = (evLightboxIndex.value - 1 + t) % t; };
+
+            // ================= FASE 8.3: COMANDO & WEBSOCKETS =================
+            const activeLog = ref('main');
+            const terminalLines = ref([]);
+            const wsStatus = ref('disconnected'); 
+            let wsConnection = null;
+
+            const connectWebSocket = (moduleName) => {
+                if (wsConnection) { wsConnection.close(); }
+                terminalLines.value = [];
+                wsStatus.value = 'connecting';
+                
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/api/ws/logs/${moduleName}`;
+                wsConnection = new WebSocket(wsUrl);
+                
+                wsConnection.onopen = () => { wsStatus.value = 'connected'; };
+                wsConnection.onmessage = (event) => {
+                    terminalLines.value.push(event.data);
+                    if (terminalLines.value.length > 1000) terminalLines.value.shift();
+                    nextTick(() => {
+                        const container = document.getElementById('terminal-container');
+                        if (container) {
+                            const isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 50;
+                            if (isAtBottom || terminalLines.value.length < 50) { container.scrollTop = container.scrollHeight; }
+                        }
+                    });
+                };
+                wsConnection.onclose = () => { wsStatus.value = 'disconnected'; };
+            };
+
+            const switchLog = (moduleName) => { activeLog.value = moduleName; connectWebSocket(moduleName); };
+            const clearLogs = () => { terminalLines.value = []; };
+            const openCommandCenter = () => { changeView('command-center'); switchLog('main'); };
+
+            const getTerminalColor = (line) => {
+                const lower = line.toLowerCase();
+                if (lower.includes('[inf]') || lower.includes('info')) return 'text-blue-400';
+                if (lower.includes('[err]') || lower.includes('error') || lower.includes('fail')) return 'text-red-500';
+                if (lower.includes('[wrn]') || lower.includes('warn') || lower.includes('warning')) return 'text-yellow-400';
+                if (lower.includes('[+]') || lower.includes('success') || lower.includes('ok')) return 'text-green-300 font-bold';
+                if (lower.includes('▶') || lower.includes('✔') || lower.includes('✖')) return 'text-cyan-400';
+                return 'text-green-500/80';
+            };
+
+            // ================= FASE 9: INLINE EDITING =================
+            const epInlineEdit = ref({ id: null, field: null, value: '' });
+            const startInlineEdit = (id, field, value) => { if(!id) return; epInlineEdit.value = { id, field, value: value || '' }; };
+            const saveInlineEdit = async (ep) => {
+                if (!epInlineEdit.value.id) return;
+                const payload = { field: epInlineEdit.value.field, value: epInlineEdit.value.value };
+                if (payload.field === 'status_code') payload.value = parseInt(payload.value) || 0;
+                try {
+                    const res = await fetch(`/api/endpoints/${epInlineEdit.value.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if(res.ok) { addToast("Endpoint editado e Obsidian sincronizado!", "success"); ep[epInlineEdit.value.field] = payload.value; } 
+                    else { addToast("Erro ao editar endpoint", "error"); }
+                } catch(e) { addToast("Falha de conexão", "error"); }
+                epInlineEdit.value = { id: null, field: null, value: '' };
+            };
+
+            // ================= FASE 9 e 10: DB MANAGER GOURMET (BULK ACTIONS) =================
+            const dbTables = ref([]);
+            const dbCurrentTable = ref('');
+            const dbColumns = ref([]);
+            const dbRows = ref([]);
+            const loadingDb = ref(false);
+            const dbEdit = ref({ id: null, col: null, value: '' });
+
+            const dbQuery = ref({ page: 1, limit: 50, sort_by: null, sort_desc: false, filters: [] });
+            const dbTotalRows = ref(0);
+            const dbTotalPages = computed(() => Math.ceil(dbTotalRows.value / dbQuery.value.limit) || 1);
+
+            // Staging Mode (Fase 10)
+            const bulkMode = ref(false); // false, 'UPDATE', 'DELETE'
+            const bulkColumn = ref('');
+            const bulkValue = ref('');
+            const previewActive = ref(false);
+
+            const loadDbTables = async () => { try { const res = await fetch('/api/db/tables'); if(res.ok) dbTables.value = await res.json(); } catch(e){} };
+
+            const loadTableData = async (resetPage = false) => {
+                if(!dbCurrentTable.value) return;
+                if(resetPage) dbQuery.value.page = 1;
+                loadingDb.value = true;
+                
+                try {
+                    const res = await fetch(`/api/db/query/${dbCurrentTable.value}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbQuery.value)
+                    });
+                    if(res.ok) {
+                        const d = await res.json();
+                        dbColumns.value = d.columns;
+                        dbRows.value = d.rows;
+                        dbTotalRows.value = d.total;
+                        if(bulkMode.value && dbColumns.value.length > 0 && !bulkColumn.value) { bulkColumn.value = dbColumns.value[0]; }
+                    }
+                } catch(e){} finally { loadingDb.value = false; }
+            };
+
+            const addDbFilter = () => { dbQuery.value.filters.push({ column: dbColumns.value[0] || 'id', operator: 'LIKE', value: '' }); };
+            const removeDbFilter = (idx) => { dbQuery.value.filters.splice(idx, 1); loadTableData(true); };
+            
+            const setDbSort = (col) => {
+                if(dbQuery.value.sort_by === col) { dbQuery.value.sort_desc = !dbQuery.value.sort_desc; } 
+                else { dbQuery.value.sort_by = col; dbQuery.value.sort_desc = false; }
+                loadTableData(true);
+            };
+
+            const nextDbPage = () => { if(dbQuery.value.page < dbTotalPages.value) { dbQuery.value.page++; loadTableData(); } };
+            const prevDbPage = () => { if(dbQuery.value.page > 1) { dbQuery.value.page--; loadTableData(); } };
+
+            const onTableChange = () => {
+                dbQuery.value = { page: 1, limit: 50, sort_by: null, sort_desc: false, filters: [] };
+                cancelBulkAction();
+                loadTableData(true);
+            };
+
+            const startDbEdit = (id, col, val) => { if(!id || col === 'id' || previewActive.value) return; dbEdit.value = { id, col, value: val || '' }; };
+            const saveDbEdit = async (row) => {
+                if(!dbEdit.value.id) return;
+                const payload = { column: dbEdit.value.col, value: dbEdit.value.value };
+                try {
+                    const res = await fetch(`/api/db/data/${dbCurrentTable.value}/${dbEdit.value.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if(res.ok) { addToast("Célula salva com sucesso!", "success"); row[dbEdit.value.col] = payload.value; } 
+                    else { addToast("Erro ao salvar célula", "error"); }
+                } catch(e) { addToast("Falha de conexão", "error"); }
+                dbEdit.value = { id: null, col: null, value: '' };
+            };
+
+            const openDbManager = () => { changeView('db-manager'); if(dbTables.value.length === 0) loadDbTables(); };
+
+            // --- FUNÇÕES FASE 10: BULK ACTIONS ---
+            const startBulkAction = (action) => {
+                bulkMode.value = action;
+                bulkColumn.value = dbColumns.value[0] || '';
+                bulkValue.value = '';
+                previewActive.value = false;
+            };
+
+            const cancelBulkAction = () => {
+                bulkMode.value = false;
+                previewActive.value = false;
+            };
+
+            const togglePreview = () => {
+                if (bulkMode.value === 'UPDATE' && !bulkColumn.value) { addToast("Selecione uma coluna para atualizar", "error"); return; }
+                previewActive.value = true;
+            };
+
+            const commitBulkAction = async () => {
+                if(!confirm(`ATENÇÃO: Ação irreversível de ${bulkMode.value} em massa. Confirma a operação?`)) return;
+                
+                const payload = {
+                    action: bulkMode.value,
+                    column: bulkMode.value === 'UPDATE' ? bulkColumn.value : null,
+                    value: bulkMode.value === 'UPDATE' ? bulkValue.value : null,
+                    filters: dbQuery.value.filters
+                };
+                
+                try {
+                    const res = await fetch(`/api/db/bulk/${dbCurrentTable.value}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if(res.ok) {
+                        addToast(data.message + " O Obsidian será atualizado em background.", "success");
+                        cancelBulkAction();
+                        loadTableData(true);
+                        fetchStats();
+                    } else { addToast("Erro: " + data.detail, "error"); }
+                } catch(e) { addToast("Falha de conexão com a API", "error"); }
+            };
+
+
+            // --- FUNÇÕES CORE DA TELA GLOBAL E DOSSIÊ ---
+            const addToast = (message, type = 'success') => { const id = Date.now(); toasts.value.push({ id, message, type }); setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 4000); }
+            const getStatusClass = (code) => { if (!code) return 'bg-slate-700 text-slate-300'; if (code >= 200 && code < 300) return 'bg-green-500/20 text-green-400 border border-green-500/30'; if (code >= 300 && code < 400) return 'bg-blue-500/20 text-blue-400 border border-blue-500/30'; if (code === 403 || code === 401) return 'bg-orange-500/20 text-orange-400 border border-orange-500/30'; if (code >= 400 && code < 500) return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'; if (code >= 500) return 'bg-red-500/20 text-red-400 border border-red-500/30'; return 'bg-slate-700 text-slate-300'; }
+            const getVulnClass = (severity) => { const map = { 'Crítica': 'bg-red-500 text-white border-red-600', 'Alta': 'bg-orange-400 text-white border-orange-500', 'Média': 'bg-yellow-400 text-black border-yellow-500', 'Baixa': 'bg-green-400 text-black border-green-500', 'Info': 'bg-blue-400 text-white border-blue-500'}; return map[severity] || 'bg-slate-700 text-slate-300'; }
+
+            const currentLightboxImage = computed(() => { if (!hostDetails.value.screenshots || hostDetails.value.screenshots.length === 0) return {}; return hostDetails.value.screenshots[lightboxIndex.value] || {}; })
+            const openLightbox = (index) => { lightboxIndex.value = index; lightboxOpen.value = true; }
+            const closeLightbox = () => { lightboxOpen.value = false; }
+            const nextImage = () => { const t = hostDetails.value.screenshots.length; if (t > 0) lightboxIndex.value = (lightboxIndex.value + 1) % t; }
+            const prevImage = () => { const t = hostDetails.value.screenshots.length; if (t > 0) lightboxIndex.value = (lightboxIndex.value - 1 + t) % t; }
+            const handleKeydown = (e) => { 
+                if (lightboxOpen.value) {
+                    if (e.key === 'Escape') closeLightbox(); 
+                    if (e.key === 'ArrowRight') nextImage(); 
+                    if (e.key === 'ArrowLeft') prevImage(); 
+                } else if (evLightboxOpen.value) {
+                    if (e.key === 'Escape') closeEvLightbox(); 
+                    if (e.key === 'ArrowRight') nextEvImage(); 
+                    if (e.key === 'ArrowLeft') prevEvImage(); 
+                }
+            }
+
+            const fetchStats = async () => { try { const res = await fetch('/api/stats'); if (res.ok) stats.value = await res.json(); } catch (e) {} }
+            const fetchHosts = async () => { loadingHosts.value = true; try { const res = await fetch('/api/hosts'); if (res.ok) hosts.value = await res.json(); } catch (e) {} finally { loadingHosts.value = false; } }
+
+            const checkSystemStatus = async () => {
+                try {
+                    const res = await fetch('/api/status');
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (!data.cycle_running && isCycling.value) { addToast("Ciclo de varredura finalizado com sucesso!", "success"); if (cycleInterval) clearInterval(cycleInterval); cycleInterval = null; }
+                        isCycling.value = data.cycle_running;
+                        if (isCycling.value && !cycleInterval) { cycleInterval = setInterval(checkSystemStatus, 5000); }
+                    }
+                } catch (error) { }
+            }
+
+            const triggerCycle = async () => {
+                if(!confirm("Iniciar o ciclo massivo? Isso rodará em background.")) return;
+                try {
+                    isCycling.value = true;
+                    const res = await fetch('/api/cycle', { method: 'POST' });
+                    const data = await res.json();
+                    if (res.ok) { addToast(data.message, 'success'); if(!cycleInterval) cycleInterval = setInterval(checkSystemStatus, 5000); openCommandCenter(); } 
+                    else { addToast(data.detail || "Erro", 'error'); isCycling.value = false; }
+                } catch (error) { addToast("Erro de API", 'error'); isCycling.value = false; }
+            }
+            
+            const triggerSync = async () => { isSyncing.value = true; try { const res = await fetch('/api/sync', { method: 'POST' }); const data = await res.json(); if (res.ok) addToast(data.message, 'success'); else addToast("Erro na Sincronização", 'error'); } catch (error) { addToast("Erro de comunicação com o servidor", 'error'); } finally { isSyncing.value = false; } }
+            const copyPoC = (command) => { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(command).then(() => { addToast("PoC copiada!", "success"); }).catch(err => { addToast("Erro ao copiar", "error"); }); } else { let textArea = document.createElement("textarea"); textArea.value = command; textArea.style.position = "fixed"; textArea.style.top = "-9999px"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { document.execCommand('copy'); addToast("PoC copiada!", "success"); } catch (err) { addToast("Erro ao copiar", "error"); } textArea.remove(); } }
+            const markVulnFP = async (vulnId, severity, isGlobal = false) => { if(!confirm("Marcar esta vulnerabilidade como Falso Positivo?")) return; if(isGlobal) { globalVulns.value = globalVulns.value.filter(v => v.id !== vulnId); nextTick(() => renderVulnCharts()); } else { hostDetails.value.vulnerabilities = hostDetails.value.vulnerabilities.filter(v => v.id !== vulnId); if (activeHost.value) { activeHost.value.vulns_total -= 1; if (activeHost.value.vulns_severity[severity] > 0) activeHost.value.vulns_severity[severity] -= 1; } } stats.value.vulns -= 1; addToast("Vulnerabilidade ocultada", 'success'); try { await fetch(`/api/vulns/${vulnId}/fp`, { method: 'POST' }); } catch (e) { addToast("Erro ao atualizar banco", 'error'); } }
+            const markEndpointFP = async (url, hostId, isGlobal = false) => { if(!confirm("Ocultar este Endpoint como Falso Positivo?")) return; if (isGlobal) { globalEndpoints.value = globalEndpoints.value.filter(ep => ep.url !== url); nextTick(() => renderEndpointCharts()); } else { hostDetails.value.endpoints = hostDetails.value.endpoints.filter(ep => ep.url !== url); if (activeHost.value) activeHost.value.endpoints_count -= 1; } stats.value.endpoints -= 1; addToast("Endpoint ocultado", 'success'); try { const b64_url = btoa(url); await fetch(`/api/endpoints/${hostId}/${b64_url}/fp`, { method: 'POST' }); } catch (e) { addToast("Erro ao gravar FP no banco", 'error'); } }
+
+            const openDossier = (host) => { changeView('dossier', host); }
+            const closeDossier = () => { changeView('hosts'); }
+            const toggleVuln = (id) => { expandedVuln.value = expandedVuln.value === id ? null : id; }
+
+            const changeView = async (view, host = null) => {
+                if (currentView.value === 'command-center' && view !== 'command-center' && wsConnection) { wsConnection.close(); wsConnection = null; }
+                currentView.value = view; window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (view === 'hosts') { activeHost.value = null; } 
+                else if (view === 'dossier' && host) { if(!activeHost.value || activeHost.value.id !== host.id) { activeHost.value = host; selectedPort.value = null; loadingDetails.value = true; try { const res = await fetch(`/api/hosts/${host.id}/details`); if (res.ok) hostDetails.value = await res.json(); } catch (e) {} finally { loadingDetails.value = false; } } } 
+                else if (view === 'global-vulns') {
+                    if (globalVulns.value.length === 0) { loadingGlobal.value = true; try { const res = await fetch(`/api/global/vulnerabilities`); if (res.ok) globalVulns.value = await res.json(); } catch(e){} finally { loadingGlobal.value = false; } }
+                    setTimeout(() => renderVulnCharts(), 400); 
+                } 
+                else if (view === 'global-endpoints') {
+                    if (globalEndpoints.value.length === 0) { loadingGlobal.value = true; try { const res = await fetch(`/api/global/endpoints`); if (res.ok) globalEndpoints.value = await res.json(); } catch(e){} finally { loadingGlobal.value = false; } }
+                    setTimeout(() => renderEndpointCharts(), 400);
+                }
+            }
+
+            const destroyChart = (id) => { if(chartInstances[id]) chartInstances[id].destroy(); }
+            const renderVulnCharts = () => {
+                const sevCounts = {'Crítica':0, 'Alta':0, 'Média':0, 'Baixa':0, 'Info':0}; globalVulns.value.forEach(v => { if(sevCounts[v.severity] !== undefined) sevCounts[v.severity]++; });
+                destroyChart('vulnSeverityCanvas'); const ctx1 = document.getElementById('vulnSeverityCanvas');
+                if(ctx1) { chartInstances['vulnSeverityCanvas'] = new Chart(ctx1, { type: 'doughnut', data: { labels: ['Crítica', 'Alta', 'Média', 'Baixa', 'Info'], datasets: [{ data: [sevCounts['Crítica'], sevCounts['Alta'], sevCounts['Média'], sevCounts['Baixa'], sevCounts['Info']], backgroundColor: ['#ef4444', '#fb923c', '#facc15', '#4ade80', '#60a5fa'], borderColor: '#1e293b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } } }); }
+                const hostCounts = {}; globalVulns.value.forEach(v => { hostCounts[v.host] = (hostCounts[v.host] || 0) + 1; });
+                const sortedHosts = Object.entries(hostCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+                destroyChart('vulnHostCanvas'); const ctx2 = document.getElementById('vulnHostCanvas');
+                if(ctx2) { chartInstances['vulnHostCanvas'] = new Chart(ctx2, { type: 'bar', data: { labels: sortedHosts.map(h => h[0]), datasets: [{ label: 'Vulnerabilidades', data: sortedHosts.map(h => h[1]), backgroundColor: '#0ea5e9', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45, minRotation: 45 } } }, plugins: { legend: { display: false } } } }); }
+            }
+            const renderEndpointCharts = () => {
+                const statusCounts = {}; globalEndpoints.value.forEach(e => { const code = e.status_code || 'N/A'; statusCounts[code] = (statusCounts[code] || 0) + 1; });
+                const sortedStatus = Object.entries(statusCounts).sort((a,b) => b[1] - a[1]).slice(0, 8); 
+                destroyChart('epStatusCanvas'); const ctx1 = document.getElementById('epStatusCanvas');
+                if(ctx1) { chartInstances['epStatusCanvas'] = new Chart(ctx1, { type: 'doughnut', data: { labels: sortedStatus.map(s => s[0]), datasets: [{ data: sortedStatus.map(s => s[1]), backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#64748b', '#cbd5e1'], borderColor: '#1e293b', borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1' } } } } }); }
+                const hostCounts = {}; globalEndpoints.value.forEach(e => { hostCounts[e.host] = (hostCounts[e.host] || 0) + 1; });
+                const sortedHosts = Object.entries(hostCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
+                destroyChart('epHostCanvas'); const ctx2 = document.getElementById('epHostCanvas');
+                if(ctx2) { chartInstances['epHostCanvas'] = new Chart(ctx2, { type: 'bar', data: { labels: sortedHosts.map(h => h[0]), datasets: [{ label: 'Endpoints', data: sortedHosts.map(h => h[1]), backgroundColor: '#10b981', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', display: false } } }, plugins: { legend: { display: false } } } }); }
+            }
+            
+            const filteredAndSortedHosts = computed(() => { let result = hosts.value; if (searchQuery.value) { const query = searchQuery.value.toLowerCase(); result = result.filter(h => h.host.toLowerCase().includes(query) || h.ip.includes(query)); } return result.sort((a, b) => { if (sortBy.value === 'endpoints') return b.endpoints_count - a.endpoints_count; if (sortBy.value === 'vulns') return b.vulns_total - a.vulns_total; if (sortBy.value === 'ports') return b.open_ports.length - a.open_ports.length; if (sortBy.value === 'screenshots') return b.screenshots_count - a.screenshots_count; if (sortBy.value === 'js') return b.js_count - a.js_count; return a.host.localeCompare(b.host); }); })
+            const otherHosts = computed(() => { if (!activeHost.value) return []; return filteredAndSortedHosts.value.filter(h => h.id !== activeHost.value.id); })
+            const toggleEpSort = (key) => { if (epSortKey.value === key) epSortAsc.value = !epSortAsc.value; else { epSortKey.value = key; epSortAsc.value = true; } }
+            const toggleGlobalEpSort = (key) => { if (globalEpSortKey.value === key) globalEpSortAsc.value = !globalEpSortAsc.value; else { globalEpSortKey.value = key; globalEpSortAsc.value = true; } }
+            const sortedFilteredEndpoints = computed(() => { let eps = hostDetails.value.endpoints || []; if (selectedPort.value) { eps = eps.filter(ep => { try { const u = new URL(ep.url); const port = u.port || (u.protocol === 'https:' ? '443' : (u.protocol === 'http:' ? '80' : '')); return port === String(selectedPort.value); } catch { return true; } }); } return eps.sort((a, b) => { let valA = a[epSortKey.value] || ''; let valB = b[epSortKey.value] || ''; if (epSortKey.value === 'content_length' || epSortKey.value === 'status_code') { valA = Number(valA) || 0; valB = Number(valB) || 0; } else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); } if (valA < valB) return epSortAsc.value ? -1 : 1; if (valA > valB) return epSortAsc.value ? 1 : -1; return 0; }); })
+            const sortedGlobalEndpoints = computed(() => { let eps = globalEndpoints.value || []; return eps.sort((a, b) => { let valA = a[globalEpSortKey.value] || ''; let valB = b[globalEpSortKey.value] || ''; if (globalEpSortKey.value === 'content_length' || globalEpSortKey.value === 'status_code') { valA = Number(valA) || 0; valB = Number(valB) || 0; } else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); } if (valA < valB) return globalEpSortAsc.value ? -1 : 1; if (valA > valB) return globalEpSortAsc.value ? 1 : -1; return 0; }); })
+            const groupedJS = computed(() => { const groups = {}; (hostDetails.value.js_discoveries || []).forEach(js => { if (!groups[js.source_js_url]) groups[js.source_js_url] = []; groups[js.source_js_url].push(js.discovered_route); }); return groups; })
+
+            onMounted(() => { fetchStats(); fetchHosts(); checkSystemStatus(); intervalId = setInterval(() => { imageTick.value++; }, 3000); window.addEventListener('keydown', handleKeydown); })
+            onUnmounted(() => { if (intervalId) clearInterval(intervalId); if (wsConnection) wsConnection.close(); window.removeEventListener('keydown', handleKeydown); })
+
+            return {
+                stats, hosts, searchQuery, sortBy, loadingHosts, filteredAndSortedHosts, currentView, changeView, globalVulns, globalEndpoints, loadingGlobal, activeHost, hostDetails, loadingDetails, selectedPort, getStatusClass, getVulnClass, imageTick, expandedVuln, toggleVuln, lightboxOpen, currentLightboxImage, openLightbox, closeLightbox, nextImage, prevImage, isSyncing, isCycling, triggerCycle, triggerSync, markEndpointFP, copyPoC, markVulnFP, toasts, openDossier, closeDossier, otherHosts, sortedFilteredEndpoints, sortedGlobalEndpoints, groupedJS, epSortKey, epSortAsc, toggleEpSort, globalEpSortKey, globalEpSortAsc, toggleGlobalEpSort,
+                
+                // CVSS
+                editingVulnId, editForm, editCvss, cvssOptions, currentVector, startEdit, cancelEdit, saveEdit,
+                
+                // EVIDÊNCIAS
+                evLightboxOpen, evLightboxImages, evLightboxIndex, evLightboxHostId, openEvLightbox, closeEvLightbox, nextEvImage, prevEvImage,
+                
+                // WEBSOCKETS
+                activeLog, terminalLines, wsStatus, switchLog, clearLogs, openCommandCenter, getTerminalColor,
+                
+                // INLINE EDIT
+                epInlineEdit, startInlineEdit, saveInlineEdit,
+                
+                // DB MANAGER & BULK ACTIONS
+                dbTables, dbCurrentTable, dbColumns, dbRows, loadingDb, dbEdit, loadDbTables, loadTableData, startDbEdit, saveDbEdit, openDbManager,
+                dbQuery, dbTotalRows, dbTotalPages, addDbFilter, removeDbFilter, setDbSort, nextDbPage, prevDbPage, onTableChange,
+                bulkMode, bulkColumn, bulkValue, previewActive, startBulkAction, cancelBulkAction, togglePreview, commitBulkAction
+            }
+        }
+    })
+    app.component('host-card', HostCard)
+    app.mount('#app')
+</script>
+</body>
+</html>

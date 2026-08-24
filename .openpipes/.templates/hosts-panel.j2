@@ -1,0 +1,26 @@
+formulas:
+  Imagens: Screenshots
+  Sem título: ""
+views:
+  - type: cards
+    name: {{ project_name }} Project
+    filters:
+      and:
+        - '!file.path.contains("Endpoints")'
+        - Tipo.containsAny("Target", "dashboard", "index")
+        - file.folder.contains("/{{ project_name }}/")
+    groupBy:
+      property: file.tags
+      direction: ASC
+    order:
+      - file.name
+      - t_IP
+    sort:
+      - property: endpoint_count
+        direction: DESC
+    cardSize: 160
+    imageAspectRatio: 0.45
+    indentProperties: true
+    markers: none
+    rowHeight: medium
+    image: note.cover
