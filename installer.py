@@ -252,6 +252,7 @@ def setup_isolated_venvs():
     run_cmd(f"{VENV_CORE}/bin/pip install fastapi uvicorn -q")
     run_cmd(f"{VENV_CORE}/bin/pip install google-genai -q")
     run_cmd(f"{VENV_CORE}/bin/pip install docxtpl matplotlib -q")
+    run_cmd(f"{VENV_CORE}/bin/pip install python-multipart -q")
     run_cmd(f"{VENV_CORE}/bin/pip install requests jinja2 rich jq textual cvss flask -q")
     run_cmd(f"{VENV_CORE}/bin/pip uninstall dnsrecon httpx -y -q 2>/dev/null || true")
 
