@@ -48,12 +48,12 @@ const imageOpts = {
             
             // Trava exata para o Gráfico de Severidade (8.27 cm x 7.0 cm)
             if (tagName === "severity_chart") {
-                return [Math.round(8.27 * 37.8), Math.round(7.0 * 37.8)];
+                return [Math.round(10.86 * 37.8), Math.round(8.77 * 37.8)];
             }
             
             // Trava exata para o Gráfico de CWE (10.0 cm x 7.0 cm)
             if (tagName === "cwe_chart") {
-                return [Math.round(10.0 * 37.8), Math.round(7.0 * 37.8)];
+                return [Math.round(12.48 * 37.8), Math.round(8.75 * 37.8)];
             }
 
             // Para as outras imagens (evidências e screenshots), mantém o redimensionamento dinâmico

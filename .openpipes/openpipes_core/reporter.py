@@ -299,17 +299,17 @@ def _generate_severity_chart(stats, output_path):
     
     l, s, c = zip(*dados)
     
-    # Largura: 8.27cm / Altura: 7cm (convertido para polegadas)
-    fig, ax = plt.subplots(figsize=(8.27 / 2.54, 7.0 / 2.54))
-
+    # Aumentamos um pouco a largura da figura para caber a legenda lateral
+    fig, ax = plt.subplots(figsize=(8, 4))
+    
     # Note que removemos o parâmetro 'labels=l' para limpar a pizza!
     wedges, texts, autotexts = ax.pie(
         s, colors=c, autopct='%1.1f%%', startangle=140, 
-        textprops={'color': "black", 'weight': 'bold', 'fontsize': 10},
-        wedgeprops={'edgecolor': 'white', 'linewidth': 2}
+        textprops={'color': "white", 'weight': 'bold', 'fontsize': 8},
+        wedgeprops={'edgecolor': 'black', 'linewidth': 1}
     )
     
-    plt.title("Severidade das Vulnerabilidades", weight='bold', pad=20)
+    plt.title("Severidade das Vulnerabilidades", weight='bold', pad=20, fontsize=14)
     
     # Adicionamos a legenda elegantemente alinhada à direita
     ax.legend(wedges, l, title="Severidades", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
@@ -326,17 +326,17 @@ def _generate_cwe_chart(cwe_counts, output_path):
     
     labels, sizes = zip(*cwe_counts.items())
     
-    # Largura: 10cm / Altura: 7cm (convertido para polegadas)
-    fig, ax = plt.subplots(figsize=(10.0 / 2.54, 7.0 / 2.54))    
+    # Aumentamos a largura para a legenda não cortar
+    fig, ax = plt.subplots(figsize=(8, 4))
     
     # Sem 'labels=labels', deixando só as porcentagens na rosca
     wedges, texts, autotexts = ax.pie(
-        sizes, autopct='%1.1f%%', startangle=140, 
-        wedgeprops=dict(width=0.4, edgecolor='white', linewidth=2),
-        textprops={'color': "black", 'weight': 'bold', 'fontsize': 9}
+        sizes, autopct='%1.1f%%', startangle=140, pctdistance=0.80,
+        wedgeprops=dict(width=0.4, edgecolor='black', linewidth=1),
+        textprops={'color': "white", 'weight': 'bold', 'fontsize': 8}
     )
            
-    plt.title("Distribuição por Categoria (CWE)", weight='bold', pad=20)
+    plt.title("Distribuição por Categoria (CWE)", weight='bold', pad=20, fontsize=12)
     
     # Legenda lateral para as CWEs
     ax.legend(wedges, labels, title="Categorias CWE", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
