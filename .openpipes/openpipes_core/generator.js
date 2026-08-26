@@ -12,11 +12,31 @@ expressions.filters.lower = function(input) {
     return input.toLowerCase();
 }
 
+// Filtro nativo: Filtrar listas por um valor exato
 expressions.filters.where = function(input, key, value) {
-    // Filtra a lista baseada em uma chave e um valor exato
     if (!Array.isArray(input)) return [];
     return input.filter(item => item[key] === value);
-}
+};
+
+// Filtro nativo: Ordena do MAIOR para o MENOR (Decrescente)
+expressions.filters.sortByDesc = function(input, key) {
+    if (!Array.isArray(input)) return [];
+    return input.slice().sort((a, b) => {
+        let valA = a[key] !== null && a[key] !== undefined ? a[key] : -999;
+        let valB = b[key] !== null && b[key] !== undefined ? b[key] : -999;
+        return valA < valB ? 1 : valA > valB ? -1 : 0;
+    });
+};
+
+// Filtro nativo: Ordena do MENOR para o MAIOR (Crescente)
+expressions.filters.sortByAsc = function(input, key) {
+    if (!Array.isArray(input)) return [];
+    return input.slice().sort((a, b) => {
+        let valA = a[key] !== null && a[key] !== undefined ? a[key] : -999;
+        let valB = b[key] !== null && b[key] !== undefined ? b[key] : -999;
+        return valA > valB ? 1 : valA < valB ? -1 : 0;
+    });
+};
 
 function angularParser(tag) {
     if (tag === '.') {
@@ -36,41 +56,12 @@ function angularParser(tag) {
     };
 }
 
-// Filtro para filtrar valor exato (já fizemos antes)
-expressions.filters.where = function(input, key, value) {
-    if (!Array.isArray(input)) return [];
-    return input.filter(item => item[key] === value);
-};
-
-// 👇 NOVOS FILTROS DE ORDENAÇÃO AQUI 👇
-
-// Ordena do MAIOR para o MENOR (Decrescente)
-expressions.filters.sortByDesc = function(input, key) {
-    if (!Array.isArray(input)) return [];
-    return input.slice().sort((a, b) => {
-        let valA = a[key] !== null && a[key] !== undefined ? a[key] : -999;
-        let valB = b[key] !== null && b[key] !== undefined ? b[key] : -999;
-        return valA < valB ? 1 : valA > valB ? -1 : 0;
-    });
-};
-
-// Ordena do MENOR para o MAIOR (Crescente)
-expressions.filters.sortByAsc = function(input, key) {
-    if (!Array.isArray(input)) return [];
-    return input.slice().sort((a, b) => {
-        let valA = a[key] !== null && a[key] !== undefined ? a[key] : -999;
-        let valB = b[key] !== null && b[key] !== undefined ? b[key] : -999;
-        return valA > valB ? 1 : valA < valB ? -1 : 0;
-    });
-};
-// 👆 FIM DOS NOVOS FILTROS 👆
-
 // ── 2. Módulo de Imagem (Aspect Ratio Perfeito) ──
 const imageOpts = {
     centered: false,
     fileType: "docx",
     getImage: function(tagValue) {
-        // Previne erro se a tag de imagem vier vazia (ex: sem logo)
+        // Previne erro se a tag de imagem vier vazia (ex: cliente sem logo)
         if (!tagValue) {
             return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"); // Pixel transparente
         }
@@ -78,7 +69,7 @@ const imageOpts = {
         const imgPath = path.resolve(tagValue);
         
         try {
-            // Verifica se existe E se é um arquivo (evita erro de tentar ler diretório)
+            // Verifica se o caminho existe E se é de fato um arquivo (evita crash com diretórios)
             if (fs.existsSync(imgPath) && fs.statSync(imgPath).isFile()) {
                 return fs.readFileSync(imgPath);
             }
@@ -94,17 +85,17 @@ const imageOpts = {
         try {
             // 1 cm = 37.8 pixels (Padrão de impressão do Word)
             
-            // Trava exata para o Gráfico de Severidade (8.27 cm x 7.0 cm)
+            // Trava exata para o Gráfico de Severidade (10.86 cm x 8.77 cm)
             if (tagName === "severity_chart") {
                 return [Math.round(10.86 * 37.8), Math.round(8.77 * 37.8)];
             }
             
-            // Trava exata para o Gráfico de CWE (10.0 cm x 7.0 cm)
+            // Trava exata para o Gráfico de CWE (12.48 cm x 8.75 cm)
             if (tagName === "cwe_chart") {
                 return [Math.round(12.48 * 37.8), Math.round(8.75 * 37.8)];
             }
 
-            // Para as outras imagens (evidências e screenshots), mantém o redimensionamento dinâmico
+            // Para as outras imagens (evidências e screenshots), mantém proporção com largura máx
             const dimensions = sizeOf(img);
             const maxWidth = 600; 
             
@@ -142,24 +133,29 @@ try {
     });
 
     const data = JSON.parse(fs.readFileSync(contextPath, "utf8"));
+    
+    // Processa as tags do Word
     doc.render(data);
 
     // ─── MÁGICA: PINTAR O FUNDO DA CÉLULA NATIVAMENTE ───
     try {
+        // Extrai o XML que representa o documento após as substituições
         let docXml = doc.getZip().file("word/document.xml").asText();
         
-        // Procura por BGCOLOR-HEX em qualquer lugar dentro da célula inteira
-        const cellRegex = /<w:tc>(?:(?!<w:tc>)[\s\S])*?BGCOLOR-([0-9A-Fa-f]{6})[\s\S]*?<\/w:tc>/g;
+        // Regex blindado para achar a célula <w:tc> que contém a tag [BG:HEX]
+        // Suporta espaços, quebras de linha e quebras do próprio Word (<w:t>)
+        const cellRegex = /<w:tc>(?:(?!<w:tc>)[\s\S])*?\[BG:([0-9A-Fa-f]{6})\][\s\S]*?<\/w:tc>/g;
         
         docXml = docXml.replace(cellRegex, function(match, hex) {
-            // 1. Remove a string mágica "BGCOLOR-HEX" do texto da célula (não afeta o resto do texto)
-            let cleanMatch = match.replace(new RegExp(`BGCOLOR-${hex}`, 'g'), '');
             
-            // 2. Remove as formatações de cor de fundo antigas (se houver)
+            // 1. Limpeza brutal: remove o "[BG:HEX]" do texto impresso na célula
+            let cleanMatch = match.replace(/\[BG:[0-9A-Fa-f]{6}\]/g, '');
+            
+            // 2. Remove as formatações de fundo de célula antigas (se houver)
             cleanMatch = cleanMatch.replace(/<w:shd[^>]*\/>/g, ''); 
             cleanMatch = cleanMatch.replace(/<w:shd[^>]*>[\s\S]*?<\/w:shd>/g, '');
             
-            // 3. Injeta a cor do CVSS!
+            // 3. Injeta a cor nativa de fundo na célula
             if (cleanMatch.includes('<w:tcPr>')) {
                 cleanMatch = cleanMatch.replace('<w:tcPr>', `<w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${hex}"/>`);
             } else {
@@ -168,8 +164,26 @@ try {
             return cleanMatch;
         });
 
+        // Grava o XML modificado de volta no ZIP do documento
         doc.getZip().file("word/document.xml", docXml);
     } catch (err) {
         console.warn("[Aviso] Não foi possível injetar as cores nas células: ", err.message);
     }
     // ────────────────────────────────────────────────────
+
+    // Finaliza e comprime o arquivo DOCX
+    const buf = doc.getZip().generate({ 
+        type: "nodebuffer", 
+        compression: "DEFLATE" 
+    });
+    
+    fs.writeFileSync(path.resolve(outputPath), buf);
+    console.log("SUCCESS");
+
+} catch (error) {
+    console.error("ERROR:", error.message);
+    if (error.properties && error.properties.errors) {
+        console.error("Detalhes do erro do Docxtemplater:", error.properties.errors);
+    }
+    process.exit(1);
+}

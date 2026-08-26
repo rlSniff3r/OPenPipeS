@@ -5,8 +5,8 @@ Uses docxtpl (python-docx + Jinja2) to render professional, customizable
 pentest reports directly from the SQLite database using a Native Word Template.
 
 Usage:
-    openpipes-core report                                  # default template
-    openpipes-core report --template ~/brand.docx          # custom template
+ openpipes-core report # default template
+ openpipes-core report --template ~/brand.docx # custom template
 """
 import os
 import json
@@ -29,11 +29,11 @@ DEFAULT_TEMPLATE = os.path.join(DEFAULT_TEMPLATE_DIR, "pentest_report.docx")
 
 # ── Severity chart colors ────────────────────────────────────────
 SEVERITY_COLORS = {
-    "Crítica": "#dc2626",
-    "Alta": "#f97316",
-    "Média": "#eab308",
-    "Baixa": "#22c55e",
-    "Info": "#6b7280",
+ "Crítica": "#dc2626",
+ "Alta": "#f97316",
+ "Média": "#eab308",
+ "Baixa": "#22c55e",
+ "Info": "#6b7280",
 }
 SEVERITY_ORDER = ["Crítica", "Alta", "Média", "Baixa", "Info"]
 
@@ -42,9 +42,6 @@ SEVERITY_ORDER = ["Crítica", "Alta", "Média", "Baixa", "Info"]
 def _build_host_context(conn, host_id: int, host_name: str,
                         proj_path: str, tpl_doc=None) -> Optional[dict]:
     """Build the full context dict for a single vulnerable host."""
-    from docxtpl import InlineImage
-    from docx.shared import Inches
-
     cur = conn.cursor()
 
     cur.execute("SELECT * FROM hosts WHERE id = ?", (host_id,))
@@ -75,6 +72,7 @@ def _build_host_context(conn, host_id: int, host_name: str,
     )
     endpoints = [dict(r) for r in cur.fetchall()]
 
+    # Buscando vulnerabilidades ordenadas do maior CVSS Score para o menor
     cur.execute("""
         SELECT id, title, severity, cvss_score, cvss_vector, cwe_id,
         cve_id, vuln_name, description, matched_at,
@@ -83,6 +81,7 @@ def _build_host_context(conn, host_id: int, host_name: str,
         FROM vulnerabilities WHERE host_id = ? AND status = 'open'
         ORDER BY cvss_score DESC NULLS LAST
     """, (host_id,))
+    
     vulns = []
     evidence_dir = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Evidencias")
 
@@ -93,9 +92,9 @@ def _build_host_context(conn, host_id: int, host_name: str,
         v["severity_emoji"] = {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡",
                                "Baixa": "🟢", "Info": "🔵"}.get(v["severity"], "⚪")
 
-        # 👇 GERA A STRING MÁGICA DA COR SEM O '#' 👇
-        hex_color = SEVERITY_COLORS.get(v["severity"], "FFFFFF").replace("#", "")
-        v["severity_colored"] = f"BGCOLOR-{hex_color}"
+        # Gerando a string mágica para o gerador de DOCX pintar o fundo da célula
+        hex_color = SEVERITY_COLORS.get(v["severity"], "#FFFFFF").replace("#", "")
+        v["severity_colored"] = f"[BG:{hex_color}]"
 
         cwe_match = re.match(r"CWE-(\d+)", v.get("cwe_id") or "")
         v["cwe_url"] = (
@@ -112,26 +111,21 @@ def _build_host_context(conn, host_id: int, host_name: str,
         v["evidence_images"] = evidence_images
         vulns.append(v)
 
-    # ── Screenshots (Adaptado para o Node.js) ──
+    # ── Screenshots ──
     cur.execute(
         "SELECT file_path, source_url, title FROM screenshots WHERE host_id = ?",
         (host_id,),
     )
     screenshots = []
-    
-    # Olha a nossa variável ss_dir de volta aqui!
     ss_dir = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Screenshots")
     
     for r in cur.fetchall():
         s = dict(r)
         full_path = os.path.join(ss_dir, s["file_path"])
-        
-        # Se a imagem existir no disco, mandamos a string absoluta pro Node.js
         if os.path.exists(full_path):
             s["image"] = full_path
         else:
             s["image"] = ""
-            
         screenshots.append(s)
 
     tech_set = set()
@@ -141,10 +135,10 @@ def _build_host_context(conn, host_id: int, host_name: str,
             tech_set.update(json.loads(r["tech_stack"] or "[]"))
         except Exception:
             pass
-    try:
-        tech_set.update(json.loads(host.get("manual_techs") or "[]"))
-    except Exception:
-        pass
+        try:
+            tech_set.update(json.loads(host.get("manual_techs") or "[]"))
+        except Exception:
+            pass
 
     return {
         "name": host_name,
@@ -162,7 +156,7 @@ def _build_host_context(conn, host_id: int, host_name: str,
 
 def _build_report_context(proj_path: str, client_name: str = "",
                           all_hosts: bool = False, tpl_doc=None) -> dict:
-    """Build the complete Jinja2 context for the report template."""
+    """Build the complete JSON context for the report template."""
     import os
     import re
     from datetime import datetime
@@ -188,19 +182,18 @@ def _build_report_context(proj_path: str, client_name: str = "",
     with db.get_connection(proj_path) as conn:
         cur = conn.cursor()
 
-        # Puxa os detalhes administrativos do Projeto
+        # Extraindo dados administrativos salvos na Dashboard Web
         cur.execute("SELECT * FROM projects LIMIT 1")
         proj_row = cur.fetchone()
         proj_data = dict(proj_row) if proj_row else {}
 
-        # Lida com a conversão da Logo de Base64 para Arquivo Físico Temporário
+        # Salvando temporariamente a Logo do Cliente em Base64 para o Nodejs consumir
         logo_path = ""
         logo_b64 = proj_data.get("client_logo_b64", "")
         if logo_b64 and "," in logo_b64:
             import base64
             import tempfile
             try:
-                # Separa o header (data:image/png;base64,) do conteúdo real
                 header, encoded = logo_b64.split(",", 1)
                 img_data = base64.b64decode(encoded)
                 logo_path = os.path.join(tempfile.gettempdir(), "openpipes_client_logo.png")
@@ -209,7 +202,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
             except Exception as e:
                 console.print(f" [yellow]⚠ Erro ao decodificar a logo: {e}[/yellow]")
 
-        # Formatando a data do relatório (fallback para o dia de hoje)
+        # Tratamento da data de emissão do relatório
         report_date = proj_data.get("date_report")
         if not report_date:
             report_date = datetime.now().strftime("%d/%m/%Y")
@@ -263,7 +256,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
         stats["total_endpoints"] = total_endpoints
         stats["total_ports"] = total_ports
     
-        # 1. Matriz de Vulnerabilidades (Agrupada por falha e não por host)
+        # 1. Matriz de Vulnerabilidades (Agrupada por falha e ordenada por CVSS)
         cur.execute("""
             SELECT v.title, v.severity, v.cvss_score, v.cve_id, 
                    GROUP_CONCAT(h.host, ', ') as affected_hosts,
@@ -274,12 +267,10 @@ def _build_report_context(proj_path: str, client_name: str = "",
             ORDER BY v.cvss_score DESC NULLS LAST
         """)
         
-        vuln_matrix = []
         for row in cur.fetchall():
             d = dict(row)
-            # 👇 STRING MÁGICA SIMPLIFICADA NA MATRIZ 👇
-            hex_color = SEVERITY_COLORS.get(d["severity"], "FFFFFF").replace("#", "")
-            d["severity_colored"] = f"BGCOLOR-{hex_color}"
+            hex_color = SEVERITY_COLORS.get(d["severity"], "#FFFFFF").replace("#", "")
+            d["severity_colored"] = f"[BG:{hex_color}]"
             vuln_matrix.append(d)
 
         # 2. Agrupamento para o Gráfico de CWE
@@ -291,7 +282,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
         """)
         cwe_metrics = {row["cwe_id"]: row["qtd"] for row in cur.fetchall()}
 
-    # O retorno master consolidando tudo
+    # O retorno consolidando todos os dados dinâmicos
     return {
         "project_name": os.path.basename(proj_path),
         "client_name": client_name or proj_data.get("client_first_name", os.path.basename(proj_path)),
@@ -303,6 +294,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
         "date_end": proj_data.get("date_end", ""),
         "report_date": report_date,
         "client_logo": logo_path,
+        "classification": "CONFIDENCIAL",
         "stats": stats,
         "scope": {
             "domains": scope_domains,
@@ -310,11 +302,10 @@ def _build_report_context(proj_path: str, client_name: str = "",
             "total_ports": total_ports,
         },
         "hosts": hosts_ctx,
-        
-        # 👇 NOVO: Injetando as listas separadas no Word 👇
-        "vulnerability_matrix": vuln_matrix, # Lista com todas  
+        "vulnerability_matrix": vuln_matrix,
         "cwe_metrics": cwe_metrics,
     }
+
 
 def _generate_severity_chart(stats, output_path):
     import matplotlib.pyplot as plt
@@ -324,9 +315,9 @@ def _generate_severity_chart(stats, output_path):
         stats.get('medium', 0), stats.get('low', 0), stats.get('info', 0)
     ]
     
-    # Nova paleta de cores exata solicitada (com azul para Info)
+    # Paleta de cores exata
     colors = ['#FF0000', '#FF6600', '#FFEB3B', '#4CAF50', '#2196F3'] 
-    
+
     # Filtra categorias zeradas
     dados = [(l, s, c) for l, s, c in zip(labels, sizes, colors) if s > 0]
     if not dados:
@@ -334,10 +325,8 @@ def _generate_severity_chart(stats, output_path):
     
     l, s, c = zip(*dados)
     
-    # Aumentamos um pouco a largura da figura para caber a legenda lateral
     fig, ax = plt.subplots(figsize=(8, 4))
     
-    # Note que removemos o parâmetro 'labels=l' para limpar a pizza!
     wedges, texts, autotexts = ax.pie(
         s, colors=c, autopct='%1.1f%%', startangle=140, 
         textprops={'color': "white", 'weight': 'bold', 'fontsize': 8},
@@ -345,8 +334,6 @@ def _generate_severity_chart(stats, output_path):
     )
     
     plt.title("Severidade das Vulnerabilidades", weight='bold', pad=20, fontsize=14)
-    
-    # Adicionamos a legenda elegantemente alinhada à direita
     ax.legend(wedges, l, title="Severidades", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
     
     plt.savefig(output_path, bbox_inches='tight', dpi=300, transparent=True)
@@ -361,19 +348,15 @@ def _generate_cwe_chart(cwe_counts, output_path):
     
     labels, sizes = zip(*cwe_counts.items())
     
-    # Aumentamos a largura para a legenda não cortar
     fig, ax = plt.subplots(figsize=(8, 4))
     
-    # Sem 'labels=labels', deixando só as porcentagens na rosca
     wedges, texts, autotexts = ax.pie(
         sizes, autopct='%1.1f%%', startangle=140, pctdistance=0.80,
         wedgeprops=dict(width=0.4, edgecolor='black', linewidth=1),
         textprops={'color': "white", 'weight': 'bold', 'fontsize': 8}
     )
-           
-    plt.title("Distribuição por Categoria (CWE)", weight='bold', pad=20, fontsize=12)
     
-    # Legenda lateral para as CWEs
+    plt.title("Distribuição por Categoria (CWE)", weight='bold', pad=20, fontsize=12)
     ax.legend(wedges, labels, title="Categorias CWE", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
     
     plt.savefig(output_path, bbox_inches='tight', dpi=300, transparent=True)
@@ -407,7 +390,7 @@ def generate_report(proj_path: str, template: str = None,
     ctx["severity_chart"] = _generate_severity_chart(ctx["stats"], chart_path)
 
     cwe_path = os.path.join(tempfile.gettempdir(), "openpipes_cwe_chart.png")
-    ctx["cwe_chart"] = _generate_cwe_chart(ctx.get("cwe_metrics", {}), cwe_path)    
+    ctx["cwe_chart"] = _generate_cwe_chart(ctx.get("cwe_metrics", {}), cwe_path) 
 
     # 3. Salva o contexto num JSON temporário
     temp_json = os.path.join(tempfile.gettempdir(), "openpipes_context.json")
