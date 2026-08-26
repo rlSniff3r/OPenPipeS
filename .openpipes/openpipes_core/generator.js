@@ -36,6 +36,35 @@ function angularParser(tag) {
     };
 }
 
+// Filtro para filtrar valor exato (já fizemos antes)
+expressions.filters.where = function(input, key, value) {
+    if (!Array.isArray(input)) return [];
+    return input.filter(item => item[key] === value);
+};
+
+// 👇 NOVOS FILTROS DE ORDENAÇÃO AQUI 👇
+
+// Ordena do MAIOR para o MENOR (Decrescente)
+expressions.filters.sortByDesc = function(input, key) {
+    if (!Array.isArray(input)) return [];
+    return input.slice().sort((a, b) => {
+        let valA = a[key] !== null && a[key] !== undefined ? a[key] : -999;
+        let valB = b[key] !== null && b[key] !== undefined ? b[key] : -999;
+        return valA < valB ? 1 : valA > valB ? -1 : 0;
+    });
+};
+
+// Ordena do MENOR para o MAIOR (Crescente)
+expressions.filters.sortByAsc = function(input, key) {
+    if (!Array.isArray(input)) return [];
+    return input.slice().sort((a, b) => {
+        let valA = a[key] !== null && a[key] !== undefined ? a[key] : -999;
+        let valB = b[key] !== null && b[key] !== undefined ? b[key] : -999;
+        return valA > valB ? 1 : valA < valB ? -1 : 0;
+    });
+};
+// 👆 FIM DOS NOVOS FILTROS 👆
+
 // ── 2. Módulo de Imagem (Aspect Ratio Perfeito) ──
 const imageOpts = {
     centered: false,
@@ -119,18 +148,18 @@ try {
     try {
         let docXml = doc.getZip().file("word/document.xml").asText();
         
-        // Captura o BGCOLOR_ e extrai a cor e o texto da severidade
-        const cellRegex = /<w:tc>(?:(?!<w:tc>)[\s\S])*?<w:t[^>]*>BGCOLOR_([0-9A-Fa-f]{6})_([^<]+)<\/w:t>[\s\S]*?<\/w:tc>/g;
+        // Procura por BGCOLOR-HEX em qualquer lugar dentro da célula inteira
+        const cellRegex = /<w:tc>(?:(?!<w:tc>)[\s\S])*?BGCOLOR-([0-9A-Fa-f]{6})[\s\S]*?<\/w:tc>/g;
         
-        docXml = docXml.replace(cellRegex, function(match, hex, text) {
-            // Limpa a string mágica deixando apenas o texto (ex: "Crítica")
-            let cleanMatch = match.replace(`BGCOLOR_${hex}_${text}`, text);
+        docXml = docXml.replace(cellRegex, function(match, hex) {
+            // 1. Remove a string mágica "BGCOLOR-HEX" do texto da célula (não afeta o resto do texto)
+            let cleanMatch = match.replace(new RegExp(`BGCOLOR-${hex}`, 'g'), '');
             
-            // Limpeza Forçada: Remove o fundo vermelho/colorido que você botou manualmente no Word
+            // 2. Remove as formatações de cor de fundo antigas (se houver)
             cleanMatch = cleanMatch.replace(/<w:shd[^>]*\/>/g, ''); 
             cleanMatch = cleanMatch.replace(/<w:shd[^>]*>[\s\S]*?<\/w:shd>/g, '');
             
-            // Injeta a cor correta baseada no CVSS
+            // 3. Injeta a cor do CVSS!
             if (cleanMatch.includes('<w:tcPr>')) {
                 cleanMatch = cleanMatch.replace('<w:tcPr>', `<w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${hex}"/>`);
             } else {
@@ -144,19 +173,3 @@ try {
         console.warn("[Aviso] Não foi possível injetar as cores nas células: ", err.message);
     }
     // ────────────────────────────────────────────────────
-
-    const buf = doc.getZip().generate({ 
-        type: "nodebuffer", 
-        compression: "DEFLATE" 
-    });
-    
-    fs.writeFileSync(path.resolve(outputPath), buf);
-    console.log("SUCCESS");
-
-    } catch (error) {
-    console.error("ERROR:", error.message);
-    if (error.properties && error.properties.errors) {
-        console.error("Detalhes do erro do Docxtemplater:", error.properties.errors);
-    }
-    process.exit(1);
-    }

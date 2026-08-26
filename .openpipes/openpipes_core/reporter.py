@@ -95,7 +95,7 @@ def _build_host_context(conn, host_id: int, host_name: str,
 
         # 👇 GERA A STRING MÁGICA DA COR SEM O '#' 👇
         hex_color = SEVERITY_COLORS.get(v["severity"], "FFFFFF").replace("#", "")
-        v["severity_colored"] = f"BGCOLOR_{hex_color}_{v['severity']}"
+        v["severity_colored"] = f"BGCOLOR-{hex_color}"
 
         cwe_match = re.match(r"CWE-(\d+)", v.get("cwe_id") or "")
         v["cwe_url"] = (
@@ -277,9 +277,9 @@ def _build_report_context(proj_path: str, client_name: str = "",
         vuln_matrix = []
         for row in cur.fetchall():
             d = dict(row)
-            # 👇 GERA A STRING MÁGICA NA MATRIZ 👇
+            # 👇 STRING MÁGICA SIMPLIFICADA NA MATRIZ 👇
             hex_color = SEVERITY_COLORS.get(d["severity"], "FFFFFF").replace("#", "")
-            d["severity_colored"] = f"BGCOLOR_{hex_color}_{d['severity']}"
+            d["severity_colored"] = f"BGCOLOR-{hex_color}"
             vuln_matrix.append(d)
 
         # 2. Agrupamento para o Gráfico de CWE
@@ -312,8 +312,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
         "hosts": hosts_ctx,
         
         # 👇 NOVO: Injetando as listas separadas no Word 👇
-        "vulnerability_matrix": vuln_matrix, # Lista com todas
-        "vuln_matrix_critica": vuln_matrix_critica,        
+        "vulnerability_matrix": vuln_matrix, # Lista com todas  
         "cwe_metrics": cwe_metrics,
     }
 
