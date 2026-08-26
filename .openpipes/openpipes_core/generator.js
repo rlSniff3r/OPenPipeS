@@ -34,10 +34,22 @@ const imageOpts = {
     centered: false,
     fileType: "docx",
     getImage: function(tagValue) {
-        const imgPath = path.resolve(tagValue);
-        if (fs.existsSync(imgPath)) {
-            return fs.readFileSync(imgPath);
+        // Previne erro se a tag de imagem vier vazia (ex: sem logo)
+        if (!tagValue) {
+            return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"); // Pixel transparente
         }
+
+        const imgPath = path.resolve(tagValue);
+        
+        try {
+            // Verifica se existe E se é um arquivo (evita erro de tentar ler diretório)
+            if (fs.existsSync(imgPath) && fs.statSync(imgPath).isFile()) {
+                return fs.readFileSync(imgPath);
+            }
+        } catch (e) {
+            // Ignora falhas de leitura
+        }
+        
         console.warn(`[Aviso] Imagem não encontrada: ${imgPath}`);
         return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
     },
