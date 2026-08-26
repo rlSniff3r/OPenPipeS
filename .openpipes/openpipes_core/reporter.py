@@ -313,12 +313,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
         
         # 👇 NOVO: Injetando as listas separadas no Word 👇
         "vulnerability_matrix": vuln_matrix, # Lista com todas
-        "vuln_matrix_critica": vuln_matrix_critica,
-        "vuln_matrix_alta": vuln_matrix_alta,
-        "vuln_matrix_media": vuln_matrix_media,
-        "vuln_matrix_baixa": vuln_matrix_baixa,
-        "vuln_matrix_info": vuln_matrix_info,
-        
+        "vuln_matrix_critica": vuln_matrix_critica,        
         "cwe_metrics": cwe_metrics,
     }
 
