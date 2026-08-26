@@ -77,14 +77,15 @@ def _build_host_context(conn, host_id: int, host_name: str,
 
     cur.execute("""
         SELECT id, title, severity, cvss_score, cvss_vector, cwe_id,
-               cve_id, vuln_name, description, matched_at,
-               curl_command, remediation, impact,
-               reference_urls, source_tool, enriched_by, created_at
+        cve_id, vuln_name, description, matched_at,
+        curl_command, remediation, impact,
+        reference_urls, source_tool, enriched_by, created_at
         FROM vulnerabilities WHERE host_id = ? AND status = 'open'
-        ORDER BY CASE severity WHEN 'Crítica' THEN 0 WHEN 'Alta' THEN 1
-                 WHEN 'Média' THEN 2 WHEN 'Baixa' THEN 3 ELSE 4 END
+        ORDER BY cvss_score DESC NULLS LAST
     """, (host_id,))
+    
     vulns = []
+
     evidence_dir = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Evidencias")
 
     for r in cur.fetchall():
@@ -93,6 +94,9 @@ def _build_host_context(conn, host_id: int, host_name: str,
         v["cvss_score"] = float(v["cvss_score"]) if v.get("cvss_score") else None
         v["severity_emoji"] = {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡",
                                 "Baixa": "🟢", "Info": "🔵"}.get(v["severity"], "⚪")
+
+        hex_color = SEVERITY_COLORS.get(v["severity"], "FFFFFF")
+        v["severity_colored"] = f"BGCOLOR_{hex_color}_{v['severity']}"
 
         cwe_match = re.match(r"CWE-(\d+)", v.get("cwe_id") or "")
         v["cwe_url"] = (
@@ -156,6 +160,7 @@ def _build_host_context(conn, host_id: int, host_name: str,
         "vulnerabilities": vulns,
         "screenshots": screenshots,
         "narrative": host.get("narrative", "") or "",
+        ""
     }
 
 
@@ -270,9 +275,23 @@ def _build_report_context(proj_path: str, client_name: str = "",
             FROM vulnerabilities v
             JOIN hosts h ON v.host_id = h.id
             GROUP BY v.title, v.severity
-            ORDER BY v.cvss_score DESC
+            ORDER BY cvss_score DESC NULLS LAST
         """)
-        vuln_matrix = [dict(row) for row in cur.fetchall()]
+        
+        vuln_matrix = []
+        for row in cur.fetchall():
+            d = dict(row)
+            # 👇 ADICIONE ESTA LINHA 👇
+            hex_color = SEVERITY_COLORS.get(d["severity"], "FFFFFF")
+            d["severity_colored"] = f"BGCOLOR_{hex_color}_{d['severity']}"
+            vuln_matrix.append(d)
+
+        # 👇 NOVO: Separando as matrizes por severidade no Python! 👇
+        vuln_matrix_critica = [v for v in vuln_matrix if v["severity"] == "Crítica"]
+        vuln_matrix_alta = [v for v in vuln_matrix if v["severity"] == "Alta"]
+        vuln_matrix_media = [v for v in vuln_matrix if v["severity"] == "Média"]
+        vuln_matrix_baixa = [v for v in vuln_matrix if v["severity"] == "Baixa"]
+        vuln_matrix_info = [v for v in vuln_matrix if v["severity"] == "Info"]
 
         # 2. Agrupamento para o Gráfico de CWE
         cur.execute("""
@@ -283,7 +302,7 @@ def _build_report_context(proj_path: str, client_name: str = "",
         """)
         cwe_metrics = {row["cwe_id"]: row["qtd"] for row in cur.fetchall()}
 
-    # O retorno master consolidando APENAS DADOS DINÂMICOS
+    # O retorno master consolidando tudo
     return {
         "project_name": os.path.basename(proj_path),
         "client_name": client_name or proj_data.get("client_first_name", os.path.basename(proj_path)),
@@ -302,10 +321,17 @@ def _build_report_context(proj_path: str, client_name: str = "",
             "total_ports": total_ports,
         },
         "hosts": hosts_ctx,
-        "vulnerability_matrix": vuln_matrix,
+        
+        # 👇 NOVO: Injetando as listas separadas no Word 👇
+        "vulnerability_matrix": vuln_matrix, # Lista com todas
+        "vuln_matrix_critica": vuln_matrix_critica,
+        "vuln_matrix_alta": vuln_matrix_alta,
+        "vuln_matrix_media": vuln_matrix_media,
+        "vuln_matrix_baixa": vuln_matrix_baixa,
+        "vuln_matrix_info": vuln_matrix_info,
+        
         "cwe_metrics": cwe_metrics,
     }
-
 
 def _generate_severity_chart(stats, output_path):
     import matplotlib.pyplot as plt

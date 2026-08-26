@@ -11,6 +11,13 @@ expressions.filters.lower = function(input) {
     if(!input) return input;
     return input.toLowerCase();
 }
+
+expressions.filters.where = function(input, key, value) {
+    // Filtra a lista baseada em uma chave e um valor exato
+    if (!Array.isArray(input)) return [];
+    return input.filter(item => item[key] === value);
+}
+
 function angularParser(tag) {
     if (tag === '.') {
         return { get: function(s){ return s;} };
@@ -106,7 +113,40 @@ try {
     });
 
     const data = JSON.parse(fs.readFileSync(contextPath, "utf8"));
+
     doc.render(data);
+
+    // ─── MÁGICA: PINTAR O FUNDO DA CÉLULA NATIVAMENTE ───
+    try {
+        // Pega o código-fonte XML do Word na memória
+        let docXml = doc.getZip().file("word/document.xml").asText();
+        
+        // Regex aprimorado: aceita <w:t> com ou sem atributos como xml:space="preserve"
+        const cellRegex = /<w:tc>(?:(?!<w:tc>)[\s\S])*?<w:t[^>]*>BGCOLOR_([0-9A-Fa-f]{6})_([^<]+)<\/w:t>[\s\S]*?<\/w:tc>/g;
+        
+        docXml = docXml.replace(cellRegex, function(match, hex, text) {
+            // Remove a string mágica e deixa apenas o texto limpo (ex: "Crítica")
+            let cleanMatch = match.replace(`BGCOLOR_${hex}_${text}`, text);
+            
+            // Tira a formatação antiga de fundo de célula caso ainda exista resquício do Word
+            cleanMatch = cleanMatch.replace(/<w:shd[^>]*\/>/g, ''); 
+            cleanMatch = cleanMatch.replace(/<w:shd[^>]*>[\s\S]*?<\/w:shd>/g, '');
+            
+            if (cleanMatch.includes('<w:tcPr>')) {
+                // Se a célula já tem formatação (ex: bordas), injetamos a cor
+                cleanMatch = cleanMatch.replace('<w:tcPr>', `<w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${hex}"/>`);
+            } else {
+                // Se a célula for crua, criamos a formatação do zero
+                cleanMatch = cleanMatch.replace('<w:tc>', `<w:tc><w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${hex}"/></w:tcPr>`);
+            }
+            return cleanMatch;
+        });
+
+        // Salva o XML modificado de volta no arquivo Word em memória
+        doc.getZip().file("word/document.xml", docXml);
+    } catch (err) {
+        console.warn("[Aviso] Não foi possível injetar as cores nas células: ", err.message);
+    }
 
     const buf = doc.getZip().generate({ 
         type: "nodebuffer", 
@@ -116,10 +156,10 @@ try {
     fs.writeFileSync(path.resolve(outputPath), buf);
     console.log("SUCCESS");
 
-} catch (error) {
+    } catch (error) {
     console.error("ERROR:", error.message);
     if (error.properties && error.properties.errors) {
         console.error("Detalhes do erro do Docxtemplater:", error.properties.errors);
     }
     process.exit(1);
-}
+    }
