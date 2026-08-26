@@ -83,9 +83,7 @@ def _build_host_context(conn, host_id: int, host_name: str,
         FROM vulnerabilities WHERE host_id = ? AND status = 'open'
         ORDER BY cvss_score DESC NULLS LAST
     """, (host_id,))
-    
     vulns = []
-
     evidence_dir = os.path.join(proj_path, "Varreduras", f"nmap-{host_name}", "Evidencias")
 
     for r in cur.fetchall():
@@ -93,9 +91,10 @@ def _build_host_context(conn, host_id: int, host_name: str,
         v["reference_urls"] = json.loads(v["reference_urls"]) if v.get("reference_urls") else []
         v["cvss_score"] = float(v["cvss_score"]) if v.get("cvss_score") else None
         v["severity_emoji"] = {"Crítica": "🔴", "Alta": "🟠", "Média": "🟡",
-                                "Baixa": "🟢", "Info": "🔵"}.get(v["severity"], "⚪")
+                               "Baixa": "🟢", "Info": "🔵"}.get(v["severity"], "⚪")
 
-        hex_color = SEVERITY_COLORS.get(v["severity"], "FFFFFF")
+        # 👇 GERA A STRING MÁGICA DA COR SEM O '#' 👇
+        hex_color = SEVERITY_COLORS.get(v["severity"], "FFFFFF").replace("#", "")
         v["severity_colored"] = f"BGCOLOR_{hex_color}_{v['severity']}"
 
         cwe_match = re.match(r"CWE-(\d+)", v.get("cwe_id") or "")
@@ -104,13 +103,11 @@ def _build_host_context(conn, host_id: int, host_name: str,
             if cwe_match else ""
         )
 
-        # Como deve ficar:
         evidence_images = []
         cur.execute("SELECT stored_name FROM user_evidences WHERE vuln_id = ?", (v["id"],))
         for er in cur.fetchall():
             img_path = os.path.join(evidence_dir, er["stored_name"])
             if os.path.exists(img_path):
-                # Mandamos um dicionário para facilitar o loop no Word!
                 evidence_images.append({"img_path": img_path})
         v["evidence_images"] = evidence_images
         vulns.append(v)
@@ -160,7 +157,6 @@ def _build_host_context(conn, host_id: int, host_name: str,
         "vulnerabilities": vulns,
         "screenshots": screenshots,
         "narrative": host.get("narrative", "") or "",
-        ""
     }
 
 
@@ -275,23 +271,16 @@ def _build_report_context(proj_path: str, client_name: str = "",
             FROM vulnerabilities v
             JOIN hosts h ON v.host_id = h.id
             GROUP BY v.title, v.severity
-            ORDER BY cvss_score DESC NULLS LAST
+            ORDER BY v.cvss_score DESC NULLS LAST
         """)
         
         vuln_matrix = []
         for row in cur.fetchall():
             d = dict(row)
-            # 👇 ADICIONE ESTA LINHA 👇
-            hex_color = SEVERITY_COLORS.get(d["severity"], "FFFFFF")
+            # 👇 GERA A STRING MÁGICA NA MATRIZ 👇
+            hex_color = SEVERITY_COLORS.get(d["severity"], "FFFFFF").replace("#", "")
             d["severity_colored"] = f"BGCOLOR_{hex_color}_{d['severity']}"
             vuln_matrix.append(d)
-
-        # 👇 NOVO: Separando as matrizes por severidade no Python! 👇
-        vuln_matrix_critica = [v for v in vuln_matrix if v["severity"] == "Crítica"]
-        vuln_matrix_alta = [v for v in vuln_matrix if v["severity"] == "Alta"]
-        vuln_matrix_media = [v for v in vuln_matrix if v["severity"] == "Média"]
-        vuln_matrix_baixa = [v for v in vuln_matrix if v["severity"] == "Baixa"]
-        vuln_matrix_info = [v for v in vuln_matrix if v["severity"] == "Info"]
 
         # 2. Agrupamento para o Gráfico de CWE
         cur.execute("""

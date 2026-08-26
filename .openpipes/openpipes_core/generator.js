@@ -113,40 +113,37 @@ try {
     });
 
     const data = JSON.parse(fs.readFileSync(contextPath, "utf8"));
-
     doc.render(data);
 
     // ─── MÁGICA: PINTAR O FUNDO DA CÉLULA NATIVAMENTE ───
     try {
-        // Pega o código-fonte XML do Word na memória
         let docXml = doc.getZip().file("word/document.xml").asText();
         
-        // Regex aprimorado: aceita <w:t> com ou sem atributos como xml:space="preserve"
+        // Captura o BGCOLOR_ e extrai a cor e o texto da severidade
         const cellRegex = /<w:tc>(?:(?!<w:tc>)[\s\S])*?<w:t[^>]*>BGCOLOR_([0-9A-Fa-f]{6})_([^<]+)<\/w:t>[\s\S]*?<\/w:tc>/g;
         
         docXml = docXml.replace(cellRegex, function(match, hex, text) {
-            // Remove a string mágica e deixa apenas o texto limpo (ex: "Crítica")
+            // Limpa a string mágica deixando apenas o texto (ex: "Crítica")
             let cleanMatch = match.replace(`BGCOLOR_${hex}_${text}`, text);
             
-            // Tira a formatação antiga de fundo de célula caso ainda exista resquício do Word
+            // Limpeza Forçada: Remove o fundo vermelho/colorido que você botou manualmente no Word
             cleanMatch = cleanMatch.replace(/<w:shd[^>]*\/>/g, ''); 
             cleanMatch = cleanMatch.replace(/<w:shd[^>]*>[\s\S]*?<\/w:shd>/g, '');
             
+            // Injeta a cor correta baseada no CVSS
             if (cleanMatch.includes('<w:tcPr>')) {
-                // Se a célula já tem formatação (ex: bordas), injetamos a cor
                 cleanMatch = cleanMatch.replace('<w:tcPr>', `<w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${hex}"/>`);
             } else {
-                // Se a célula for crua, criamos a formatação do zero
                 cleanMatch = cleanMatch.replace('<w:tc>', `<w:tc><w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${hex}"/></w:tcPr>`);
             }
             return cleanMatch;
         });
 
-        // Salva o XML modificado de volta no arquivo Word em memória
         doc.getZip().file("word/document.xml", docXml);
     } catch (err) {
         console.warn("[Aviso] Não foi possível injetar as cores nas células: ", err.message);
     }
+    // ────────────────────────────────────────────────────
 
     const buf = doc.getZip().generate({ 
         type: "nodebuffer", 
