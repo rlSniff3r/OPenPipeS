@@ -70,18 +70,19 @@ process_target() {
 
         feroxbuster -u "$base_url" \
             -w "$WL" \
+            --collect-extensions \
+            --collect-words \
             -t "$FEROX_THREADS" \
             -d "$FEROX_DEPTH" \
             --time-limit "$FEROX_TIMEOUT" \
             --auto-tune \
             --filter-status 400,401,404,405,500,502,503 \
-            --randon-agent \
+            --random-agent \
             --no-state \
             --json \
-            -o "$OUTPUT_FILE.jsonl" \
-            --silent 2>/dev/null || true
+            -o "${OUTPUT_FILE}.jsonl"
 
-        jq -r '.url' "$OUTPUT_FILE.jsonl" > "$OUTPUT_FILE.txt" 2>/dev/null
+        jq -r '.url' "${OUTPUT_FILE}.jsonl" > "${OUTPUT_FILE}.txt" 2>/dev/null
     done < "$BASE_URLS"
 
     # ── Consolida resultados ────────────────────────────────────────────

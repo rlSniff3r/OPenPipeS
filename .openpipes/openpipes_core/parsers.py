@@ -1172,11 +1172,7 @@ def flag_false_positives(proj_path: str):
     (Endpoints descobertos por Crawlers oficiais, como o Katana, ganham imunidade)
     """
     error_titles = [
-        "not found", "404", "error", "forbidden", "access denied",
-        "page not found", "pagina nao encontrada", "página não encontrada",
-        "erro", "acesso negado", "nao encontrado", "não encontrado",
-        "bad request", "internal server error", "method not allowed",
-        "access denied", "blocked", "waf", "security",
+        "testando123",
     ]
 
     with db.get_connection(proj_path) as conn:
