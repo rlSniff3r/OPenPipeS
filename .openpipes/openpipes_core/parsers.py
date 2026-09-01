@@ -619,7 +619,6 @@ def parse_screenshot(proj_path, nmap_dir):
     console.print(f" [dim]↳ Parser Screenshots (JSONL): Associou {count} imagens a hosts.[/dim]")
 
 
-
 def parse_gf(proj_path, nmap_dir):
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
@@ -659,48 +658,77 @@ def parse_gf(proj_path, nmap_dir):
 
 
 def parse_jsfinder(proj_path, nmap_dir):
+    """Parse Megazord JS results (routes, secrets, broken access) into the DB."""
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
-            count = 0
+            count_routes = 0
+            count_vulns = 0
+            
             for nmap_folder in sorted(os.listdir(nmap_dir)):
                 if not nmap_folder.startswith("nmap-"):
                     continue
                 js_file = os.path.join(nmap_dir, nmap_folder, "jsfinder-results.json")
                 if not os.path.exists(js_file):
                     continue
+                
                 try:
-                    with open(js_file, "r") as f:
+                    with open(js_file, "r", encoding="utf-8", errors="ignore") as f:
                         data = json.load(f)
                 except (json.JSONDecodeError, IOError):
                     continue
-                results = data.get("results", [])
-                for entry in results:
-                    source_js_url = entry.get("source_js_url", "")
-                    if not source_js_url:
+                
+                target = data.get("target")
+                if not target:
+                    continue
+                
+                host_id = get_or_create_host(cursor, target, skip_ip_correlation=True)
+                if not host_id:
+                    continue
+
+                # 1. Inserir Rotas Descobertas
+                for mapping in data.get("js_discoveries", []):
+                    if "|" not in mapping:
                         continue
-                    host_str = urlparse(source_js_url).hostname
-                    if not host_str:
+                    source_js, route = mapping.split("|", 1)
+                    try:
+                        cursor.execute(
+                            """INSERT INTO js_discoveries (host_id, source_js_url, discovered_route) 
+                               VALUES (?, ?, ?) ON CONFLICT DO NOTHING""",
+                            (host_id, source_js.strip(), route.strip()),
+                        )
+                        if cursor.rowcount > 0:
+                            count_routes += 1
+                    except Exception:
                         continue
-                    host_id = get_or_create_host(cursor, host_str)
-                    if not host_id:
-                        continue
-                    for route in entry.get("discovered_routes", []):
-                        if not route.strip():
-                            continue
-                        try:
-                            cursor.execute(
-                                """INSERT INTO js_discoveries
-                                   (host_id, source_js_url, discovered_route)
-                                   VALUES (?, ?, ?)
-                                   ON CONFLICT DO NOTHING""",
-                                (host_id, source_js_url, route.strip()),
-                            )
-                            if cursor.rowcount > 0:
-                                count += 1
-                        except Exception:
-                            continue
-    console.print(f" [dim]↳ Parser JSFinder: Salvou {count} rotas/arquivos descobertos no JS.[/dim]")
+                
+                # 2. Inserir Segredos como Vulnerabilidade (Grep Secrets)
+                for secret in data.get("secrets", []):
+                    title = "Hardcoded Secret found in JavaScript"
+                    evidence = f"**Secret:** `{secret.strip()}`"
+                    cursor.execute("""
+                        INSERT INTO vulnerabilities 
+                        (host_id, title, severity, description, evidence, source_tool, status)
+                        VALUES (?, ?, 'Alta', 'Foram encontradas possíveis chaves de API, tokens ou credenciais hardcoded no código JavaScript.', ?, 'jsfinder', 'open')
+                        ON CONFLICT(host_id, title) DO UPDATE SET 
+                        evidence = evidence || '\n' || excluded.evidence
+                    """, (host_id, title, evidence))
+                    count_vulns += 1
+                
+                # 3. Inserir Rotas 200 OK (Possível BOLA/Broken Access Control)
+                for api_url in data.get("broken_access", []):
+                    title = "Potential Broken Access Control / Exposed API Route"
+                    evidence = f"**Route Returning 200 OK:** {api_url.strip()}"
+                    cursor.execute("""
+                        INSERT INTO vulnerabilities 
+                        (host_id, title, severity, description, evidence, source_tool, status)
+                        VALUES (?, ?, 'Média', 'Uma rota de API extraída do JavaScript retornou status 200 OK sem necessidade de autenticação (ou token). Verifique se há vazamento de dados.', ?, 'jsfinder', 'open')
+                        ON CONFLICT(host_id, title) DO UPDATE SET 
+                        evidence = evidence || '\n' || excluded.evidence
+                    """, (host_id, title, evidence))
+                    count_vulns += 1
+
+            console.print(f" [dim]↳ Parser JSFinder (Megazord): Inseriu {count_routes} rotas e {count_vulns} vulnerabilidades/evidências (Secrets/Open Doors).[/dim]")
 
 
 # ═════════════════════════════════════════════════════════════════════

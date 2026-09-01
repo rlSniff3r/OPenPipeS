@@ -1,93 +1,109 @@
 #!/bin/bash
 #set -euo pipefail
 source $HOME/.openpipes/config.sh
-venv="$HOME/.venv-jsfinder/bin/activate"
 varreduraDir="$NMAP_DIR"
+MAX_ROUNDS=5
 
-force=true
+force=false
 [[ "$*" == *"--force"* ]] && force=true
 
-echo "[*] Ativando ambiente virtual do LinkFinder..."
-source "$venv"
+echo "[*] Iniciando MEGAZORD JS Scanner no OPenPipeS..."
 
 for nmapFolder in "$varreduraDir"/nmap-*; do
     [ -d "$nmapFolder" ] || continue
     targetName="${nmapFolder##*/nmap-}"
-    tmpDir="/tmp/jsfinder-$targetName"
     outputFile="$nmapFolder/jsfinder-results.json"
-
+    
     if [ -f "$outputFile" ] && [ "$force" = false ]; then
-        echo "[!] $outputFile já existe. Use --force para sobrescrever. Pulando $targetName..."
+        echo "[!] $outputFile já existe. Pulando $targetName..."
+        continue
+    fi
+
+    # Arquivo de seed alimentado pelo feeder.py
+    seed_file="$nmapFolder/js_urls.txt"
+    if [ ! -s "$seed_file" ]; then
+        echo "[!] Nenhum JS alimentado para $targetName. Pulando..."
         continue
     fi
 
     echo "[*] Processando alvo: $targetName"
+    BASE_URL="https://$targetName"
+    tmpDir="/tmp/megazord-$targetName"
     mkdir -p "$tmpDir"
+    
+    cp "$seed_file" "$tmpDir/pendentes_round_1.txt"
+    touch "$tmpDir/historico_js.txt" "$tmpDir/todas_rotas_api.txt" "$tmpDir/secrets_all.txt" "$tmpDir/params_all.txt" "$tmpDir/source_map.txt"
 
-    echo "[*] Coletando possíveis arquivos JS..."
-    js_urls=()
+    # ==========================================
+    # LOOP DE RODADAS RECURSIVAS
+    # ==========================================
+    ROUND=1
+    while [ -s "$tmpDir/pendentes_round_${ROUND}.txt" ] && [ "$ROUND" -le "$MAX_ROUNDS" ]; do
+        TOTAL_ROUND=$(wc -l < "$tmpDir/pendentes_round_${ROUND}.txt")
+        cat "$tmpDir/pendentes_round_${ROUND}.txt" >> "$tmpDir/historico_js.txt"
+        
+        echo "    ↳ Rodada $ROUND ($TOTAL_ROUND arquivos)..."
+        
+        while read -r url; do
+            filename=$(echo -n "$url" | md5sum | awk '{print $1}')
+            js_path="$tmpDir/R${ROUND}_${filename}.js"
+            curl -s -k -L "$url" -o "$js_path"
+            
+            # Analisa com jsluice
+            jsluice urls "$js_path" 2>/dev/null | jq -r '.url' | \
+            grep -ivE "^http|^https|.*\.css$|.*\.png$|.*\.pdf$|.*\.svg$" | \
+            sed 's#^\.*/*##' | sed "s#^#$BASE_URL/#" > "$tmpDir/rotas_temp.txt"
+            
+            # Mapeia origem (para o DB)
+            while read -r rota; do
+                echo "$url|$rota" >> "$tmpDir/source_map.txt"
+            done < "$tmpDir/rotas_temp.txt"
 
-    # Source 1: httpx JSONs (raw tool output)
-    for json in "$nmapFolder"/httpx*.json; do
-        [ -f "$json" ] || continue
-        if jq -e 'type=="array"' "$json" &>/dev/null; then
-            urls=$(jq -r '.[] | select(.url | test("\\.js($|\\?)")) | .url' "$json")
-        else
-            urls=$(jq -r 'select(type == "object") | select(.url | test("\\.js($|\\?)")) | .url' "$json")
+            cat "$tmpDir/rotas_temp.txt" >> "$tmpDir/todas_rotas_all.txt" 2>/dev/null
+
+            # Grep Secrets (Nomes de variáveis e Hardcoded)
+            grep -hioE "(react_app_[a-z0-9_]+|api_key|apikey|secret|token|password)\s*[:=]\s*['\"][^'\"]+['\"]" "$js_path" >> "$tmpDir/secrets_all.txt"
+            
+            # Grep Parâmetros (Alimenta wordlists do Arjun/Ferox)
+            grep -hioE '["'\''][a-zA-Z0-9_-]+["'\'']\s*:\s*[{]?['\''"a-zA-Z0-9]' "$js_path" | awk -F'['\''"]' '{print $2}' >> "$tmpDir/params_all.txt"
+            
+        done < "$tmpDir/pendentes_round_${ROUND}.txt"
+
+        # Prepara a próxima rodada (Pega novos arquivos JS descobertos)
+        NEXT_ROUND=$((ROUND+1))
+        if [ -f "$tmpDir/todas_rotas_all.txt" ]; then
+            grep -i "\.js$" "$tmpDir/todas_rotas_all.txt" | sort -u > "$tmpDir/encontrados_js.txt"
+            grep -vFf "$tmpDir/historico_js.txt" "$tmpDir/encontrados_js.txt" > "$tmpDir/pendentes_round_${NEXT_ROUND}.txt"
         fi
-        js_urls+=($urls)
+        
+        ROUND=$((ROUND+1))
     done
 
-    # Source 2: katana crawled URLs
-    if [[ -f "$nmapFolder/crawled_all.txt" ]]; then
-        crawled_js=$(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$nmapFolder/crawled_all.txt" || true)
-        js_urls+=($crawled_js)
-    fi
+    # ==========================================
+    # FASE FINAL: PROCESSAMENTO E JSON
+    # ==========================================
+    sort -u "$tmpDir/source_map.txt" -o "$tmpDir/source_map.txt" 2>/dev/null
+    sort -u "$tmpDir/secrets_all.txt" -o "$tmpDir/secrets_all.txt" 2>/dev/null
+    sort -u "$tmpDir/params_all.txt" -o "$nmapFolder/js_parameters.txt" 2>/dev/null # Salva direto no nmapFolder para o Context Wordlist
 
-    # Source 3: feroxbuster consolidated URLs
-    if [[ -f "$nmapFolder/ferox_consolidated.txt" ]]; then
-        ferox_js=$(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$nmapFolder/ferox_consolidated.txt" || true)
-        js_urls+=($ferox_js)
-    fi
+    # Filtra as rotas para testar BOLA/Open Doors
+    grep -iv "\.js$" "$tmpDir/source_map.txt" | awk -F'|' '{print $2}' | sort -u > "$tmpDir/api_endpoints.txt"
+    
+    echo "    ↳ Testando $(wc -l < "$tmpDir/api_endpoints.txt" 2>/dev/null || echo 0) rotas de API via HTTPx..."
+    httpx -l "$tmpDir/api_endpoints.txt" -status-code -mc 200,401,403,500 -silent > "$tmpDir/httpx_status.txt" 2>/dev/null
+    
+    # Extrai as que deram 200 OK
+    grep "\[200\]" "$tmpDir/httpx_status.txt" | awk '{print $1}' > "$tmpDir/200_ok.txt" 2>/dev/null
 
-    # Source 4: alive_urls.txt (live httpx URLs)
-    if [[ -f "$nmapFolder/alive_urls.txt" ]]; then
-        alive_js=$(grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' "$nmapFolder/alive_urls.txt" || true)
-        js_urls+=($alive_js)
-    fi
-
-    # Source 5: gf-summary.json patterns (raw output)
-    if [[ -f "$nmapFolder/gf-summary.json" ]]; then
-        gf_js=$(jq -r '.gf_patterns | to_entries[] | .value[]' "$nmapFolder/gf-summary.json" 2>/dev/null | grep -Eo 'https?://[^ ")]+\.js(\?[^\s)]*)?' || true)
-        js_urls+=($gf_js)
-    fi
-
-    js_urls=($(printf "%s\n" "${js_urls[@]}" | sort -u))
-    echo "[*] Total de arquivos JS encontrados: ${#js_urls[@]}"
-
-    if [ "${#js_urls[@]}" -eq 0 ]; then
-        echo "[!] Nenhum arquivo JS encontrado para $targetName."
-        continue
-    fi
-
-    # Build JSON results array
-    results=()
-    for url in "${js_urls[@]}"; do
-        jsFile="$tmpDir/$(basename "$url" | cut -d '?' -f1)"
-        echo "[*] Baixando $url..."
-        curl -s -L --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36" --max-time 15 "$url" -o "$jsFile" || { echo "[-] Falha ao baixar: $url"; continue; }
-
-        routes=$(linkfinder.py -i "$jsFile" -o cli 2>/dev/null | grep -Eo 'https?://[^ ")]+' | sort -u | jq -R -s 'split("\n") | map(select(length > 0))')
-        results+=("$(jq -n --arg url "$url" --argjson routes "$routes" '{source_js_url: $url, discovered_routes: $routes}')")
-    done
-
-    # Write JSON output
+    # MONTAGEM DO JSON USANDO JQ
     jq -n \
-        --arg target "$targetName" \
-        --argjson results "$(printf '%s\n' "${results[@]}" | jq -s '.')" \
-        '{target: $target, generated_at: now, results: $results}' \
-        > "$outputFile"
+      --arg target "$targetName" \
+      --argjson routes "$(jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/source_map.txt" 2>/dev/null || echo '[]')" \
+      --argjson secrets "$(jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/secrets_all.txt" 2>/dev/null || echo '[]')" \
+      --argjson open_apis "$(jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/200_ok.txt" 2>/dev/null || echo '[]')" \
+      '{target: $target, js_discoveries: $routes, secrets: $secrets, broken_access: $open_apis}' \
+      > "$outputFile"
 
-    echo "[✓] jsfinder-results.json criado em: $outputFile"
+    echo "[✓] Resultados JSON gerados em: $outputFile"
+    rm -rf "$tmpDir"
 done
-echo "[✓] Todos os alvos foram processados!"
