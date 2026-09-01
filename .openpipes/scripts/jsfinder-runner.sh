@@ -44,10 +44,23 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
         
         echo "    ↳ Rodada $ROUND ($TOTAL_ROUND arquivos)..."
         
-        while read -r url; do
+        while read -r raw_url; do
+            # 1. Limpeza ninja: Remove quebras de linha e espaços invisíveis (\r\n)
+            url=$(echo "$raw_url" | tr -d '\r' | tr -d '\n' | xargs)
+            [ -z "$url" ] && continue
+
             filename=$(echo -n "$url" | md5sum | awk '{print $1}')
             js_path="$tmpDir/R${ROUND}_${filename}.js"
-            curl -s -k -L "$url" -o "$js_path"
+            
+            # 2. Faz o download
+            curl -s -k -L --max-time 15 "$url" -o "$js_path"
+            
+            # 3. DEBUG & SAFEGUARD: Checa se o arquivo foi criado E tem conteúdo
+            if [ ! -s "$js_path" ]; then
+                echo "        [!] Falha no download ou arquivo vazio: $url"
+                rm -f "$js_path" 2>/dev/null # Limpa o lixo
+                continue
+            fi
             
             # Analisa com jsluice
             jsluice urls "$js_path" 2>/dev/null | jq -r '.url' | \
@@ -79,12 +92,12 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
         ROUND=$((ROUND+1))
     done
 
-    # ==========================================
-    # FASE FINAL: PROCESSAMENTO E JSON
+# ==========================================
+    # FASE FINAL: PROCESSAMENTO E JSON (ANTI-ARG_MAX)
     # ==========================================
     sort -u "$tmpDir/source_map.txt" -o "$tmpDir/source_map.txt" 2>/dev/null
     sort -u "$tmpDir/secrets_all.txt" -o "$tmpDir/secrets_all.txt" 2>/dev/null
-    sort -u "$tmpDir/params_all.txt" -o "$nmapFolder/js_parameters.txt" 2>/dev/null # Salva direto no nmapFolder para o Context Wordlist
+    sort -u "$tmpDir/params_all.txt" -o "$nmapFolder/js_parameters.txt" 2>/dev/null # Salva para o Context Wordlist
 
     # Filtra as rotas para testar BOLA/Open Doors
     grep -iv "\.js$" "$tmpDir/source_map.txt" | awk -F'|' '{print $2}' | sort -u > "$tmpDir/api_endpoints.txt"
@@ -95,13 +108,26 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
     # Extrai as que deram 200 OK
     grep "\[200\]" "$tmpDir/httpx_status.txt" | awk '{print $1}' > "$tmpDir/200_ok.txt" 2>/dev/null
 
-    # MONTAGEM DO JSON USANDO JQ
+    # Garante que os arquivos existam para o jq não quebrar
+    touch "$tmpDir/source_map.txt" "$tmpDir/secrets_all.txt" "$tmpDir/200_ok.txt"
+
+    # Converte os arquivos de texto para Arrays JSON independentes em disco (Resolve o "Argument list too long")
+    jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/source_map.txt" > "$tmpDir/json_routes.json"
+    jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/secrets_all.txt" > "$tmpDir/json_secrets.json"
+    jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/200_ok.txt" > "$tmpDir/json_broken.json"
+
+    # MONTAGEM DO JSON: Lê os arrays do disco usando --slurpfile em vez de carregar em memória via bash
     jq -n \
       --arg target "$targetName" \
-      --argjson routes "$(jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/source_map.txt" 2>/dev/null || echo '[]')" \
-      --argjson secrets "$(jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/secrets_all.txt" 2>/dev/null || echo '[]')" \
-      --argjson open_apis "$(jq -R -s 'split("\n") | map(select(length > 0))' "$tmpDir/200_ok.txt" 2>/dev/null || echo '[]')" \
-      '{target: $target, js_discoveries: $routes, secrets: $secrets, broken_access: $open_apis}' \
+      --slurpfile routes "$tmpDir/json_routes.json" \
+      --slurpfile secrets "$tmpDir/json_secrets.json" \
+      --slurpfile open_apis "$tmpDir/json_broken.json" \
+      '{
+         target: $target, 
+         js_discoveries: ($routes[0] // []), 
+         secrets: ($secrets[0] // []), 
+         broken_access: ($open_apis[0] // [])
+      }' \
       > "$outputFile"
 
     echo "[✓] Resultados JSON gerados em: $outputFile"
