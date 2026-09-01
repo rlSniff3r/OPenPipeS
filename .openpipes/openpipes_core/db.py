@@ -254,6 +254,7 @@ def init_db(proj_path):
             _add_missing_columns(conn, "vulnerabilities", {
                 "cwe_id": "cwe_id TEXT DEFAULT ''",
                 "status": "status TEXT NOT NULL DEFAULT 'open'",
+                "evidence": "evidence TEXT",
             })
 
         else:
