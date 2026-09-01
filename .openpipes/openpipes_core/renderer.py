@@ -193,7 +193,7 @@ def get_target_report(proj_path: str, host_name: str) -> Optional[dict]:
         cursor.execute("""SELECT id, status, title, severity, cvss_score, cvss_vector, cwe_id,
                           cve_id, vuln_name, description, matched_at,
                           curl_command, remediation, impact,
-                          reference_urls, source_tool, enriched_by, created_at
+                          reference_urls, source_tool, enriched_by, created_at, evidence
                           FROM vulnerabilities WHERE host_id = ? AND status != 'false_positive'
                           ORDER BY CASE severity WHEN 'Crítica' THEN 0
                           WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2

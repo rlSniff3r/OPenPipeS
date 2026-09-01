@@ -266,8 +266,7 @@ class VulnEnricherApp(App):
                 cursor.execute("""
                     SELECT id, vuln_name, description, title
                     FROM vulnerabilities
-                    WHERE source_tool = 'nuclei'
-                      AND (enriched_by IS NULL OR enriched_by = '')
+                    WHERE (enriched_by IS NULL OR enriched_by = '')
                 """)
                 rows = cursor.fetchall()
                 
@@ -614,9 +613,10 @@ console = Console()
 def run_enricher(proj_path: str, re_enrich: bool = False):
     """Wrapper called from cli.py."""
     if re_enrich:
-        console.print("[yellow]⚠ Re-enrich: limpando marcas de enriquecimento...[/yellow]")
+        console.print("[yellow]⚠ Re-enrich: limpando marcas de enriquecimento (preservando edições manuais)...[/yellow]")
         with db.get_connection(proj_path) as conn:
-            conn.execute("UPDATE vulnerabilities SET enriched_by = '' WHERE source_tool = 'nuclei'")
+            # Reseta tudo que não foi mexido manualmente pelo usuário
+            conn.execute("UPDATE vulnerabilities SET enriched_by = '' WHERE enriched_by != 'user'")
     app = VulnEnricherApp()
     app.run()
 
