@@ -77,7 +77,7 @@ def _build_host_context(conn, host_id: int, host_name: str,
         SELECT id, title, severity, cvss_score, cvss_vector, cwe_id,
         cve_id, vuln_name, description, matched_at,
         curl_command, remediation, impact,
-        reference_urls, source_tool, enriched_by, created_at
+        reference_urls, source_tool, enriched_by, created_at, evidence
         FROM vulnerabilities WHERE host_id = ? AND status = 'open'
         ORDER BY cvss_score DESC NULLS LAST
     """, (host_id,))

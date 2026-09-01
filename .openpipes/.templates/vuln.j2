@@ -25,11 +25,14 @@ status: {{ vuln.status or "open" }}
 > [!note] Descrição
 {{ vuln.description or "*Nenhuma descrição fornecida.*" }}
 
-{%- if vuln.matched_at or vuln.evidences %}
+{%- if vuln.matched_at or vuln.evidence or vuln.evidences %}
 
 > [!example] Evidência
 {%- if vuln.matched_at %}
 > **Match:** {{ vuln.matched_at }}
+{%- endif %}
+{%- if vuln.evidence %}
+> {{ vuln.evidence | replace('\n', '\n> ') }}
 {%- endif %}
 {%- if vuln.curl_command %}
 > ```bash
