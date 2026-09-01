@@ -708,11 +708,11 @@ def parse_jsfinder(proj_path, nmap_dir):
                     evidence = f"**Secret:** `{secret.strip()}`"
                     cursor.execute("""
                         INSERT INTO vulnerabilities 
-                        (host_id, title, severity, description, evidence, source_tool, status)
-                        VALUES (?, ?, 'Alta', 'Foram encontradas possíveis chaves de API, tokens ou credenciais hardcoded no código JavaScript.', ?, 'jsfinder', 'open')
-                        ON CONFLICT(host_id, title) DO UPDATE SET 
+                        (host_id, title, vuln_name, matched_at, severity, description, evidence, source_tool, status)
+                        VALUES (?, ?, ?, '', 'Alta', 'Foram encontradas possíveis chaves de API, tokens ou credenciais hardcoded no código JavaScript.', ?, 'jsfinder', 'open')
+                        ON CONFLICT(vuln_name, matched_at, host_id) DO UPDATE SET 
                         evidence = evidence || '\n' || excluded.evidence
-                    """, (host_id, title, evidence))
+                    """, (host_id, title, title, evidence))
                     count_vulns += 1
                 
                 # 3. Inserir Rotas 200 OK (Possível BOLA/Broken Access Control)
@@ -721,11 +721,11 @@ def parse_jsfinder(proj_path, nmap_dir):
                     evidence = f"**Route Returning 200 OK:** {api_url.strip()}"
                     cursor.execute("""
                         INSERT INTO vulnerabilities 
-                        (host_id, title, severity, description, evidence, source_tool, status)
-                        VALUES (?, ?, 'Média', 'Uma rota de API extraída do JavaScript retornou status 200 OK sem necessidade de autenticação (ou token). Verifique se há vazamento de dados.', ?, 'jsfinder', 'open')
-                        ON CONFLICT(host_id, title) DO UPDATE SET 
+                        (host_id, title, vuln_name, matched_at, severity, description, evidence, source_tool, status)
+                        VALUES (?, ?, ?, '', 'Média', 'Uma rota de API extraída do JavaScript retornou status 200 OK sem necessidade de autenticação (ou token). Verifique se há vazamento de dados.', ?, 'jsfinder', 'open')
+                        ON CONFLICT(vuln_name, matched_at, host_id) DO UPDATE SET 
                         evidence = evidence || '\n' || excluded.evidence
-                    """, (host_id, title, evidence))
+                    """, (host_id, title, title, evidence))
                     count_vulns += 1
 
             console.print(f" [dim]↳ Parser JSFinder (Megazord): Inseriu {count_routes} rotas e {count_vulns} vulnerabilidades/evidências (Secrets/Open Doors).[/dim]")
