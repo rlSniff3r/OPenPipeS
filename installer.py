@@ -36,7 +36,7 @@ OPENPIPES_DIR = f"{HOME}/.openpipes"
 OPENPIPES_BIN = f"{OPENPIPES_DIR}/bin"
 OPENPIPES_SCRIPTS = f"{OPENPIPES_DIR}/scripts"
 VENV_CORE = f"{OPENPIPES_DIR}/.venv"
-VENV_JSFINDER = f"{HOME}/.venv-jsfinder"
+VENV_JSFINDER = f"{OPENPIPES_DIR}/.venv-jsfinder"
 ERROR_LOG = f"{OPENPIPES_DIR}/install_error.log"
 GO_VERSION = "1.21.5"
 AMASS_VERSION = "3.20.0"
@@ -215,16 +215,16 @@ def setup_isolated_venvs():
     # === JS Finder venv ===
     if not os.path.exists(VENV_JSFINDER):
         run_cmd(f"python3 -m venv {VENV_JSFINDER}")
-    linkfinder_dir = f"{VENV_JSFINDER}/LinkFinder"
-    if not os.path.exists(linkfinder_dir):
-        run_cmd(f"git clone https://github.com/GerbenJavado/LinkFinder.git {linkfinder_dir}")
+    SecretFinder_dir = f"{VENV_JSFINDER}/SecretFinder"
+    if not os.path.exists(SecretFinder_dir):
+        run_cmd(f"git clone https://github.com/m4ll0k/SecretFinder.git {SecretFinder_dir}")
     run_cmd(f"{VENV_JSFINDER}/bin/pip install --upgrade pip setuptools wheel -q")
-    run_cmd(f"{VENV_JSFINDER}/bin/pip install -r {linkfinder_dir}/requirements.txt -q")
-    run_cmd(f"{VENV_JSFINDER}/bin/pip install {linkfinder_dir} -q")
-    wrapper = f'#!/bin/bash\nsource "{VENV_JSFINDER}/bin/activate"\npython -m linkfinder "$@"\ndeactivate\n'
-    with open(f"{OPENPIPES_BIN}/linkfinder.py", "w") as f:
+    run_cmd(f"{VENV_JSFINDER}/bin/pip install -r {SecretFinder_dir}/requirements.txt -q")
+    run_cmd(f"{VENV_JSFINDER}/bin/pip install {SecretFinder_dir} -q")
+    wrapper = f'#!/bin/bash\nsource "{VENV_JSFINDER}/bin/activate"\npython3 -m SecretFinder "$@"\ndeactivate\n'
+    with open(f"{OPENPIPES_BIN}/SecretFinder.py", "w") as f:
         f.write(wrapper)
-    run_cmd(f"chmod +x {OPENPIPES_BIN}/linkfinder.py")
+    run_cmd(f"chmod +x {OPENPIPES_BIN}/SecretFinder.py")
 
     # === DNSRecon isolated venv ===
     VENV_DNSRECON = f"{OPENPIPES_DIR}/.venv-dnsrecon"
@@ -375,6 +375,8 @@ def main():
         ("GF...", lambda: install_go_tool("github.com/tomnomnom/gf@latest")),
         ("RDAP...", lambda: install_go_tool("github.com/openrdap/rdap/cmd/rdap@latest")),
         ("Gowitness...", lambda: install_go_tool("github.com/sensepost/gowitness@latest")),
+        ("JSLuice...", lambda: install_go_tool("github.com/BishopFox/jsluice/cmd/jsluice@latest")),
+        ("SubJS...", lambda: install_go_tool("github.com/lc/subjs@latest")),
         ("Dalfox...", lambda: install_dalfox()),
         ("Rust + Feroxbuster...", install_rust_and_ferox),
         ("Amass...", install_amass),
