@@ -220,8 +220,7 @@ def setup_isolated_venvs():
         run_cmd(f"git clone https://github.com/m4ll0k/SecretFinder.git {SecretFinder_dir}")
     run_cmd(f"{VENV_JSFINDER}/bin/pip install --upgrade pip setuptools wheel -q")
     run_cmd(f"{VENV_JSFINDER}/bin/pip install -r {SecretFinder_dir}/requirements.txt -q")
-    run_cmd(f"{VENV_JSFINDER}/bin/pip install {SecretFinder_dir} -q")
-    wrapper = f'#!/bin/bash\nsource "{VENV_JSFINDER}/bin/activate"\npython3 -m SecretFinder "$@"\ndeactivate\n'
+    wrapper = f'#!/bin/bash\nsource "{VENV_JSFINDER}/bin/activate"\npython3 -m $HOME/.openpipes/.venv-jsfinder/SecretFinder "$@"\ndeactivate\n'
     with open(f"{OPENPIPES_BIN}/SecretFinder.py", "w") as f:
         f.write(wrapper)
     run_cmd(f"chmod +x {OPENPIPES_BIN}/SecretFinder.py")
