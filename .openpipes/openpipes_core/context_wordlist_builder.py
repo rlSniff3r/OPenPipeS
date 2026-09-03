@@ -133,6 +133,16 @@ def build_context_wordlist(proj_path: str, nmap_dir: str):
         if urls:
             wl.update(_extract_path_segments(urls))
 
+        # 4. Parâmetros extraídos do JavaScript (MEGAZORD JS Scanner)
+        js_params_file = os.path.join(target_dir, "js_parameters.txt")
+        if os.path.exists(js_params_file):
+            with open(js_params_file, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    param = line.strip().lower()
+                    # Ignora lixo de 1 caractere ou vazio
+                    if param and len(param) > 1:
+                        wl.add(param)
+
         # Sort and write with warning header
         sorted_wl = sorted(w.lower() for w in wl if w)
 

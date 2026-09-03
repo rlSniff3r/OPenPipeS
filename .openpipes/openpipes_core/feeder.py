@@ -284,6 +284,7 @@ def feed_arjun(proj_path: str, nmap_dir: str):
             FROM endpoints e
             JOIN hosts h ON e.host_id = h.id
             WHERE h.is_alive = 1 AND h.in_scope = 1
+              AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)
               AND e.status_code IN (200, 301, 302, 403, 500)
               AND (e.scanned_by IS NULL OR e.scanned_by NOT LIKE '%arjun%')
               AND e.url NOT LIKE '%?%'
@@ -570,7 +571,8 @@ def feed_dalfox(proj_path: str, nmap_dir: str):
             SELECT DISTINCT h.id, h.host, e.url
             FROM endpoints e
             JOIN hosts h ON e.host_id = h.id
-            WHERE h.is_alive = 1 AND h.in_scope = 1
+            WHERE h.is_alive = 1 AND h.in_scope = 1 
+              AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)
               AND (e.scanned_by IS NULL OR e.scanned_by NOT LIKE '%dalfox%')
               AND e.url NOT LIKE '%.png%'
               AND e.url NOT LIKE '%.jpg%'   AND e.url NOT LIKE '%.jpeg%'
