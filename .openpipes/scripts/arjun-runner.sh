@@ -22,9 +22,9 @@ for d in "$NMAP_DIR"/nmap-*/; do
     if [ -s "$TARGET_FILE" ]; then
         echo "  → Analisando $target_name..."
         arjun -i "$TARGET_FILE" \
-            -t 10 \
-            -d 1 \
-            -m GET,POST,HEADER \
+            -t 20 \
+            --passive wayback,commoncrawl,otx \
+            -m GET,POST \
             -oJ "$OUT_FILE"
     fi
 done
