@@ -6,7 +6,7 @@ import subprocess
 import sqlite3
 import xml.etree.ElementTree as ET
 import glob
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qsl
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import db
@@ -463,6 +463,7 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
         with db.transaction(conn):
             cursor = conn.cursor()
             count = 0
+            count_params = 0  # NEW: Rastreador de parâmetros encontrados
             jsonl_files = []
 
             for root, dirs, files in os.walk(nmap_dir):
@@ -498,9 +499,7 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
                             if data.get("wildcard") is True:
                                 continue
 
-                            # Extract URL — handle both formats
-                            # Feroxbuster: data["url"]
-                            # Katana: data["request"]["endpoint"]
+                            # Extract URL
                             url = data.get("url", "")
                             if not url:
                                 request_data = data.get("request", {})
@@ -516,9 +515,7 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
                             if not host_id:
                                 continue
 
-                            # Extract status — handle both formats
-                            # Feroxbuster: data["status"]
-                            # Katana: data["response"]["status_code"]
+                            # Extract status
                             status_code = data.get("status")
                             if status_code is None:
                                 response_data = data.get("response", {})
@@ -528,7 +525,7 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
                             if status_code is None or status_code == 0:
                                 continue
 
-                            # Extract content_length — handle both formats
+                            # Extract content_length
                             content_length = data.get("content_length")
                             if content_length is None:
                                 response_data = data.get("response", {})
@@ -536,26 +533,68 @@ def parse_url_discovery_jsonl(proj_path, nmap_dir, tool_name):
 
                             cursor.execute("""
                                 INSERT INTO endpoints
-                                    (host_id, url, status_code, content_length, source_tool)
+                                (host_id, url, status_code, content_length, source_tool)
                                 VALUES (?, ?, ?, ?, ?)
                                 ON CONFLICT(url) DO UPDATE SET
                                     status_code = CASE WHEN excluded.status_code BETWEEN 200 AND 599
-                                                    THEN excluded.status_code ELSE status_code END,
+                                                       THEN excluded.status_code ELSE status_code END,
                                     content_length = CASE WHEN excluded.content_length > 0
-                                                        THEN excluded.content_length ELSE content_length END
+                                                          THEN excluded.content_length ELSE content_length END
                             """, (host_id, url, status_code, content_length, tool_name))
 
                             if cursor.rowcount > 0:
                                 count += 1
 
+                            # =========================================================
+                            # EXTRAÇÃO INTELIGENTE DE PARÂMETROS (KATANA/FEROX)
+                            # =========================================================
+                            
+                            # Precisamos do ID do endpoint recém-inserido/atualizado
+                            cursor.execute("SELECT id FROM endpoints WHERE url = ?", (url,))
+                            ep_row = cursor.fetchone()
+                            if ep_row:
+                                endpoint_id = ep_row["id"]
+                                
+                                # 1. Extrai parâmetros da URL (Query String)
+                                parsed_url = urlparse(url)
+                                if parsed_url.query:
+                                    # parse_qsl lida perfeitamente com URL Encoding e a chave json
+                                    qs_params = parse_qsl(parsed_url.query, keep_blank_values=True)
+                                    for param_name, _ in qs_params:
+                                        if param_name:
+                                            cursor.execute("""
+                                                INSERT OR IGNORE INTO injectable_params
+                                                (endpoint_id, host_id, param_name, param_type, http_method, source_tool)
+                                                VALUES (?, ?, ?, 'query', 'GET', ?)
+                                            """, (endpoint_id, host_id, param_name, tool_name))
+                                            if cursor.rowcount > 0: count_params += 1
+
+                                # 2. Extrai parâmetros de Formulários achados pelo Katana
+                                forms = data.get("forms", [])
+                                if not forms and "response" in data:
+                                    forms = data["response"].get("forms", [])
+                                    
+                                for form in forms:
+                                    method = str(form.get("method", "GET")).upper()
+                                    params = form.get("parameters", [])
+                                    for param_name in params:
+                                        if param_name:
+                                            param_type = 'form' if method == 'POST' else 'query'
+                                            cursor.execute("""
+                                                INSERT OR IGNORE INTO injectable_params
+                                                (endpoint_id, host_id, param_name, param_type, http_method, source_tool)
+                                                VALUES (?, ?, ?, ?, ?, ?)
+                                            """, (endpoint_id, host_id, param_name, param_type, method, tool_name))
+                                            if cursor.rowcount > 0: count_params += 1
+                            # =========================================================
+
                             # Ensure port record exists
-                            parsed = urlparse(url)
-                            ep_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+                            ep_port = parsed_url.port or (443 if parsed_url.scheme == "https" else 80)
                             _ensure_port(cursor, host_id, ep_port, "tcp")
                 except Exception:
                     continue
 
-    console.print(f" [dim]↳ Parser {tool_name}: Ingeriu {count} endpoints com metadados.[/dim]")
+            console.print(f" [dim]↳ Parser {tool_name}: Ingeriu {count} endpoints e descobriu {count_params} parâmetros injetáveis.[/dim]")
 
 
 def parse_screenshot(proj_path, nmap_dir):
