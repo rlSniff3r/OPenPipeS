@@ -1255,127 +1255,55 @@ def flag_false_positives(proj_path: str):
         console.print(f" [dim]↳ False Positive Detection: Marcou {tagged} endpoints como potenciais FPs (Katana imunizado).[/dim]")
 
 
-def _mark_scanned_by_url(proj_path, nmap_dir, tool_name):
-    """Marca endpoints como escaneados basendo-se nas URLs. (Versão Otimizada O(1))"""
-    import glob
-    import json
+def _mark_scanned_by_input_file(proj_path, nmap_dir, tool_name, input_filenames):
+    """Marca endpoints como escaneados baseando-se nos arquivos de INPUT que os alimentaram."""
+    if isinstance(input_filenames, str):
+        input_filenames = [input_filenames]
 
     with db.get_connection(proj_path) as conn:
         with db.transaction(conn):
             cursor = conn.cursor()
             
-            files_to_process = set()
+            for nmap_folder in sorted(os.listdir(nmap_dir)):
+                if not nmap_folder.startswith("nmap-"): continue
+                
+                for filename in input_filenames:
+                    fpath = os.path.join(nmap_dir, nmap_folder, filename)
+                    if not os.path.exists(fpath): continue
 
-            # CORREÇÃO: Arquivos globais (como httpx) NÃO entram no loop de pastas!
-            if tool_name == "httpx":
-                f = os.path.join(nmap_dir, "httpx_output.json")
-                if os.path.exists(f):
-                    files_to_process.add(f)
-            else:
-                # Loop apenas para varrer ferramentas alvo-específicas
-                for nmap_folder in sorted(os.listdir(nmap_dir)):
-                    if not nmap_folder.startswith("nmap-"):
-                        continue
-                    target_dir = os.path.join(nmap_dir, nmap_folder)
+                    try:
+                        with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                            for line in f:
+                                line = line.strip()
+                                if not line or line.startswith("#"): continue
+                                
+                                # Lida com POST targets do Dalfox/SQLMap (ex: url|dados_post)
+                                url_part = line.split("|")[0]
+                                url = _normalize_url(url_part)
+                                if not url: continue
+                                
+                                # O Feroxbuster recebe diretórios, então marcamos o diretório e seus filhos
+                                if tool_name == "ferox":
+                                    cursor.execute("""
+                                        UPDATE endpoints SET scanned_by = CASE
+                                            WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
+                                            WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
+                                            ELSE scanned_by
+                                        END
+                                        WHERE url LIKE ?
+                                    """, (tool_name, f"%{tool_name}%", tool_name, f"{url}%"))
+                                else:
+                                    cursor.execute("""
+                                        UPDATE endpoints SET scanned_by = CASE
+                                            WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
+                                            WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
+                                            ELSE scanned_by
+                                        END
+                                        WHERE url = ?
+                                    """, (tool_name, f"%{tool_name}%", tool_name, url))
+                    except Exception:
+                        pass
 
-                    if tool_name in ("ferox",):
-                        for fl in glob.glob(os.path.join(target_dir, "ferox_*.jsonl")): files_to_process.add(fl)
-                    elif tool_name in ("katana", "crawled"):
-                        f = os.path.join(target_dir, "crawled_all.jsonl")
-                        if os.path.exists(f): files_to_process.add(f)
-                    elif tool_name == "jsfinder":
-                        f = os.path.join(target_dir, "jsfinder-results.json")
-                        if os.path.exists(f): files_to_process.add(f)
-                    elif tool_name == "screenshot":
-                        f = os.path.join(target_dir, "Screenshots", "go.jsonl")
-                        if os.path.exists(f): files_to_process.add(f)
-                    elif tool_name == "nuclei":
-                        for fname in ("nuclei_pass1.json", "nuclei_pass2.json", "nuclei_output.json"):
-                            f = os.path.join(target_dir, fname)
-                            if os.path.exists(f): files_to_process.add(f)
-                    elif tool_name == "dalfox":
-                        for fl in glob.glob(os.path.join(target_dir, "dalfox_output_*.json")): files_to_process.add(fl)
-
-            # Processamento real: Lemos os arquivos coletados UMA ÚNICA VEZ
-            for fpath in files_to_process:
-                try:
-                    with open(fpath, encoding="utf-8") as fh:
-                        content = fh.read()
-                    if not content.strip():
-                        continue
-
-                    # -- 1. Lógica Dalfox --
-                    if tool_name == "dalfox":
-                        decoder = json.JSONDecoder()
-                        idx = 0
-                        while idx < len(content):
-                            while idx < len(content) and content[idx] in ' \t\n\r':
-                                idx += 1
-                            if idx >= len(content):
-                                break
-                            try:
-                                obj, end = decoder.raw_decode(content, idx)
-                                idx = end
-                            except json.JSONDecodeError:
-                                idx += 1
-                                continue
-                            meta = obj.get("meta", {})
-                            for url in meta.get("targets", []):
-                                url = _normalize_url(url)
-                                cursor.execute("""
-                                    UPDATE endpoints SET scanned_by = CASE
-                                        WHEN scanned_by IS NULL OR scanned_by = '' THEN 'dalfox'
-                                        WHEN scanned_by NOT LIKE '%dalfox%' THEN scanned_by || ',dalfox'
-                                        ELSE scanned_by
-                                    END
-                                    WHERE url LIKE ?
-                                """, (f"{url}%",))
-                        continue # Pula o resto
-
-                    # -- 2. Lógica Nuclei --
-                    if tool_name == "nuclei":
-                        try:
-                            findings = json.loads(content)
-                            if isinstance(findings, dict):
-                                findings = [findings]
-                        except json.JSONDecodeError:
-                            findings = [json.loads(l) for l in content.splitlines() if l.strip()]
-                        for data in findings:
-                            if not isinstance(data, dict): continue
-                            url = data.get("url") or data.get("matched-at") or ""
-                            if not url: continue
-                            url = _normalize_url(url)
-                            cursor.execute("""
-                                UPDATE endpoints SET scanned_by = CASE
-                                    WHEN scanned_by IS NULL OR scanned_by = '' THEN 'nuclei'
-                                    WHEN scanned_by NOT LIKE '%nuclei%' THEN scanned_by || ',nuclei'
-                                    ELSE scanned_by
-                                END
-                                WHERE url LIKE ?
-                            """, (f"{url}%",))
-                        continue # Pula o resto
-
-                    # -- 3. Lógica Genérica (Httpx, Katana, Feroxbuster, etc) --
-                    for line in content.splitlines():
-                        line = line.strip()
-                        if not line: continue
-                        try:
-                            data = json.loads(line)
-                            url = (data.get("url") or data.get("request", {}).get("endpoint", "") or data.get("source_js_url", ""))
-                            if not url: continue
-                            url = _normalize_url(url)
-                            cursor.execute("""
-                                UPDATE endpoints SET scanned_by = CASE
-                                    WHEN scanned_by IS NULL OR scanned_by = '' THEN ?
-                                    WHEN scanned_by NOT LIKE ? THEN scanned_by || ',' || ?
-                                    ELSE scanned_by
-                                END
-                                WHERE url LIKE ?
-                            """, (tool_name, f"%{tool_name}%", tool_name, f"{url}%"))
-                        except Exception:
-                            continue
-                except Exception:
-                    continue
 
 # ═════════════════════════════════════════════════════════════════════
 # DISPATCH
@@ -1393,45 +1321,47 @@ def dispatch(module_name, proj_path, nmap_dir):
 
     elif module_name == "httpx-runner":
         parse_httpx(proj_path, nmap_dir)
-        _mark_scanned_by_url(proj_path, nmap_dir, "httpx")
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "httpx", "httpx_targets.txt")
 
     elif module_name == "feroxbuster-runner":
         parse_url_discovery_jsonl(proj_path, nmap_dir, "ferox")
-        _mark_scanned_by_url(proj_path, nmap_dir, "ferox")
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "ferox", "ferox_urls.txt")
 
     elif module_name in ("katana-runner", "katana-buster"):
         parse_url_discovery_jsonl(proj_path, nmap_dir, "crawled")
-        _mark_scanned_by_url(proj_path, nmap_dir, "crawled")
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "katana", "katana_urls.txt")
 
     elif module_name == "screenshot-runner":
         parse_screenshot(proj_path, nmap_dir)
-        _mark_scanned_by_url(proj_path, nmap_dir, "screenshot")
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "screenshot", "screenshot_urls.txt")
 
     elif module_name == "gf-summary":
         parse_gf(proj_path, nmap_dir)
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "gf", "gf_urls.txt")
 
     elif module_name == "jsfinder-runner":
         parse_jsfinder(proj_path, nmap_dir)
-        _mark_scanned_by_url(proj_path, nmap_dir, "jsfinder")
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "jsfinder", "js_urls.txt")
 
     elif module_name == "whois-enricher":
         parse_whois_from_initial(proj_path, nmap_dir)
 
     elif module_name == "nuclei-runner":
         parse_nuclei(proj_path, nmap_dir)
-        _mark_scanned_by_url(proj_path, nmap_dir, "nuclei")
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "nuclei", "nuclei_urls.txt")
 
     elif module_name == "dalfox-runner":
         parse_dalfox(proj_path, nmap_dir)
-        _mark_scanned_by_url(proj_path, nmap_dir, "dalfox")
-        _mark_params_scanned(proj_path, "dalfox")   # ← NEW
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "dalfox", ["dalfox_targets.txt", "dalfox_post_targets.txt"])
+        _mark_params_scanned(proj_path, "dalfox")
 
     elif module_name == "arjun-runner":
         parse_arjun(proj_path, nmap_dir)
-        _mark_scanned_by_url(proj_path, nmap_dir, "arjun")
-    
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "arjun", "arjun_targets.txt")
+        
     elif module_name == "sqlmap-runner":
         parse_sqlmap(proj_path, nmap_dir)
+        _mark_scanned_by_input_file(proj_path, nmap_dir, "sqlmap", ["sqlmap_get.txt", "sqlmap_post.txt"])
         _mark_params_scanned(proj_path, "sqlmap")
 
     else:

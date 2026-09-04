@@ -83,3 +83,11 @@ else
     done
 fi
 echo "[✔] Katana Runner concluído!"
+
+# Katana terminou o scan. Antes de dar o exit 0 pro Python, vamos ver se a internet está viva:
+if ! ping -c 2 8.8.8.8 &> /dev/null; then
+    echo "[!] AVISO: Queda de conexão detectada durante ou após o scan!"
+    exit 1  # Força o erro! O Python NÃO vai rodar o parser!
+fi
+
+exit 0 # Tudo certo, o Python pode marcar as URLs como lidas!
