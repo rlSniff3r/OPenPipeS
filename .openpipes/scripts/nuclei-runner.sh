@@ -3,9 +3,30 @@ source $HOME/.openpipes/config.sh
 
 echo -e "\n\e[34m[+]\e[0m Iniciando varredura Nuclei (tech/port-aware)..."
 
+# ========================================================
+# MAGIA NINJA: CONVERTER ARGS CUSTOMIZADOS PARA ARRAY
+# (Fora do loop para performance e SEM a palavra 'local')
+# ========================================================
+extra_args=()
+if [[ -n "${OP_TOOL_ARGS:-}" ]]; then
+    eval "extra_args=($OP_TOOL_ARGS)"
+fi
+# ========================================================
+
 for dir in "$NMAP_DIR"/nmap-*; do
     [[ ! -d "$dir" ]] && continue
     target_name="${dir##*/nmap-}"
+
+    # === FILTRO OP_TARGETS ===
+    if [[ -n "${OP_TARGETS:-}" ]]; then
+        # Verifica se o target atual está na lista separada por vírgulas
+        if ! echo "$OP_TARGETS" | tr ',' '\n' | grep -Fqx "$target_name"; then
+            continue # Pula se não estiver na lista!
+        fi
+        echo "[*] Alvo restrito acionado para: $target_name"
+    fi
+    # ==========================
+
     input_file="$dir/nuclei_urls.txt"
 
     if [[ ! -s "$input_file" ]]; then
@@ -25,6 +46,7 @@ for dir in "$NMAP_DIR"/nmap-*; do
         -et "fuzz" \
         -max-host-error 5 \
         -timeout 5 -retries 1 \
+        "${extra_args[@]}" \
         -je "$dir/nuclei_pass1.json"; then
         echo "  [✔] pass 1 OK ($(wc -c < "$dir/nuclei_pass1.json" 2>/dev/null || echo 0) bytes)"
     else
@@ -54,6 +76,7 @@ for dir in "$NMAP_DIR"/nmap-*; do
                 -severity low,medium,high,critical \
                 -max-host-error 5 \
                 -timeout 5 -retries 1 \
+                "${extra_args[@]}" \
                 -je "$dir/nuclei_pass2.json"; then
                 echo "  [✔] pass 2 OK ($(wc -c < "$dir/nuclei_pass2.json" 2>/dev/null || echo 0) bytes)"
             else

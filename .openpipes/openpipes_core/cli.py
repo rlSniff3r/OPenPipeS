@@ -78,7 +78,7 @@ def show_execution_history():
     input("\nPressione ENTER para voltar ao menu...")
 
 
-def run_bash_module(module_name, extra_args=None):
+def run_bash_module(module_name, extra_args=None, custom_target=None, custom_tool_args=None):
     proj_name, proj_path, nmap_dir = get_project_env()
     if proj_name == "DESCONHECIDO" or not proj_path:
         console.print("\n[bold red]✖ Erro: Projeto não configurado.[/bold red]")
@@ -126,6 +126,15 @@ def run_bash_module(module_name, extra_args=None):
     db.init_db(proj_path)
     exec_id = db.log_module_start(proj_path, module_name)
 
+    # Prepara o ambiente com as variáveis customizadas
+    run_env = os.environ.copy()
+    if custom_target:
+        run_env["OP_TARGETS"] = custom_target
+        console.print(f"[bold yellow]🎯 Alvos restritos a:[/bold yellow] {custom_target}")
+    if custom_tool_args:
+        run_env["OP_TOOL_ARGS"] = custom_tool_args
+        console.print(f"[bold yellow]⚙️ Argumentos injetados:[/bold yellow] {custom_tool_args}")
+
     console.print(f"\n[bold cyan]▶ Iniciando módulo:[/bold cyan] {module_name}")
     console.print(f"[dim]CWD: {run_cwd}[/dim]")
     console.print(f"[dim]Args: {cmd_args}[/dim]")
@@ -133,7 +142,8 @@ def run_bash_module(module_name, extra_args=None):
 
     try:
         cmd_exec = f"source {CONFIG_FILE} && {script_path} {cmd_args}"
-        result = subprocess.run(cmd_exec, shell=True, cwd=run_cwd, executable="/bin/bash")
+        # AQUI É O PULO DO GATO: Passamos o run_env pro subprocess!
+        result = subprocess.run(cmd_exec, shell=True, cwd=run_cwd, executable="/bin/bash", env=run_env)
         exit_code = result.returncode
     except KeyboardInterrupt:
         console.print("\n[bold red][!] Execução abortada pelo usuário.[/bold red]")
@@ -678,7 +688,9 @@ def main():
     # Run
     run_parser = subparsers.add_parser("run", help="Executa um módulo bash")
     run_parser.add_argument("module", help="Nome do módulo")
-    run_parser.add_argument("extra", nargs=argparse.REMAINDER, help="Argumentos extras")
+    run_parser.add_argument("--target", "-t", help="Alvos específicos separados por vírgula (ex: alvo1.com,alvo2.com)")
+    run_parser.add_argument("--args", "-a", help="Argumentos extras para a ferramenta (ex: --dbms MySQL)")
+    run_parser.add_argument("extra", nargs=argparse.REMAINDER, help="Argumentos extras legados")
 
     # Sync
     sync_parser = subparsers.add_parser("sync", help="Renderiza Jinja2 templates para o vault")
@@ -755,7 +767,7 @@ def main():
         args = parser.parse_args()
 
         if args.command == "run":
-            run_bash_module(args.module, extra_args=args.extra)
+            run_bash_module(args.module, extra_args=args.extra, custom_target=args.target, custom_tool_args=args.args)
 
         elif args.command == "sync":
             renderer.sync_project(target_name=args.target)

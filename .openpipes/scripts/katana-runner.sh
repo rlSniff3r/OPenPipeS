@@ -26,6 +26,17 @@ KATANA_CONCURRENCY=20
 
 process_target() {
     local TARGET="$1"
+
+    # === FILTRO OP_TARGETS ===
+    if [[ -n "${OP_TARGETS:-}" ]]; then
+        # Verifica se o target atual está na lista separada por vírgulas
+        if ! echo "$OP_TARGETS" | tr ',' '\n' | grep -Fqx "$TARGET"; then
+            return 0 # CORREÇÃO: "return 0" sai da função pulando o alvo!
+        fi
+        echo "[*] Alvo restrito acionado para: $TARGET"
+    fi
+    # ==========================
+
     local WORK_DIR="$NMAP_DIR/nmap-$TARGET"
     local INPUT_FILE="$WORK_DIR/katana_urls.txt"
 
@@ -48,6 +59,15 @@ process_target() {
         REGEX_ESCOPO=$(awk 'NF' "$DOMAIN_FILE" | sed 's/\./\\./g' | paste -sd '|' -)
     fi
 
+    # ========================================================
+    # MAGIA NINJA: CONVERTER ARGS CUSTOMIZADOS PARA ARRAY
+    # ========================================================
+    local extra_args=()
+    if [[ -n "${OP_TOOL_ARGS:-}" ]]; then
+        eval "extra_args=($OP_TOOL_ARGS)"
+    fi
+    # ========================================================
+
     katana -list "$INPUT_FILE" \
         -d "$KATANA_DEPTH" \
         -c "$KATANA_CONCURRENCY" \
@@ -63,7 +83,8 @@ process_target() {
         -kb \
         -kb-endpoints \
         -jsonl \
-        -o "$WORK_DIR/crawled_all.jsonl"
+        -o "$WORK_DIR/crawled_all.jsonl" \
+        "${extra_args[@]}"
 
     jq -r '.request.endpoint' "$WORK_DIR/crawled_all.jsonl" > "$WORK_DIR/crawled_all.txt" 2>/dev/null
     local CRAWLED_COUNT=$(wc -l < "$WORK_DIR/crawled_all.txt" 2>/dev/null || echo 0)

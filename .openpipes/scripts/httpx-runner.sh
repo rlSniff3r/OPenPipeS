@@ -1,9 +1,30 @@
 #!/bin/bash
 source $HOME/.openpipes/config.sh
 
+# ========================================================
+# MAGIA NINJA: CONVERTER ARGS CUSTOMIZADOS PARA ARRAY
+# (Fora do loop para performance e SEM a palavra 'local')
+# ========================================================
+extra_args=()
+if [[ -n "${OP_TOOL_ARGS:-}" ]]; then
+    eval "extra_args=($OP_TOOL_ARGS)"
+fi
+# ========================================================
+
 for dir in "$NMAP_DIR"/nmap-*; do
     [[ ! -d "$dir" ]] && continue
     targetName="${dir##*/nmap-}"
+
+    # === FILTRO OP_TARGETS ===
+    if [[ -n "${OP_TARGETS:-}" ]]; then
+        # Verifica se o target atual está na lista separada por vírgulas
+        if ! echo "$OP_TARGETS" | tr ',' '\n' | grep -Fqx "$targetName"; then
+            continue # Pula se não estiver na lista!
+        fi
+        echo "[*] Alvo restrito acionado para: $targetName"
+    fi
+    # ==========================
+
     target_list="$dir/httpx_targets.txt"
     ports_file="$dir/httpx_ports.txt"
 
@@ -24,7 +45,8 @@ for dir in "$NMAP_DIR"/nmap-*; do
     httpx -l "$target_list" -p "$ports" -x GET,POST,OPTIONS,HEAD \
         -random-agent \
         -title -tech-detect -server -sc -fr -ip \
-        -json -o "$json_out"
+        -json -o "$json_out" \
+        "${extra_args[@]}"
 
     jq -r '.url' "$json_out" | sort -u > "$url_list"
     jq -r 'select(.status_code != null) | .url' "$json_out" | sort -u > "$dir/alive_urls.txt"

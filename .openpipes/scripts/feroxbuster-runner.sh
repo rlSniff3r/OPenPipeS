@@ -30,6 +30,17 @@ FALLBACK_WL="/usr/share/wordlists/seclists/Discovery/Web-Content/common.txt"
 # ════════════════════════════════════════════════════════════════════════════
 process_target() {
     local TARGET="$1"
+
+    # === FILTRO OP_TARGETS ===
+    if [[ -n "${OP_TARGETS:-}" ]]; then
+        # Verifica se o target atual está na lista separada por vírgulas
+        if ! echo "$OP_TARGETS" | tr ',' '\n' | grep -Fqx "$TARGET"; then
+            return 0 # CORREÇÃO: "return 0" sai da função pulando o alvo!
+        fi
+        echo "[*] Alvo restrito acionado para: $TARGET"
+    fi
+    # ==========================
+
     local WORK_DIR="$NMAP_DIR/nmap-$TARGET"
 
     if [ ! -d "$WORK_DIR" ]; then
@@ -62,12 +73,22 @@ process_target() {
         return 1
     fi
 
+    # ========================================================
+    # MAGIA NINJA: CONVERTER ARGS CUSTOMIZADOS PARA ARRAY
+    # ========================================================
+    local extra_args=()
+    if [[ -n "${OP_TOOL_ARGS:-}" ]]; then
+        eval "extra_args=($OP_TOOL_ARGS)"
+    fi
+    # ========================================================
+
     # ── Feroxbuster Fuzzing (uma execução por base URL) ─────────────────
     while read -r base_url; do
         local safe_name=$(echo "$base_url" | sed 's/http:\/\///;s/https:\/\///;s/[\/:]/_/g')
         local OUTPUT_FILE="$WORK_DIR/ferox_${safe_name}"
         echo "[*] Fuzzing: $base_url"
 
+        # Olha que espetáculo e limpeza! Adicionamos "${extra_args[@]}" no final!
         feroxbuster -u "$base_url" \
             -w "$WL" \
             --collect-extensions \
@@ -80,7 +101,8 @@ process_target() {
             --random-agent \
             --no-state \
             --json \
-            -o "${OUTPUT_FILE}.jsonl"
+            -o "${OUTPUT_FILE}.jsonl" \
+            "${extra_args[@]}"
 
         jq -r '.url' "${OUTPUT_FILE}.jsonl" > "${OUTPUT_FILE}.txt" 2>/dev/null
     done < "$BASE_URLS"
