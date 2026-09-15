@@ -159,12 +159,46 @@ def get_go_env():
     return go_path, go_env
 
 
+import tempfile  # Certifique-se de importar no topo do arquivo
+
 def install_go_tool(package):
     go_path, go_env = get_go_env()
+    
+    # 1. Tenta a instalação padrão via @latest
     result = subprocess.run([go_path, "install", package], env=go_env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"Falha ao compilar {package}:\n{result.stderr}")
+    
+    # Se der certo, encerra a função
+    if result.returncode == 0:
+        return
+
+    # 2. Se falhar devido a diretivas 'replace', aplica o contorno via Git Clone
+    if "replace directives" in result.stderr or "interpreted differently" in result.stderr:
+        # Extrai a URL base do pacote (remove o '@latest' e subdiretórios como '/cmd/...')
+        base_package = package.split('@')[0]
+        # Para ferramentas como github.com/sensepost/gowitness
+        parts = base_package.split('/')
+        repo_url = f"https://{parts[0]}/{parts[1]}/{parts[2]}"
+        
+        # Cria um diretório temporário para clonar e compilar
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Clona apenas o último commit (shallow clone mais rápido)
+            clone_res = subprocess.run(["git", "clone", "--depth", "1", repo_url, tmpdir], 
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if clone_res.returncode == 0:
+                # Se o pacote original apontava para um subdiretório (ex: cmd/httpx)
+                # precisamos entrar nele para compilar, caso contrário compila na raiz
+                sub_path = "/".join(parts[3:])
+                cwd_path = os.path.join(tmpdir, sub_path) if sub_path else tmpdir
+                
+                # Executa o go install localmente (sem o sufixo @latest)
+                local_res = subprocess.run([go_path, "install", "."], env=go_env, cwd=cwd_path,
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if local_res.returncode == 0:
+                    return # Sucesso!
+                
+    # 3. Se falhar por qualquer outro motivo, levanta o erro original
+    raise RuntimeError(f"Falha ao compilar {package}:\n{result.stderr}")
 
 
 def install_rust_and_ferox():
