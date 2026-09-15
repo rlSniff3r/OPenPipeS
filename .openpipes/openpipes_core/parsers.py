@@ -1200,19 +1200,28 @@ def parse_sqlmap(proj_path, nmap_dir):
             cursor = conn.cursor()
             for root, dirs, files in os.walk(nmap_dir):
                 for file in files:
-                    if file != "data.json":   # sqlmap --json writes data.json
+                    # 1. Ajuste: Lê todos os arquivos que começam com sqlmap_ e terminam em .json
+                    if not (file.startswith("sqlmap_") and file.endswith(".json")):
                         continue
+                        
                     target_name = os.path.basename(root)[5:]
                     host_id = get_or_create_host(cursor, target_name, skip_ip_correlation=True)
                     if not host_id:
                         continue
+                        
                     try:
                         with open(os.path.join(root, file)) as f:
                             data = json.load(f)
+                            
                         for entry in data.get("data", []):
                             url = entry.get("value", [""])[0].get("url", "")
                             payload = entry.get("value", [""])[0].get("payload", "")
-                            title = "SQL Injection"
+                            
+                            # 2. Ajuste Ninja: Título dinâmico baseado na URL (apenas o path para não ficar gigante)
+                            # Assim evitamos que o ON CONFLICT silencie injeções em rotas diferentes!
+                            path_limpo = url.split("?")[0][:40] # Pega o início da URL sem os parâmetros
+                            title = f"SQL Injection em {path_limpo}..."
+                            
                             cursor.execute("""
                                 INSERT INTO vulnerabilities
                                     (host_id, title, severity, description, evidence,
@@ -1220,11 +1229,15 @@ def parse_sqlmap(proj_path, nmap_dir):
                                 VALUES (?, ?, 'Crítica', ?, ?, 'sqlmap', 'open', NULL)
                                 ON CONFLICT(host_id, title) DO NOTHING
                             """, (host_id, title, f"**Payload:** `{payload}`\n**URL:** {url}", payload))
+                            
                             if cursor.rowcount > 0:
                                 count += 1
-                    except Exception:
+                                
+                    except Exception as e:
+                        # Se algum arquivo corromper, pula pro próximo sem quebrar o laço
                         continue
-    console.print(f" [dim]↳ Parser SQLMap: Inseriu {count} SQL Injections.[/dim]")
+                        
+    console.print(f" [dim]↳ Parser SQLMap: Inseriu {count} apontamentos de SQL Injection.[/dim]")
 
 
 # ═════════════════════════════════════════════════════════════════════

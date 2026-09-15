@@ -6,7 +6,6 @@ import requests
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
-from tomba.services.usage import Usage
 
 # Importa as nossas Engines isoladas
 from openpipes_core.osint import engine_apollo
@@ -129,22 +128,45 @@ def check_api_status(secrets):
             headers = {
                 "X-Tomba-Key": api_key,
                 "X-Tomba-Secret": api_secret,
+                "Accept": "application/json",
                 "User-Agent": "Tomba-Python/1.0.3"
             }
             res = requests.get("https://api.tomba.io/v1/usage", headers=headers, timeout=10)
             
             if res.status_code == 200:
-                data = res.json().get("data", {})
-                requests_used = data.get("usage", {}).get("requests", 0)
-                requests_limit = data.get("limits", {}).get("requests", 0)
+                json_resp = res.json()
+                
+                # Se a API retornou uma lista na raiz, pegamos o primeiro item
+                if isinstance(json_resp, list) and len(json_resp) > 0:
+                    json_resp = json_resp[0]
+                    
+                requests_used, requests_limit = 0, 0
+                
+                # Navegação hiper-segura: só usa .get() se for um dicionário de verdade
+                if isinstance(json_resp, dict):
+                    data = json_resp.get("data")
+                    
+                    # Se o "data" também for uma lista, pegamos o primeiro
+                    if isinstance(data, list) and len(data) > 0:
+                        data = data[0]
+                        
+                    if isinstance(data, dict):
+                        usage = data.get("usage")
+                        limits = data.get("limits")
+                        
+                        if isinstance(usage, dict):
+                            requests_used = usage.get("requests", 0)
+                        if isinstance(limits, dict):
+                            requests_limit = limits.get("requests", 0)
                 
                 color = "red" if requests_used >= requests_limit else "green"
                 table.add_row("Tomba.io", masked, f"[{color}]{requests_used}/{requests_limit} usados[/{color}]")
             else:
-                table.add_row("Tomba.io", masked, f"[red]Erro {res.status_code}[/red]")
+                table.add_row("Tomba.io", masked, f"[red]HTTP {res.status_code}[/red]")
                 
-        except Exception:
-            table.add_row("Tomba.io", masked, "[red]Falha na conexão[/red]")
+        except Exception as e:
+            error_msg = str(e).split('\n')[0][:30]
+            table.add_row("Tomba.io", masked, f"[red]Erro: {error_msg}[/red]")
 
     # ── Checagem do Apollo.io ──
     apollo_keys = secrets.get("apollo", [])

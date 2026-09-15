@@ -36,7 +36,12 @@ for d in "$NMAP_DIR"/nmap-*/; do
 
     GET_FILE="${d}sqlmap_get.txt"
     POST_FILE="${d}sqlmap_post.txt"
-    OUT_FILE="${d}data.json" # Corrigido para bater com o parsers.py!
+
+    # Gera um hash único para a URL atual (ex: 8b1a9953c4611296a827abf8c47804d7)
+    URL_HASH=$(echo -n "$url" | md5sum | awk '{print $1}')
+
+    # Define o arquivo de saída com o hash no nome
+    OUT_JSON="$NMAP_DIR/nmap-${target_name}/sqlmap_${URL_HASH}.json"
 
     if [ -s "$GET_FILE" ]; then
         echo "  → (GET) $target_name..."
@@ -44,7 +49,7 @@ for d in "$NMAP_DIR"/nmap-*/; do
             --flush-session \
             --random-agent \
             "${extra_args[@]}" \
-            --report-json "$OUT_FILE"
+            --report-json "$OUT_JSON"
     fi
 
     if [ -s "$POST_FILE" ]; then
@@ -55,7 +60,7 @@ for d in "$NMAP_DIR"/nmap-*/; do
                 --level 2 --risk 2 --flush-session \
                 --random-agent \
                 "${extra_args[@]}" \
-                --report-json "$OUT_FILE"
+                --report-json "$OUT_JSON"
         done < "$POST_FILE"
     fi
 done
