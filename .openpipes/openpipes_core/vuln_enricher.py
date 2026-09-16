@@ -347,9 +347,6 @@ class VulnEnricherApp(App):
         description = "\n".join(desc_raw) if isinstance(desc_raw, list) else str(desc_raw)
 
         cwe_id = _extract_cwe(cached_data.get("references", []))
-        cwe_from_obs = _extract_cwe_from_text(observation)
-        if cwe_from_obs:
-            cwe_id = cwe_from_obs if not cwe_id else f"{cwe_id}, {cwe_from_obs}"
         
         try:
             with db.get_connection(self.proj_path) as conn:
