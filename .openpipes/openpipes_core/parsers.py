@@ -742,15 +742,25 @@ def parse_jsfinder(proj_path, nmap_dir):
                         continue
                 
                 # 2. Inserir Segredos como Vulnerabilidade (Grep Secrets)
-                for secret in data.get("secrets", []):
+                for secret_line in data.get("secrets", []):
+                    # Tenta dividir a linha pelo pipe (|) para separar a URL do Segredo
+                    parts = secret_line.split("|", 1)
+                    
+                    if len(parts) == 2:
+                        source_url = parts[0].strip()
+                        secret_content = parts[1].strip()
+                        evidence = f"**Arquivo de Origem:** `{source_url}`\n**Secret:** `{secret_content}`"
+                    else:
+                        # Fallback caso alguma linha venha sem o delimitador
+                        evidence = f"**Secret:** `{secret_line.strip()}`"
+
                     title = "Hardcoded Secret found in JavaScript"
-                    evidence = f"**Secret:** `{secret.strip()}`"
                     cursor.execute("""
                         INSERT INTO vulnerabilities 
                         (host_id, title, vuln_name, matched_at, severity, description, evidence, source_tool, status)
                         VALUES (?, ?, ?, '', 'Alta', 'Foram encontradas possíveis chaves de API, tokens ou credenciais hardcoded no código JavaScript.', ?, 'jsfinder', 'open')
                         ON CONFLICT(vuln_name, matched_at, host_id) DO UPDATE SET 
-                        evidence = evidence || '\n' || excluded.evidence
+                        evidence = evidence || '\n---\n' || excluded.evidence
                     """, (host_id, title, title, evidence))
                     count_vulns += 1
                 

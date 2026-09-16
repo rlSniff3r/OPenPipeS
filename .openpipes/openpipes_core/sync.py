@@ -105,7 +105,12 @@ def _extract_callout(text: str, callout: str) -> str:
             for nxt in lines[i + 1:]:
                 if nxt.strip().startswith("> [!") or nxt.strip().startswith("#"):
                     break
-                body.append(nxt)
+                
+                # 🛡️ VACINA APLICADA AQUI: Remove o prefixo "> " do Markdown!
+                import re
+                clean_line = re.sub(r"^>\s?", "", nxt)
+                body.append(clean_line)
+                
             return "\n".join(body).strip()
     return ""
 

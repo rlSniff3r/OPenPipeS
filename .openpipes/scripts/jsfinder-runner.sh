@@ -75,21 +75,19 @@ for nmapFolder in "$varreduraDir"/nmap-*; do
             cat "$tmpDir/rotas_temp.txt" >> "$tmpDir/todas_rotas_all.txt" 2>/dev/null
 
             # ==========================================
-            # CAÇA AOS SEGREDOS (TRIPLA CAMADA)
+            # CAÇA AOS SEGREDOS (TRIPLA CAMADA) - COM RASTREABILIDADE
             # ==========================================
             
-            # Camada 1: Grep Secrets (Nomes de variáveis do React e padrões Hardcoded diretos)
-            grep -hioE "(react_app_[a-z0-9_]+|api_key|apikey|secret|token|password)\s*[:=]\s*['\"][^'\"]+['\"]" "$js_path" >> "$tmpDir/secrets_all.txt"
+            # Camada 1: Grep Secrets
+            grep -hioE "(react_app_[a-z0-9_]+|api_key|apikey|secret|token|password)\s*[:=]\s*['\"][^'\"]+['\"]" "$js_path" | sed "s#^#$url|#" >> "$tmpDir/secrets_all.txt"
             
-            # Camada 2: Jsluice Secrets (Análise via AST)
-            # Extraímos em formato JSONL, pegamos apenas onde há um 'match' e montamos o formato "[tipo] segredo"
-            jsluice secrets "$js_path" 2>/dev/null | jq -r 'select(has("match")) | "[\(.kind)] \(.match)"' >> "$tmpDir/secrets_all.txt"
+            # Camada 2: Jsluice Secrets
+            jsluice secrets "$js_path" 2>/dev/null | jq -r 'select(has("match")) | "[\(.kind)] \(.match)"' | sed "s#^#$url|#" >> "$tmpDir/secrets_all.txt"
 
-            # Camada 3: SecretFinder (Expressões regulares de alta entropia)
-            # O SecretFinder cospe um banner e as strings no formato "[+] tipo: segredo", o grep filtra só as strings!
-            SecretFinder.py -i "$js_path" -o cli 2>/dev/null | grep -E "^\[\+\]" >> "$tmpDir/secrets_all.txt"
+            # Camada 3: SecretFinder
+            SecretFinder.py -i "$js_path" -o cli 2>/dev/null | grep -E "^\[\+\]" | sed "s#^#$url|#" >> "$tmpDir/secrets_all.txt"
             
-            # Grep Parâmetros (Alimenta wordlists do Arjun/Ferox)
+            # Grep Parâmetros (inalterado)
             grep -hioE '["'\''][a-zA-Z0-9_-]+["'\'']\s*:\s*[{]?['\''"a-zA-Z0-9]' "$js_path" | awk -F'['\''"]' '{print $2}' >> "$tmpDir/params_all.txt"
             
         done < "$tmpDir/pendentes_round_${ROUND}.txt"
