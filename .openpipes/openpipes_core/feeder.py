@@ -41,12 +41,8 @@ def _normalize_url(url: str) -> str:
 
 
 def _get_injected_targets(proj_path: str, tool_name: str) -> dict:
-    """
-    Reconstruct injection targets from injectable_params.
-    Returns {host: {"get": [urls], "post": [(url, data)], "headers": [(url, header)]}}
-    Skips params already consumed by tool_name.
-    """
     result: dict[str, dict] = {}
+    scope_domains = _get_scope_domains(proj_path) # <--- ADD AQUI
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -55,10 +51,12 @@ def _get_injected_targets(proj_path: str, tool_name: str) -> dict:
             JOIN endpoints e ON e.id = ip.endpoint_id
             JOIN hosts h ON h.id = e.host_id
             WHERE h.is_alive = 1 AND h.in_scope = 1
-              AND (ip.scanned_by IS NULL OR ip.scanned_by NOT LIKE ?)
+            AND (ip.scanned_by IS NULL OR ip.scanned_by NOT LIKE ?)
             ORDER BY h.host, e.url, ip.param_name
         """, (f"%{tool_name}%",))
+        
         rows = cursor.fetchall()
+        rows = [r for r in rows if _is_in_scope(r["host"], scope_domains)]
 
     # Group params per endpoint
     endpoints: dict[tuple, dict] = {}
@@ -286,7 +284,7 @@ def feed_ferox(proj_path: str, nmap_dir: str):
 
 
 def feed_arjun(proj_path: str, nmap_dir: str):
-    """Feed unscanned endpoints to Arjun (skip already-scanned, skip URLs with visible params)."""
+    scope_domains = _get_scope_domains(proj_path) # <--- ADD AQUI
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -294,21 +292,23 @@ def feed_arjun(proj_path: str, nmap_dir: str):
             FROM endpoints e
             JOIN hosts h ON e.host_id = h.id
             WHERE h.is_alive = 1 AND h.in_scope = 1
-              AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)
-              AND e.status_code IN (200, 301, 302, 403, 500)
-              AND (e.scanned_by IS NULL OR e.scanned_by NOT LIKE '%arjun%')
-              AND e.url NOT LIKE '%?%'
-              AND e.url NOT LIKE '%.png%'
-              AND e.url NOT LIKE '%.jpg%'   AND e.url NOT LIKE '%.jpeg%'
-              AND e.url NOT LIKE '%.gif%'   AND e.url NOT LIKE '%.svg%'
-              AND e.url NOT LIKE '%.ico%'   AND e.url NOT LIKE '%.webp%'
-              AND e.url NOT LIKE '%.bmp%'
-              AND e.url NOT LIKE '%.css%'
-              AND e.url NOT LIKE '%.woff%'  AND e.url NOT LIKE '%.woff2%'
-              AND e.url NOT LIKE '%.ttf%'   AND e.url NOT LIKE '%.eot%'
+            AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)
+            AND e.status_code IN (200, 301, 302, 403, 500)
+            AND (e.scanned_by IS NULL OR e.scanned_by NOT LIKE '%arjun%')
+            AND e.url NOT LIKE '%?%'
+            AND e.url NOT LIKE '%.png%'
+            AND e.url NOT LIKE '%.jpg%' AND e.url NOT LIKE '%.jpeg%'
+            AND e.url NOT LIKE '%.gif%' AND e.url NOT LIKE '%.svg%'
+            AND e.url NOT LIKE '%.ico%' AND e.url NOT LIKE '%.webp%'
+            AND e.url NOT LIKE '%.bmp%'
+            AND e.url NOT LIKE '%.css%'
+            AND e.url NOT LIKE '%.woff%' AND e.url NOT LIKE '%.woff2%'
+            AND e.url NOT LIKE '%.ttf%' AND e.url NOT LIKE '%.eot%'
             ORDER BY h.host, e.url
         """)
+        
         rows = cursor.fetchall()
+        rows = [r for r in rows if _is_in_scope(r["host"], scope_domains)] # <--- ADD AQUI
 
     host_urls: dict[str, list[str]] = {}
     seen: set[str] = set()
@@ -475,7 +475,7 @@ def _build_nuclei_tags(proj_path: str, host_id: int) -> str:
 
 
 def feed_nuclei(proj_path: str, nmap_dir: str):
-    """Port-aware targets: one root URL per open web port + tag files."""
+    scope_domains = _get_scope_domains(proj_path) # <--- ADD AQUI
     with db.get_connection(proj_path) as conn:
         cur = conn.cursor()
         cur.execute("""
@@ -491,7 +491,9 @@ def feed_nuclei(proj_path: str, nmap_dir: str):
             )
             ORDER BY h.host, p.port
         """)
+        
         rows = cur.fetchall()
+        rows = [r for r in rows if _is_in_scope(r["host"], scope_domains)]
 
     per_host: dict[int, dict] = {}
     for r in rows:
@@ -579,7 +581,7 @@ def feed_nwrapper_retry(proj_path: str, nmap_dir: str):
 
 
 def feed_dalfox(proj_path: str, nmap_dir: str):
-    """Feed unscanned endpoints to dalfox (skip already-scanned, exclude only static assets)."""
+    scope_domains = _get_scope_domains(proj_path) # <--- ADD AQUI
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -587,19 +589,21 @@ def feed_dalfox(proj_path: str, nmap_dir: str):
             FROM endpoints e
             JOIN hosts h ON e.host_id = h.id
             WHERE h.is_alive = 1 AND h.in_scope = 1 
-              AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)
-              AND (e.scanned_by IS NULL OR e.scanned_by NOT LIKE '%dalfox%')
-              AND e.url NOT LIKE '%.png%'
-              AND e.url NOT LIKE '%.jpg%'   AND e.url NOT LIKE '%.jpeg%'
-              AND e.url NOT LIKE '%.gif%'   AND e.url NOT LIKE '%.svg%'
-              AND e.url NOT LIKE '%.ico%'   AND e.url NOT LIKE '%.webp%'
-              AND e.url NOT LIKE '%.bmp%'
-              AND e.url NOT LIKE '%.css%'
-              AND e.url NOT LIKE '%.woff%'  AND e.url NOT LIKE '%.woff2%'
-              AND e.url NOT LIKE '%.ttf%'   AND e.url NOT LIKE '%.eot%'
+            AND (e.vulnerability_patterns NOT LIKE '%potential_false_positive%' OR e.vulnerability_patterns IS NULL)
+            AND (e.scanned_by IS NULL OR e.scanned_by NOT LIKE '%dalfox%')
+            AND e.url NOT LIKE '%.png%'
+            AND e.url NOT LIKE '%.jpg%' AND e.url NOT LIKE '%.jpeg%'
+            AND e.url NOT LIKE '%.gif%' AND e.url NOT LIKE '%.svg%'
+            AND e.url NOT LIKE '%.ico%' AND e.url NOT LIKE '%.webp%'
+            AND e.url NOT LIKE '%.bmp%'
+            AND e.url NOT LIKE '%.css%'
+            AND e.url NOT LIKE '%.woff%' AND e.url NOT LIKE '%.woff2%'
+            AND e.url NOT LIKE '%.ttf%' AND e.url NOT LIKE '%.eot%'
             ORDER BY h.host, e.url
         """)
+        
         rows = cursor.fetchall()
+        rows = [r for r in rows if _is_in_scope(r["host"], scope_domains)]
 
     host_urls: dict[str, list[str]] = {}
     for r in rows:
