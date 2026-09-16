@@ -331,13 +331,23 @@ class VulnEnricherApp(App):
             select.value = options[0][1] # Seleciona o de maior score por padrão
 
     def apply_enrichment(self, cached_data: dict, source: str):
-        """Aplica os dados gerados (Cache ou OpenAI) no banco de dados[cite: 2, 3]."""
+        """Aplica os dados gerados (Cache ou OpenAI) no banco de dados."""
         if not self.selected_vuln_id: return
         
         cvss_vector = cached_data.get("cvssv3", "")
         score, severity = _calculate_cvss(cvss_vector)
+        
+        # 🛡️ FILTRO DE SANIDADE: Garante que a IA não quebre o banco enviando listas
+        obs_raw = cached_data.get("observation", "")
+        rem_raw = cached_data.get("remediation", "")
+        desc_raw = cached_data.get("description", self.selected_vuln_data["desc"])
+        
+        observation = "\n".join(obs_raw) if isinstance(obs_raw, list) else str(obs_raw)
+        remediation = "\n".join(rem_raw) if isinstance(rem_raw, list) else str(rem_raw)
+        description = "\n".join(desc_raw) if isinstance(desc_raw, list) else str(desc_raw)
+
         cwe_id = _extract_cwe(cached_data.get("references", []))
-        cwe_from_obs = _extract_cwe_from_text(cached_data.get("observation", ""))
+        cwe_from_obs = _extract_cwe_from_text(observation)
         if cwe_from_obs:
             cwe_id = cwe_from_obs if not cwe_id else f"{cwe_id}, {cwe_from_obs}"
         
@@ -345,37 +355,35 @@ class VulnEnricherApp(App):
             with db.get_connection(self.proj_path) as conn:
                 with db.transaction(conn):
                     cursor = conn.cursor()
-                    # Mantem a CVE original se o cache nao possuir[cite: 3]
                     cursor.execute("SELECT cve_id FROM vulnerabilities WHERE id = ?", (self.selected_vuln_id,))
                     existing = cursor.fetchone()
                     new_cve = cached_data.get("cve_id", "")
                     if not new_cve and existing and existing["cve_id"]:
                         new_cve = existing["cve_id"]
-                        
+                    
                     cursor.execute("""
                         UPDATE vulnerabilities SET
-                            title = ?, cvss_vector = ?, cvss_score = ?, severity = ?,
-                            description = ?, impact = ?, remediation = ?,
-                            reference_urls = ?, cwe_id = ?, cve_id = ?, enriched_by = ?
+                        title = ?, cvss_vector = ?, cvss_score = ?, severity = ?,
+                        description = ?, impact = ?, remediation = ?,
+                        reference_urls = ?, cwe_id = ?, cve_id = ?, enriched_by = ?
                         WHERE id = ?
-                    """, (
+                        """, (
                         cached_data.get("title", self.selected_vuln_data["name"]),
                         cvss_vector, score, severity or "Média",
-                        cached_data.get("description", self.selected_vuln_data["desc"]),
-                        cached_data.get("observation", ""),
-                        cached_data.get("remediation", ""),
+                        description, # Usando as variaveis limpas!
+                        observation, # Usando as variaveis limpas!
+                        remediation, # Usando as variaveis limpas!
                         json.dumps(cached_data.get("references", [])),
                         cwe_id, new_cve, source, self.selected_vuln_id
                     ))
-            
-            # Remove da tabela visual
-            dt = self.query_one("#table-pending", DataTable)
-            dt.remove_row(str(self.selected_vuln_id))
-            self.query_one("#panel-enrich").display = False
-            
+                    
+                    dt = self.query_one("#table-pending", DataTable)
+                    dt.remove_row(str(self.selected_vuln_id))
+                    self.query_one("#panel-enrich").display = False
+        
         except Exception as e:
             self.query_one("#enrich-status", Label).update(f"[red]Erro no DB: {e}[/red]")
-
+            
     @work(exclusive=True, thread=True)
     def fetch_openai_enrichment(self, vuln_name: str, description: str):
         """Roda a IA em background (thread) para não travar o TUI."""
@@ -472,7 +480,7 @@ class VulnEnricherApp(App):
             - cvssv3: Vetor CVSS v3.1 válido (exemplo: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H").
             - description: Descrição técnica detalhada da vulnerabilidade.
             - observation: Impacto potencial no ambiente ou CWE correspondente (ex: CWE-89).
-            - remediation: Passos e recomendações técnicas para correção.
+            - remediation: String formatada em Markdown com os passos e recomendações técnicas para correção (NÃO use Arrays/Listas).
             - references: Lista de URLs de referência relevantes (URLs oficiais, OWASP ou NVD).
             - cve_id: Código CVE associado se aplicável (ex: "CVE-2023-XXXX"), ou string vazia se desconhecido.
             """
