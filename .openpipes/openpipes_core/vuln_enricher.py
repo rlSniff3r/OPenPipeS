@@ -479,7 +479,7 @@ class VulnEnricherApp(App):
             - title: Título legível e padronizado em inglês ou português.
             - cvssv3: Vetor CVSS v3.1 válido (exemplo: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H").
             - description: Descrição técnica detalhada da vulnerabilidade.
-            - observation: Impacto potencial no ambiente ou CWE correspondente (ex: CWE-89).
+            - observation: Impacto potencial no ambiente.
             - remediation: String formatada em Markdown com os passos e recomendações técnicas para correção (NÃO use Arrays/Listas).
             - references: Lista de URLs de referência relevantes (URLs oficiais, OWASP ou NVD).
             - cve_id: Código CVE associado se aplicável (ex: "CVE-2023-XXXX"), ou string vazia se desconhecido.
