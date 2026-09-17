@@ -42,64 +42,30 @@ def _get_env_vars():
 
 class ScopeManagerApp(App):
     CSS = """
-    Screen {
-        layout: horizontal;
-        padding: 1;
-    }
+    Screen { layout: horizontal; padding: 1; }
+    #left-pane { width: 65%; height: 100%; border-right: solid $primary; padding-right: 1; }
+    #right-pane { width: 35%; height: 100%; padding-left: 1; align: center top; }
+    DataTable { height: 1fr; border: solid $secondary; }
     
-    #left-pane {
-        width: 65%;
-        height: 100%;
-        border-right: solid $primary;
-        padding-right: 1;
-    }
+    .panel-title { text-style: bold; color: $accent; margin-bottom: 1; content-align: center middle; }
+    .metric { margin-bottom: 1; }
     
-    #right-pane {
-        width: 35%;
-        height: 100%;
-        padding-left: 1;
-        align: center top;
-    }
-    
-    DataTable {
-        height: 1fr;
-        border: solid $secondary;
-    }
-    
-    .panel-title {
-        text-style: bold;
-        color: $accent;
-        margin-bottom: 1;
-        content-align: center middle;
-    }
-    
-    .metric {
-        margin-bottom: 1;
-    }
-    
-    Button {
-        width: 100%;
-        margin-top: 1;
-    }
-    
-    #cleanup-btn {
-        margin-top: 2;
-        background: $error;
-        color: $text;
-    }
+    Button { width: 100%; margin-top: 1; }
+    #scope-buttons { height: auto; layout: horizontal; }
+    #scope-buttons Button { width: 1fr; margin: 0 1; }
+    #cleanup-btn { margin-top: 2; background: $error; color: $text; }
     """
 
     BINDINGS = [
         ("q", "quit", "Sair"),
-        ("space", "toggle_scope", "Inverter Escopo do Host"),
+        ("space", "toggle_selection", "Marcar/Desmarcar Host"),
     ]
 
     def __init__(self):
         super().__init__()
         self.proj_path = _get_proj_path()
-        self.selected_host_id = None
-        self.selected_host_name = None
-        self.selected_host_scope = None
+        self.selected_hosts = set()       # Guarda os IDs dos hosts selecionados com Espaço
+        self.highlighted_row_key = None   # Guarda a linha que o cursor está atualmente
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -117,8 +83,10 @@ class ScopeManagerApp(App):
                 
                 yield Rule()
                 
-                yield Label("Selecione um host na tabela...", id="lbl-action-title", classes="panel-title")
-                yield Button("Inverter Escopo (Espaço)", id="toggle-btn", variant="primary", disabled=True)
+                yield Label("Nenhum host marcado.", id="lbl-action-title", classes="panel-title")
+                with Horizontal(id="scope-buttons"):
+                    yield Button("Adicionar ✅", id="btn-add", variant="success")
+                    yield Button("Remover ❌", id="btn-remove", variant="warning")
                 
                 yield Rule()
                 yield Label("Operações de Disco:")
@@ -133,18 +101,24 @@ class ScopeManagerApp(App):
             return
         
         dt = self.query_one("#hosts-table", DataTable)
-        dt.add_columns("Host", "Vivo", "Escopo")
+        # Adicionamos IDs explícitos nas colunas (keys) para podermos atualizar células individualmente
+        dt.add_column("Sel", key="sel")
+        dt.add_column("Host", key="host")
+        dt.add_column("Vivo", key="alive")
+        dt.add_column("Escopo", key="scope")
         
         self.load_data()
 
     def load_data(self) -> None:
-        """Carrega e renderiza os hosts do banco de dados."""
+        """Carrega os hosts, preservando a posição do cursor na tabela."""
         dt = self.query_one("#hosts-table", DataTable)
+        
+        # 1. Salva a posição atual do cursor para não resetar pro topo!
+        saved_row = dt.cursor_row
+        
         dt.clear()
         
-        in_count = 0
-        out_count = 0
-        total_count = 0
+        in_count, out_count, total_count = 0, 0, 0
         
         try:
             with db.get_connection(self.proj_path) as conn:
@@ -154,20 +128,21 @@ class ScopeManagerApp(App):
                     ORDER BY in_scope DESC, host
                 """)
                 hosts = cursor.fetchall()
+            
+            total_count = len(hosts)
+            
+            for h in hosts:
+                host_id = h["id"]
+                status = "🟢" if h["is_alive"] else "⚫"
+                scope = "✅" if h["in_scope"] else "❌"
+                # Mantém a seleção visual se a linha já estiver no nosso Set de marcados
+                sel = "[bold cyan][ x ][/bold cyan]" if host_id in self.selected_hosts else "[   ]"
                 
-                total_count = len(hosts)
+                if h["in_scope"]: in_count += 1
+                else: out_count += 1
                 
-                for h in hosts:
-                    status = "🟢" if h["is_alive"] else "⚫"
-                    scope = "✅" if h["in_scope"] else "❌"
-                    
-                    if h["in_scope"]:
-                        in_count += 1
-                    else:
-                        out_count += 1
-                        
-                    dt.add_row(h["host"], status, scope, key=str(h["id"]))
-                    
+                dt.add_row(sel, h["host"], status, scope, key=str(host_id))
+                
         except Exception as e:
             self.query_one("#lbl-action-title", Label).update(f"[red]Erro no BD: {e}[/red]")
             return
@@ -176,60 +151,84 @@ class ScopeManagerApp(App):
         self.query_one("#lbl-in", Label).update(f"No Escopo: [green]{in_count}[/green]")
         self.query_one("#lbl-out", Label).update(f"Fora do Escopo: [red]{out_count}[/red]")
 
+        # 2. Restaura o cursor para a linha onde o usuário estava
+        if saved_row is not None and saved_row < dt.row_count:
+            dt.move_cursor(row=saved_row, animate=False)
+
     def _refresh_selection(self) -> None:
-        """Re-read the currently selected row and update the UI panel."""
-        if self.selected_host_id is None:
-            return
+        """Atualiza o painel direito mostrando quantos hosts estão engatilhados."""
+        lbl = self.query_one("#lbl-action-title", Label)
+        
+        if len(self.selected_hosts) > 0:
+            lbl.update(f"Selecionados: [bold cyan]{len(self.selected_hosts)} hosts[/bold cyan]")
+        elif self.highlighted_row_key:
+            # Se não marcou nenhum com espaço, mostra o host atual do cursor como alvo isolado
+            host_name = self.query_one("#hosts-table", DataTable).get_cell(self.highlighted_row_key, "host")
+            lbl.update(f"Alvo único: [bold]{host_name}[/bold]")
+        else:
+            lbl.update("Nenhum host marcado.")
 
-        with db.get_connection(self.proj_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT host, in_scope FROM hosts WHERE id = ?", (self.selected_host_id,))
-            row = cursor.fetchone()
-            if row:
-                self.selected_host_name = row["host"]
-                self.selected_host_scope = row["in_scope"]
-                lbl = self.query_one("#lbl-action-title", Label)
-                btn = self.query_one("#toggle-btn", Button)
-                lbl.update(f"Host: [bold]{self.selected_host_name}[/bold]")
-                btn.disabled = False
-                if self.selected_host_scope:
-                    btn.label = "Remover do Escopo ❌"
-                    btn.variant = "warning"
-                else:
-                    btn.label = "Adicionar ao Escopo ✅"
-                    btn.variant = "success"
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Captura a linha viva assim que o usuário passa o cursor por cima (setinhas cima/baixo)."""
+        self.highlighted_row_key = event.row_key
+        self._refresh_selection()
 
-    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Quando o usuário clica ou foca em um host."""
-        self.selected_host_id = int(event.row_key.value)
+    def action_toggle_selection(self) -> None:
+        """Ação da Barra de Espaço: Marca o host e pula para a próxima linha."""
+        if not self.highlighted_row_key: return
+        
+        host_id = int(self.highlighted_row_key.value)
+        dt = self.query_one("#hosts-table", DataTable)
+        
+        if host_id in self.selected_hosts:
+            self.selected_hosts.remove(host_id)
+            dt.update_cell(self.highlighted_row_key, "sel", "[   ]")
+        else:
+            self.selected_hosts.add(host_id)
+            dt.update_cell(self.highlighted_row_key, "sel", "[bold cyan][ x ][/bold cyan]")
+            
+        # Desce o cursor automaticamente para facilitar seleções rápidas em massa!
+        if dt.cursor_row < dt.row_count - 1:
+            dt.move_cursor(row=dt.cursor_row + 1, animate=False)
+            
         self._refresh_selection()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "toggle-btn":
-            self.action_toggle_scope()
+        if event.button.id == "btn-add":
+            self.apply_scope(1)
+        elif event.button.id == "btn-remove":
+            self.apply_scope(0)
         elif event.button.id == "cleanup-btn":
             self.run_cleanup()
 
-    def action_toggle_scope(self) -> None:
-        """Inverte o valor in_scope no banco para o host selecionado."""
-        if not self.selected_host_id:
+    def apply_scope(self, in_scope: int) -> None:
+        """Aplica Adicionar/Remover a todos os marcados de uma vez (ou ao host focado)."""
+        target_ids = list(self.selected_hosts)
+        
+        # Se não tiver selecionado nada com Espaço, aplica ao host que está sob o cursor
+        if not target_ids and self.highlighted_row_key:
+            target_ids = [int(self.highlighted_row_key.value)]
+            
+        if not target_ids:
             return
             
-        new_val = 0 if self.selected_host_scope else 1
         try:
             with db.get_connection(self.proj_path) as conn:
                 with db.transaction(conn):
                     cursor = conn.cursor()
-                    cursor.execute("UPDATE hosts SET in_scope = ? WHERE id = ?", (new_val, self.selected_host_id))
+                    ph = ",".join("?" for _ in target_ids)
+                    cursor.execute(f"UPDATE hosts SET in_scope = ? WHERE id IN ({ph})", [in_scope] + target_ids)
             
+            # Limpa a marcação após aplicar a ação em massa e recarrega
+            self.selected_hosts.clear()
             self.load_data()
             self._refresh_selection()
             
         except Exception as e:
-            self.query_one("#lbl-action-title", Label).update(f"[red]Erro ao atualizar: {e}[/red]")
+            self.query_one("#lbl-action-title", Label).update(f"[red]Erro ao atualizar DB: {e}[/red]")
 
+    # (A função run_cleanup continua exatamente igual a original)
     def run_cleanup(self) -> None:
-        """Executa a limpeza dos vaults e arquivos de input para hosts fora do escopo."""
         obsdir, proj_name, nmap_dir = _get_env_vars()
         if not obsdir or not proj_name or not nmap_dir:
             self.query_one("#lbl-cleanup-status", Label).update("[red]Erro ao ler config.sh[/red]")
@@ -270,7 +269,6 @@ class ScopeManagerApp(App):
             
         except Exception as e:
             self.query_one("#lbl-cleanup-status", Label).update(f"[red]Erro na limpeza: {e}[/red]")
-
 
 # === Wrapper for CLI integration ===
 
