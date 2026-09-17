@@ -254,32 +254,63 @@ class VulnEnricherApp(App):
 
 
     def load_pending_vulns(self):
-        """Carrega vulnerabilidades do nuclei que precisam de enriquecimento[cite: 3]."""
+        """Carrega vulnerabilidades que precisam de enriquecimento."""
         dt = self.query_one("#table-pending", DataTable)
         dt.clear(columns=True)
-        dt.add_columns("ID", "Título/Nome", "Descrição", "Status")
+        
+        # 1. Atualizamos o cabeçalho da tabela com as novas colunas
+        dt.add_columns("ID", "Host", "Título/Nome", "Endpoint", "Ferramenta", "Status")
         self.pending_vulns = []
         
         try:
             with db.get_connection(self.proj_path) as conn:
                 cursor = conn.cursor()
+                
+                # 2. Query com JOIN para puxar os dados complementares
                 cursor.execute("""
-                    SELECT id, vuln_name, description, title
-                    FROM vulnerabilities
-                    WHERE (enriched_by IS NULL OR enriched_by = '')
+                    SELECT v.id, v.vuln_name, v.description, v.title, 
+                           v.source_tool, h.host, e.url
+                    FROM vulnerabilities v
+                    LEFT JOIN hosts h ON h.id = v.host_id
+                    LEFT JOIN endpoints e ON e.id = v.endpoint_id
+                    WHERE (v.enriched_by IS NULL OR v.enriched_by = '')
                 """)
                 rows = cursor.fetchall()
                 
-                for r in rows:
-                    vuln_id = r["id"]
-                    v_name = r["vuln_name"] or r["title"]
-                    desc = str(r["description"] or "")[:50] + "..."
-                    self.pending_vulns.append({"id": vuln_id, "name": v_name, "desc": r["description"]})
-                    
-                    dt.add_row(str(vuln_id), str(v_name), desc, "Pendente", key=str(vuln_id))
-                    
+            for r in rows:
+                vuln_id = r["id"]
+                v_name = r["vuln_name"] or r["title"]
+                desc = str(r["description"] or "")
+                
+                # 3. Tratamento de campos nulos para não quebrar o layout
+                host_str = r["host"] or "N/A"
+                # Limita o tamanho da URL para não explodir a largura da tabela
+                url_raw = r["url"] or "N/A"
+                endpoint_str = url_raw[:50] + "..." if len(url_raw) > 50 else url_raw
+                tool_str = r["source_tool"] or "N/A"
+                
+                self.pending_vulns.append({
+                    "id": vuln_id, 
+                    "name": v_name, 
+                    "desc": desc,
+                    "host": host_str,
+                    "endpoint": url_raw,
+                    "tool": tool_str
+                })
+                
+                # 4. Adiciona a linha respeitando a ordem das colunas
+                dt.add_row(
+                    str(vuln_id), 
+                    host_str, 
+                    str(v_name), 
+                    endpoint_str, 
+                    tool_str, 
+                    "Pendente", 
+                    key=str(vuln_id)
+                )
+                
         except Exception as e:
-            dt.add_row("Erro", str(e), "", "")
+            dt.add_row("Erro", str(e), "", "", "", "")
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Quando o usuário clica numa linha pendente."""

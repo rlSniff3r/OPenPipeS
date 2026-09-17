@@ -37,25 +37,39 @@ for d in "$NMAP_DIR"/nmap-*/; do
     GET_FILE="${d}sqlmap_get.txt"
     POST_FILE="${d}sqlmap_post.txt"
 
-    # Gera um hash único para a URL atual (ex: 8b1a9953c4611296a827abf8c47804d7)
-    URL_HASH=$(echo -n "$url" | md5sum | awk '{print $1}')
-
-    # Define o arquivo de saída com o hash no nome
-    OUT_JSON="$NMAP_DIR/nmap-${target_name}/sqlmap_${URL_HASH}.json"
-
+    # ========================================================
+    # LOOP GET: URL por URL
+    # ========================================================
     if [ -s "$GET_FILE" ]; then
         echo "  → (GET) $target_name..."
-        sqlmap -m "$GET_FILE" --batch --threads 5 --level 2 --risk 2 \
-            --flush-session \
-            --random-agent \
-            "${extra_args[@]}" \
-            --report-json "$OUT_JSON"
+        while read -r url; do
+            [ -z "$url" ] && continue
+            
+            # O Hash AGORA está dentro do loop, com a URL preenchida!
+            URL_HASH=$(echo -n "$url" | md5sum | awk '{print $1}')
+            OUT_JSON="$NMAP_DIR/nmap-${target_name}/sqlmap_${URL_HASH}.json"
+            
+            # Trocamos o '-m' pelo '-u' para rodar individualmente
+            sqlmap -u "$url" --batch --threads 5 --level 2 --risk 2 \
+                --flush-session \
+                --random-agent \
+                "${extra_args[@]}" \
+                --report-json "$OUT_JSON"
+        done < "$GET_FILE"
     fi
 
+    # ========================================================
+    # LOOP POST: URL por URL
+    # ========================================================
     if [ -s "$POST_FILE" ]; then
         echo "  → (POST) $target_name..."
         while IFS='|' read -r url data; do
             [ -z "$url" ] && continue
+            
+            # O Hash AGORA está dentro do loop, com a URL preenchida!
+            URL_HASH=$(echo -n "$url" | md5sum | awk '{print $1}')
+            OUT_JSON="$NMAP_DIR/nmap-${target_name}/sqlmap_${URL_HASH}.json"
+
             sqlmap -u "$url" --data "$data" --batch --threads 5 \
                 --level 2 --risk 2 --flush-session \
                 --random-agent \
