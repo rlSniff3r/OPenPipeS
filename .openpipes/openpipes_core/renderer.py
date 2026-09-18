@@ -690,6 +690,62 @@ def render_target(proj_path: str, obsdir: str, proj_name: str, host_name: str) -
     return True
 
 
+def render_topology(proj_path: str, obsdir: str, proj_name: str):
+    """Gera o mapa mental Mermaid de DNS e ASN."""
+    topology = {}
+    
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        # Busca os domínios vivos e no escopo
+        cursor.execute("SELECT host, ips FROM hosts WHERE is_alive = 1 AND in_scope = 1")
+        hosts = cursor.fetchall()
+        
+        for row in hosts:
+            host_name = row["host"]
+            ips = json.loads(row["ips"]) if row["ips"] else []
+            # Pega o primeiro IP
+            main_ip = ips[0] if ips else "IP Desconhecido"
+            
+            # Busca o Provedor no DB
+            provider = "Provedor Desconhecido"
+            if main_ip != "IP Desconhecido":
+                cursor.execute("SELECT provider FROM ip_asn WHERE ip = ?", (main_ip,))
+                p_row = cursor.fetchone()
+                if p_row and p_row["provider"]:
+                    provider = p_row["provider"]
+            
+            # Agrupa no Dicionário (Provedor -> IP -> Domínios)
+            if provider not in topology:
+                topology[provider] = {}
+            if main_ip not in topology[provider]:
+                topology[provider][main_ip] = []
+            
+            topology[provider][main_ip].append(host_name)
+    
+    env = _get_jinja_env()
+    
+    try:
+        template = env.get_template("topology.md.j2")
+    except Exception as e:
+        console.print(f"[red]Erro ao carregar o template topology.md.j2: {e}[/red]")
+        return
+        
+    md_content = template.render(
+        proj_name=proj_name,
+        topology=topology
+    )
+    
+    # Salva na pasta Pentest do projeto no Obsidian (junto do Dashboard Principal)
+    pentest_dir = os.path.join(obsdir, proj_name, "Pentest")
+    os.makedirs(pentest_dir, exist_ok=True)
+    out_path = os.path.join(pentest_dir, "Topologia de Rede.md")
+    
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(md_content)
+        
+    console.print(f" [dim]↳ Render: Topologia de Rede (Mermaid JS)[/dim]")
+
+
 def render_index(proj_path: str, obsdir: str, proj_name: str):
     targets = get_targets_list(proj_path)
     for t in targets:
@@ -725,6 +781,8 @@ def render_all(proj_path: str, obsdir: str, proj_name: str, target_name: str = N
             render_target(proj_path, obsdir, proj_name, t["name"])
         render_dashboard(proj_path, obsdir, proj_name)
         render_index(proj_path, obsdir, proj_name)
+        render_topology(proj_path, obsdir, proj_name)
+        
     console.print(f"\n[bold green]✔ Sync concluído![/bold green]")
 
 

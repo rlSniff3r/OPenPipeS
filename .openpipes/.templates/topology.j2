@@ -1,0 +1,45 @@
+# 🌐 Topologia de Infraestrutura e DNS
+
+> [!info] Mapa de Superfície
+> Este diagrama interativo mapeia a relação entre os Subdomínios descobertos, seus respectivos IPs e os Provedores de Hospedagem (ASN) mapeados na fase de reconhecimento (RDAP).
+
+```mermaid
+graph LR
+    %% Cores e Estilos
+    classDef target fill:#1e1e1e,stroke:#0ea5e9,stroke-width:2px,color:#fff;
+    classDef ip fill:#2d3748,stroke:#4a5568,color:#e2e8f0;
+    classDef domain fill:#2b6cb0,stroke:#2c5282,color:#fff;
+    
+    %% Alvo Raiz
+    ROOT(("🎯 {{ proj_name }}")):::target
+
+    %% Agrupamento por Provedor (ASN)
+    {% for provider, ips in topology.items() %}
+    {% set provider_id = "ASN_" ~ loop.index %}
+    subgraph {{ provider_id }} ["☁️ {{ provider }}"]
+        {% for ip, domains in ips.items() %}
+        {% set ip_node = "IP_" ~ ip | replace(".", "_") %}
+        {{ ip_node }}["{{ ip }}"]:::ip
+        {% endfor %}
+    end
+    {% endfor %}
+
+    %% Conexões: Raiz -> IPs
+    {% for provider, ips in topology.items() %}
+        {% for ip, domains in ips.items() %}
+        {% set ip_node = "IP_" ~ ip | replace(".", "_") %}
+        ROOT ==> {{ ip_node }}
+        {% endfor %}
+    {% endfor %}
+
+    %% Conexões: IPs -> Domínios
+    {% for provider, ips in topology.items() %}
+        {% for ip, domains in ips.items() %}
+            {% set ip_node = "IP_" ~ ip | replace(".", "_") %}
+            {% for domain in domains %}
+            {% set dom_node = "DOM_" ~ domain | replace(".", "_") | replace("-", "_") %}
+            {{ ip_node }} -.-> {{ dom_node }}("{{ domain }}"):::domain
+            {% endfor %}
+        {% endfor %}
+    {% endfor %}
+```
