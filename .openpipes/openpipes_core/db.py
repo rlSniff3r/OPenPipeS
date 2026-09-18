@@ -305,6 +305,15 @@ def init_db(proj_path):
             )
         ''')
 
+        # ── Infraestrutura DNS / ASN ─────────────────────────────────────
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ip_asn (
+                ip TEXT PRIMARY KEY,
+                provider TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         # ═══════════════════════════════════════════════════════════════
         # INDEXES (idempotent)
         # ═══════════════════════════════════════════════════════════════

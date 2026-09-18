@@ -1415,6 +1415,43 @@ def parse_osint_people(proj_path):
                     except Exception as e:
                         print(f"[!] Erro ao processar o arquivo OSINT {filename}: {e}")
 
+
+def parse_dns_topology(proj_path):
+    """Lê o valid-subs.rdap e popula a tabela de IPs e Provedores."""
+    rdap_file = os.path.join(proj_path, "Recon", "valid-subs.rdap")
+    
+    if not os.path.exists(rdap_file):
+        return
+
+    count = 0
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            
+            with open(rdap_file, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if "=>" not in line:
+                        continue
+                    
+                    parts = line.split("=>")
+                    if len(parts) == 2:
+                        ip = parts[0].strip()
+                        provider = parts[1].strip()
+                        
+                        # Limpeza fina: Se vier vazio, coloca 'Desconhecido'
+                        if not provider:
+                            provider = "Unknown Provider"
+                            
+                        cursor.execute('''
+                            INSERT INTO ip_asn (ip, provider)
+                            VALUES (?, ?)
+                            ON CONFLICT(ip) DO UPDATE SET
+                            provider = excluded.provider
+                        ''', (ip, provider))
+                        count += 1
+
+    console.print(f" [dim]↳ Parser DNS Topology: Mapeou {count} IPs para seus Provedores de Infraestrutura.[/dim]")
+
 # ═════════════════════════════════════════════════════════════════════
 # DISPATCH
 # ═════════════════════════════════════════════════════════════════════
@@ -1425,6 +1462,7 @@ def dispatch(module_name, proj_path, nmap_dir):
 
     if module_name == "recon":
         parse_recon(proj_path, recon_dir)
+        parse_dns_topology(proj_path)
 
     elif module_name == "nwrapper":
         parse_nmap(proj_path, nmap_dir)
