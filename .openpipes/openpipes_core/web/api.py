@@ -222,10 +222,19 @@ def get_hosts(username: str = Depends(verificar_autenticacao)):
                         vuln_counts[sev] = v_row["cnt"]
                         total_vulns += v_row["cnt"]
                 
+                main_ip = ips[0] if ips else None
+                provider = "Unknown"
+                if main_ip:
+                    cursor.execute("SELECT provider FROM ip_asn WHERE ip = ?", (main_ip,))
+                    p_row = cursor.fetchone()
+                    if p_row:
+                        provider = p_row["provider"]
+                
                 hosts_cards.append({
                     "id": host_id,
                     "host": hostname,
-                    "ip": ips[0] if ips else "Sem IP",
+                    "ip": main_ip if main_ip else "Sem IP",
+                    "provider": provider, # <--- NOVA LINHA AQUI!
                     "open_ports": open_ports,
                     "endpoints_count": ep_count,
                     "js_count": js_count,
