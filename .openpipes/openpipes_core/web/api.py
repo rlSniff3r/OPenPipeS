@@ -819,7 +819,12 @@ def query_db_table(table: str, query: DBQuery, username: str = Depends(verificar
             total_rows = cursor.fetchone()[0]
             
             # Monta a ordenação (Sortable Headers)
-            order_sql = " ORDER BY id DESC" # Padrão
+            if "id" in valid_columns:
+                order_sql = " ORDER BY id DESC" # Padrão para 99% das tabelas do Megazord
+            else:
+                # Fallback seguro para tabelas sem 'id' (como a ip_asn)
+                order_sql = f" ORDER BY {valid_columns[0]} DESC" if valid_columns else ""
+                
             if query.sort_by in valid_columns:
                 direction = "DESC" if query.sort_desc else "ASC"
                 order_sql = f" ORDER BY {query.sort_by} {direction}"
