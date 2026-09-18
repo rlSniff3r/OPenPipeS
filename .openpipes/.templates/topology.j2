@@ -1,7 +1,13 @@
+---
+tipo: dashboard
+projeto: {{ project_name }}
+gerado_em: {{ generated_at }}
+---
+
 # 🌐 Topologia de Infraestrutura e DNS
 
 > [!info] Mapa de Superfície
-> Este diagrama interativo mapeia a relação entre os Subdomínios descobertos, seus respectivos IPs e os Provedores de Hospedagem (ASN) mapeados na fase de reconhecimento (RDAP).
+> Este diagrama interativo mapeia a relação entre os Subdomínios descobertos, seus respectivos IPs, Provedores de Hospedagem (ASN) e dependências externas (CNAMEs) mapeados na fase de reconhecimento.
 
 ```mermaid
 graph LR
@@ -9,6 +15,7 @@ graph LR
     classDef target fill:#1e1e1e,stroke:#0ea5e9,stroke-width:2px,color:#fff;
     classDef ip fill:#2d3748,stroke:#4a5568,color:#e2e8f0;
     classDef domain fill:#2b6cb0,stroke:#2c5282,color:#fff;
+    classDef cname fill:#553c9a,stroke:#9f7aea,color:#fff,stroke-dasharray: 5 5;
     
     %% Alvo Raiz
     ROOT(("🎯 {{ proj_name }}")):::target
@@ -32,13 +39,21 @@ graph LR
         {% endfor %}
     {% endfor %}
 
-    %% Conexões: IPs -> Domínios
+    %% Conexões: IPs -> Domínios e CNAMEs
     {% for provider, ips in topology.items() %}
         {% for ip, domains in ips.items() %}
             {% set ip_node = "IP_" ~ ip | replace(".", "_") %}
-            {% for domain in domains %}
-            {% set dom_node = "DOM_" ~ domain | replace(".", "_") | replace("-", "_") %}
-            {{ ip_node }} -.-> {{ dom_node }}("{{ domain }}"):::domain
+            
+            {% for dom in domains %}
+            {% set dom_node = "DOM_" ~ dom.name | replace(".", "_") | replace("-", "_") %}
+            {{ ip_node }} -.-> {{ dom_node }}("{{ dom.name }}"):::domain
+            
+            %% Conexões de CNAME
+            {% for cname in dom.cnames %}
+            {% set cname_node = "CNAME_" ~ cname | replace(".", "_") | replace("-", "_") %}
+            {{ dom_node }} -.->|CNAME| {{ cname_node }}("{{ cname }}"):::cname
+            {% endfor %}
+            
             {% endfor %}
         {% endfor %}
     {% endfor %}

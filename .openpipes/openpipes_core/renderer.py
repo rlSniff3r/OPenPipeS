@@ -696,8 +696,35 @@ def render_topology(proj_path: str, obsdir: str, proj_name: str):
     
     with db.get_connection(proj_path) as conn:
         cursor = conn.cursor()
-        # Busca os domínios vivos e no escopo
-        cursor.execute("SELECT host, ips FROM hosts WHERE is_alive = 1 AND in_scope = 1")
+        # 1. Agora puxamos também a coluna cnames!
+        cursor.execute("SELECT host, ips, cnames FROM hosts WHERE is_alive = 1 AND in_scope = 1")
+        hosts = cursor.fetchall()
+        
+        for row in hosts:
+            host_name = row["host"]
+            ips = json.loads(row["ips"]) if row["ips"] else []
+            # 2. Desempacotamos os CNAMEs
+            cnames = json.loads(row["cnames"]) if row["cnames"] else []
+            
+            main_ip = ips[0] if ips else "IP Desconhecido"
+            
+            provider = "Provedor Desconhecido"
+            if main_ip != "IP Desconhecido":
+                cursor.execute("SELECT provider FROM ip_asn WHERE ip = ?", (main_ip,))
+                p_row = cursor.fetchone()
+                if p_row and p_row["provider"]:
+                    provider = p_row["provider"]
+            
+            if provider not in topology:
+                topology[provider] = {}
+            if main_ip not in topology[provider]:
+                topology[provider][main_ip] = []
+            
+            # 3. Agora enviamos um dicionário rico para o Jinja, contendo o nome e os cnames
+            topology[provider][main_ip].append({
+                "name": host_name,
+                "cnames": cnames
+            })
         hosts = cursor.fetchall()
         
         for row in hosts:
@@ -725,9 +752,9 @@ def render_topology(proj_path: str, obsdir: str, proj_name: str):
     env = _get_jinja_env()
     
     try:
-        template = env.get_template("topology.md.j2")
+        template = env.get_template("topology.j2")
     except Exception as e:
-        console.print(f"[red]Erro ao carregar o template topology.md.j2: {e}[/red]")
+        console.print(f"[red]Erro ao carregar o template topology.j2: {e}[/red]")
         return
         
     md_content = template.render(

@@ -16,6 +16,24 @@ console = Console()
 
 CONFIG_FILE = os.path.expanduser("~/.openpipes/config.sh")
 
+# ── Dicionário Global de Signatures de Subdomain Takeover ──
+TAKEOVER_SIGNATURES = {
+    "s3.amazonaws.com": "AWS S3 Bucket",
+    "elasticbeanstalk.com": "AWS Elastic Beanstalk",
+    "herokuapp.com": "Heroku",
+    "herokudns.com": "Heroku",
+    "pages.github.com": "GitHub Pages",
+    "github.io": "GitHub Pages",
+    "azurewebsites.net": "Microsoft Azure",
+    "cloudapp.net": "Microsoft Azure",
+    "trafficmanager.net": "Microsoft Azure",
+    "ghost.io": "Ghost",
+    "pantheon.io": "Pantheon",
+    "bitbucket.io": "Bitbucket Pages",
+    "zendesk.com": "Zendesk",
+    "readme.io": "Readme.io",
+    "surge.sh": "Surge.sh"
+}
 
 # ═════════════════════════════════════════════════════════════════════
 # FUNÇÕES AUXILIARES
@@ -1416,6 +1434,91 @@ def parse_osint_people(proj_path):
                         print(f"[!] Erro ao processar o arquivo OSINT {filename}: {e}")
 
 
+def parse_cnames_and_takeovers(proj_path):
+    """Mapeia CNAMEs e varre passivamente por Subdomain Takeovers."""
+    recon_dir = os.path.join(proj_path, "Recon")
+    if not os.path.exists(recon_dir):
+        return
+
+    cname_map = {}
+    nxdomain_hosts = set()
+    takeovers_found = 0
+    cnames_mapped = 0
+
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+
+            for target_folder in os.listdir(recon_dir):
+                folder_path = os.path.join(recon_dir, target_folder)
+                if not os.path.isdir(folder_path):
+                    continue
+
+                cname_file = os.path.join(folder_path, "cname-allsubs")
+                hosts_file = os.path.join(folder_path, "hosts-allsubs")
+
+                # 1. Lê os CNAMEs
+                if os.path.exists(cname_file):
+                    with open(cname_file, "r", encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            # Formato: "sub.alvo.com is an alias for target.provider.com."
+                            if " is an alias for " in line:
+                                parts = line.split(" is an alias for ")
+                                sub = parts[0].strip().lower()
+                                target = parts[1].strip().lower().rstrip('.')
+                                cname_map[sub] = target
+
+                # 2. Identifica os hosts mortos (NXDOMAIN)
+                if os.path.exists(hosts_file):
+                    with open(hosts_file, "r", encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            # Formato: "Host sub.alvo.com not found: 3(NXDOMAIN)"
+                            if "not found:" in line or "NXDOMAIN" in line:
+                                m = re.search(r"Host\s+(.*?)\s+not found", line, re.IGNORECASE)
+                                if m:
+                                    nxdomain_hosts.add(m.group(1).strip().lower())
+
+                # 3. Cruzamento de Dados e Injeção no Banco
+                for sub, target in cname_map.items():
+                    # A. Salva o CNAME na tabela de hosts
+                    cursor.execute("SELECT id FROM hosts WHERE host = ?", (sub,))
+                    row = cursor.fetchone()
+                    
+                    # Cria o host caso o parser principal tenha pulado
+                    if not row:
+                        cursor.execute("INSERT OR IGNORE INTO hosts (host, is_alive) VALUES (?, 1)", (sub,))
+                        cursor.execute("SELECT id FROM hosts WHERE host = ?", (sub,))
+                        row = cursor.fetchone()
+
+                    if row:
+                        host_id = row["id"]
+                        cursor.execute("UPDATE hosts SET cnames = ? WHERE id = ?", (json.dumps([target]), host_id))
+                        cnames_mapped += 1
+
+                        # B. A Checagem Muscular de Takeover!
+                        if sub in nxdomain_hosts:
+                            for sig, provider_name in TAKEOVER_SIGNATURES.items():
+                                if sig in target:
+                                    title = "Subdomain Takeover"
+                                    desc = (f"O subdomínio `{sub}` aponta para o CNAME `{target}` (Serviço: {provider_name}), "
+                                            f"mas o destino está desativado ou retornando NXDOMAIN. "
+                                            f"Um atacante pode registrar esse recurso no provedor e assumir o controle do subdomínio.")
+                                    evidence = f"**Host:** {sub}\n**CNAME Órfão:** {target}\n**Provedor Vulnerável:** {provider_name}"
+                                    
+                                    cursor.execute("""
+                                        INSERT INTO vulnerabilities 
+                                        (host_id, title, vuln_name, matched_at, severity, description, evidence, source_tool, status)
+                                        VALUES (?, ?, ?, '', 'Alta', ?, ?, 'recon_takeover', 'open')
+                                        ON CONFLICT(vuln_name, matched_at, host_id) DO NOTHING
+                                    """, (host_id, title, title, desc, evidence))
+                                    
+                                    if cursor.rowcount > 0:
+                                        takeovers_found += 1
+                                    break # Se achou a signature, pula pro próximo host
+
+    console.print(f" [dim]↳ Parser CNAME: Mapeou {cnames_mapped} CNAMEs e detectou {takeovers_found} vulnerabilidades de Subdomain Takeover.[/dim]")
+
+
 def parse_dns_topology(proj_path):
     """Lê o valid-subs.rdap e popula a tabela de IPs e Provedores."""
     rdap_file = os.path.join(proj_path, "Recon", "valid-subs.rdap")
@@ -1463,6 +1566,7 @@ def dispatch(module_name, proj_path, nmap_dir):
     if module_name == "recon":
         parse_recon(proj_path, recon_dir)
         parse_dns_topology(proj_path)
+        parse_cnames_and_takeovers(proj_path)
 
     elif module_name == "nwrapper":
         parse_nmap(proj_path, nmap_dir)
