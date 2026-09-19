@@ -1555,6 +1555,68 @@ def parse_dns_topology(proj_path):
 
     console.print(f" [dim]↳ Parser DNS Topology: Mapeou {count} IPs para seus Provedores de Infraestrutura.[/dim]")
 
+
+def enrich_missing_asns(proj_path):
+    """Verifica IPs órfãos na base e busca o ASN via RDAP dinamicamente."""
+    missing_ips = set()
+    
+    with db.get_connection(proj_path) as conn:
+        cursor = conn.cursor()
+        
+        # 1. Pega todos os IPs vivos do banco
+        cursor.execute("SELECT ips FROM hosts WHERE is_alive = 1 AND in_scope = 1")
+        all_ips = set()
+        for row in cursor.fetchall():
+            ips = json.loads(row["ips"]) if row["ips"] else []
+            for ip in ips:
+                if is_ipv4(ip):
+                    all_ips.add(ip)
+                    
+        # 2. Pega os IPs que já mapeamos o provedor
+        cursor.execute("SELECT ip FROM ip_asn")
+        known_ips = {row["ip"] for row in cursor.fetchall()}
+        
+        # 3. A Mágica: Subtrai os conjuntos para achar os órfãos
+        missing_ips = all_ips - known_ips
+
+    if not missing_ips:
+        console.print(" [dim]↳ ASN Enricher: Nenhum IP órfão encontrado. Topologia 100% mapeada![/dim]")
+        return
+
+    console.print(f" [yellow]↳ ASN Enricher: Encontrados {len(missing_ips)} IPs novos. Consultando RDAP em background...[/yellow]")
+    
+    # Função auxiliar para rodar o RDAP no sistema operacional
+    def get_rdap_provider(target_ip):
+        try:
+            # Roda o mesmo comando que você usaria no terminal
+            cmd = f"rdap {target_ip} | grep 'vCard fn' | head -n1 | cut -d ':' -f2"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            provider = result.stdout.strip()
+            return target_ip, provider if provider else "Unknown Provider"
+        except Exception:
+            return target_ip, "Unknown Provider"
+
+    # 4. Consulta multi-thread para não travar o Megazord
+    resolved_count = 0
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(get_rdap_provider, ip): ip for ip in missing_ips}
+                for future in as_completed(futures):
+                    ip, provider = future.result()
+                    
+                    cursor.execute('''
+                        INSERT INTO ip_asn (ip, provider)
+                        VALUES (?, ?)
+                        ON CONFLICT(ip) DO UPDATE SET
+                        provider = excluded.provider
+                    ''', (ip, provider))
+                    resolved_count += 1
+                    
+    console.print(f" [green]↳ ASN Enricher: {resolved_count} novos IPs enriquecidos e integrados à Topologia![/green]")
+
 # ═════════════════════════════════════════════════════════════════════
 # DISPATCH
 # ═════════════════════════════════════════════════════════════════════
@@ -1618,6 +1680,9 @@ def dispatch(module_name, proj_path, nmap_dir):
 
     elif module_name == "osint-people-runner":
         parse_osint_people(proj_path)
+    
+    elif module_name == "asn-enricher":
+        enrich_missing_asns(proj_path)
 
     else:
         console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")
