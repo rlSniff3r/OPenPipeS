@@ -87,8 +87,9 @@ process_target() {
         -kf all \
         -or -ob \
         -fx \
-        -pc \
+        -fsu \
         -kb \
+        -kb-secrets \
         -kb-endpoints \
         -jsonl \
         -o "$WORK_DIR/crawled_all.jsonl" \

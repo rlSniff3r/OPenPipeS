@@ -1556,6 +1556,68 @@ def parse_dns_topology(proj_path):
     console.print(f" [dim]↳ Parser DNS Topology: Mapeou {count} IPs para seus Provedores de Infraestrutura.[/dim]")
 
 
+def parse_metadata(proj_path, nmap_dir):
+    """Lê relatórios JSON do Exiftool e injeta usuários e tecnologias no banco."""
+    count_users = 0
+    count_techs = 0
+    
+    with db.get_connection(proj_path) as conn:
+        with db.transaction(conn):
+            cursor = conn.cursor()
+            
+            for nmap_folder in sorted(os.listdir(nmap_dir)):
+                if not nmap_folder.startswith("nmap-"): continue
+                
+                target_name = nmap_folder[5:]
+                meta_file = os.path.join(nmap_dir, nmap_folder, "metadata.json")
+                
+                if not os.path.exists(meta_file):
+                    continue
+                
+                # Resgata o ID do host e as tecnologias manuais atuais
+                cursor.execute("SELECT id, manual_techs FROM hosts WHERE host = ?", (target_name,))
+                row = cursor.fetchone()
+                if not row: continue
+                
+                host_id = row["id"]
+                current_techs = json.loads(row["manual_techs"]) if row["manual_techs"] else []
+                
+                try:
+                    with open(meta_file, "r", encoding="utf-8", errors="ignore") as f:
+                        data = json.load(f)
+                        
+                    for doc in data:
+                        # Extração Tática de Usuários (Vazamento de DLP)
+                        for user_key in ["Author", "LastModifiedBy"]:
+                            val = doc.get(user_key)
+                            if val and len(val) > 2:
+                                # Limpa caminhos absolutos (ex: C:\Users\r.silva) para pegar só o nome
+                                clean_user = val.split('\\')[-1].strip()
+                                cursor.execute('''
+                                    INSERT OR IGNORE INTO osint_people (host_id, name, role, email, source)
+                                    VALUES (?, ?, ?, ?, ?)
+                                ''', (host_id, clean_user, "Extraído de Metadados", "", "metadata"))
+                                if cursor.rowcount > 0: count_users += 1
+                                
+                        # Extração de Softwares Internos (Shadow IT)
+                        for tech_key in ["Creator", "Producer"]:
+                            val = doc.get(tech_key)
+                            if val and len(val) > 2:
+                                clean_tech = val.strip()
+                                if clean_tech not in current_techs:
+                                    current_techs.append(clean_tech)
+                                    count_techs += 1
+                                    
+                    # Salva as novas tecnologias descobertas
+                    if count_techs > 0:
+                        cursor.execute("UPDATE hosts SET manual_techs = ? WHERE id = ?", (json.dumps(current_techs), host_id))
+                        
+                except Exception:
+                    continue
+                    
+    console.print(f" [dim]↳ Parser Metadata: Extraiu {count_users} usuários e {count_techs} tecnologias internas.[/dim]")
+
+
 def enrich_missing_asns(proj_path):
     """Verifica IPs órfãos na base e busca o ASN via RDAP dinamicamente."""
     missing_ips = set()
@@ -1683,6 +1745,9 @@ def dispatch(module_name, proj_path, nmap_dir):
     
     elif module_name == "asn-enricher":
         enrich_missing_asns(proj_path)
+    
+    elif module_name == "metadata-runner":
+        parse_metadata(proj_path, nmap_dir)
 
     else:
         console.print(f" [yellow]⚠ Nenhum parser registrado para: {module_name}[/yellow]")

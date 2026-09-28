@@ -11,12 +11,16 @@ gerado_em: {{ generated_at }}
 
 ```mermaid
 graph LR
-    %% Cores e Estilos
+    %% Cores e Estilos Básicos
     classDef target fill:#1e1e1e,stroke:#0ea5e9,stroke-width:2px,color:#fff;
     classDef ip fill:#2d3748,stroke:#4a5568,color:#e2e8f0;
     classDef domain fill:#2b6cb0,stroke:#2c5282,color:#fff;
     classDef cname fill:#553c9a,stroke:#9f7aea,color:#fff,stroke-dasharray: 5 5;
     
+    %% Paleta de Cores para as Linhas e Contador de Arestas
+    {% set colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#14b8a6', '#8b5cf6', '#84cc16'] %}
+    {% set edge = namespace(idx=0) %}
+
     %% Alvo Raiz
     ROOT(("🎯 {{ proj_name }}")):::target
 
@@ -31,29 +35,36 @@ graph LR
     end
     {% endfor %}
 
-    %% Conexões: Raiz -> IPs
+    %% Conexões com Cores Dinâmicas
     {% for provider, ips in topology.items() %}
-        {% for ip, domains in ips.items() %}
-        {% set ip_node = "IP_" ~ ip | replace(".", "_") %}
-        ROOT ==> {{ ip_node }}
-        {% endfor %}
-    {% endfor %}
+        %% Seleciona uma cor da paleta com base no índice do provedor
+        {% set p_color = colors[loop.index0 % colors|length] %}
 
-    %% Conexões: IPs -> Domínios e CNAMEs
-    {% for provider, ips in topology.items() %}
         {% for ip, domains in ips.items() %}
             {% set ip_node = "IP_" ~ ip | replace(".", "_") %}
             
+            %% Raiz -> IPs
+            ROOT ==> {{ ip_node }}
+            linkStyle {{ edge.idx }} stroke:{{ p_color }},stroke-width:2px;
+            {% set edge.idx = edge.idx + 1 %}
+
+            %% IPs -> Domínios e CNAMEs
             {% for dom in domains %}
-            {% set dom_node = "DOM_" ~ dom.name | replace(".", "_") | replace("-", "_") %}
-            {{ ip_node }} -.-> {{ dom_node }}("{{ dom.name }}"):::domain
-            
-            %% Conexões de CNAME
-            {% for cname in dom.cnames %}
-            {% set cname_node = "CNAME_" ~ cname | replace(".", "_") | replace("-", "_") %}
-            {{ dom_node }} -.->|CNAME| {{ cname_node }}("{{ cname }}"):::cname
-            {% endfor %}
-            
+                {% set dom_node = "DOM_" ~ dom.name | replace(".", "_") | replace("-", "_") %}
+                
+                {{ ip_node }} -.-> {{ dom_node }}("{{ dom.name }}"):::domain
+                linkStyle {{ edge.idx }} stroke:{{ p_color }},stroke-width:1px,stroke-dasharray: 5 5;
+                {% set edge.idx = edge.idx + 1 %}
+                
+                %% Conexões de CNAME (Sempre Roxas)
+                {% for cname in dom.cnames %}
+                    {% set cname_node = "CNAME_" ~ cname | replace(".", "_") | replace("-", "_") %}
+                    
+                    {{ dom_node }} -.->|CNAME| {{ cname_node }}("{{ cname }}"):::cname
+                    linkStyle {{ edge.idx }} stroke:#9f7aea,stroke-width:1px,stroke-dasharray: 3 3;
+                    {% set edge.idx = edge.idx + 1 %}
+                {% endfor %}
+                
             {% endfor %}
         {% endfor %}
     {% endfor %}

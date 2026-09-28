@@ -142,6 +142,22 @@ def build_context_wordlist(proj_path: str, nmap_dir: str):
                     # Ignora lixo de 1 caractere ou vazio
                     if param and len(param) > 1:
                         wl.add(param)
+        
+        # 5. Injeção de Inteligência OSINT / Metadados (Nomes de Usuários e E-mails)
+        with db.get_connection(proj_path) as conn_osint:
+            cur_osint = conn_osint.cursor()
+            cur_osint.execute("SELECT name, email FROM osint_people WHERE host_id = ? OR host_id IS NULL", (host_id,))
+            for person in cur_osint.fetchall():
+                # Fuzzing com o nome quebrado (Ex: "João Silva" -> "joao", "silva")
+                if person["name"]:
+                    for part in person["name"].replace(".", " ").replace("_", " ").split():
+                        if len(part) > 2:
+                            wl.add(part.lower())
+                # Fuzzing com a raiz do e-mail (Ex: "admin@rands.com" -> "admin")
+                if person["email"] and "@" in person["email"]:
+                    user_root = person["email"].split("@")[0]
+                    if len(user_root) > 2:
+                        wl.add(user_root.lower())
 
         # Sort and write with warning header
         sorted_wl = sorted(w.lower() for w in wl if w)
