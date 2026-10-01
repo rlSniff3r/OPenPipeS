@@ -846,6 +846,15 @@ def render_dashboard(proj_path: str, obsdir: str, proj_name: str):
     all_endpoints = _get_dashboard_endpoints(proj_path)
     all_vulns = _get_all_vulnerabilities(proj_path)
 
+    # --- ADICIONE ESTAS LINHAS AQUI ---
+    # Ordena por CVSS decrescente. Se for None, assume 0.0 para não quebrar.
+    all_vulns = sorted(
+        all_vulns,
+        key=lambda v: v["cvss_score"] if v["cvss_score"] is not None else 0.0,
+        reverse=True
+    )
+    # ----------------------------------
+
     env = _get_jinja_env()
     dashboard_md = env.get_template("dashboard.j2").render(
         project_name=proj_name, summary=summary, targets=targets,

@@ -34,20 +34,20 @@ def load_secrets():
     with open(secrets_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Regex Ninja: Busca por APOLLO_KEYS=("chave1" "chave2")
+    # Regex Apollo: Busca por APOLLO_KEYS=("chave1" "chave2")
     apollo_match = re.search(r'APOLLO_KEYS=\((.*?)\)', content, re.DOTALL)
     if apollo_match:
         # Pega tudo dentro dos parênteses, divide por espaços e arranca as aspas
         raw_keys = apollo_match.group(1).split()
         secrets["apollo"] = [k.strip("'\"") for k in raw_keys if k.strip("'\"")]
 
-    # Regex do Hunter ficaria aqui no futuro!
+    # Regex Hunter: Busca por HUNTER_KEYS=("chave1" "chave2")
     hunter_match = re.search(r'HUNTER_KEYS=\((.*?)\)', content, re.DOTALL)
     if hunter_match:
         raw_keys = hunter_match.group(1).split()
         secrets["hunter"] = [k.strip("'\"") for k in raw_keys if k.strip("'\"")]
     
-    # Regex do Tomba
+    # Regex do Tomba: Busca por TOMBA_KEYS=("key1:secret1" "key2:secret2")
     tomba_match = re.search(r'TOMBA_KEYS=\((.*?)\)', content, re.DOTALL)
     if tomba_match:
         raw_keys = tomba_match.group(1).split()

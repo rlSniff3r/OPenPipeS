@@ -11,6 +11,7 @@ from rich.panel import Panel
 import db
 import feeder
 import verifier
+import parsers
 import renderer
 
 console = Console()
@@ -226,8 +227,12 @@ def run_cycle(targets: list = None, fresh: bool = False, rescan: bool = False):
     console.print("\n[bold]4. Verify[/bold]")
     verifier.verify_endpoints(proj_path)
 
-    # Stage 5: Sync
-    console.print("\n[bold]5. Sync[/bold]")
+    # Stage 5: ASN Enrichment
+    console.print("\n[bold]5. ASN Enrichment[/bold]")
+    parsers.enrich_missing_asns(proj_path)
+
+    # Stage 6: Sync
+    console.print("\n[bold]6. Sync[/bold]")
     renderer.sync_project()
 
     elapsed = time.time() - start
